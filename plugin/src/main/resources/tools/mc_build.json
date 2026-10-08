@@ -1,14 +1,51 @@
 {
   "name": "mc_build",
   "title": "Build",
-  "description": "Places blocks in the Minecraft world in bulk: cuboid fills, individual block placements, and/or lettering rendered by the plugin (`text`), up to 500,000 blocks per call. Executes asynchronously across ticks, so large builds do not lag players.\n\nWHEN TO USE: any task placing more than a handful of blocks - buildings, terrain shaping, clearing space, roads, walls. Prefer few large `fills`. Use `blocks` for details needing a specific orientation or state (stairs, doors, torches, signs): pass the full block state string, e.g. `minecraft:oak_stairs[facing=north,half=bottom]`. Use `text` for lettering bigger than a single sign - never place letter-shaped blocks by hand.\nWHEN NOT TO USE: to read the world (use `mc_survey`/`mc_inspect`); to run a server command (use `mc_command`).\n\nCOORDINATES: X grows east, Z grows south, Y grows up. `from`/`to` are inclusive corners in any order. Volume = (x2-x1+1)*(y2-y1+1)*(z2-z1+1). Operations run in array order - put clearing (`minecraft:air`) before filling. `mode`: \"replace\" (default) overwrites everything; \"keep\" fills only air; \"outline\"/\"hollow\" place a 1-block shell (hollow also clears the inside); \"walls\" places only the four vertical sides - use it for rooms, then add a floor and roof separately. `filter` restricts a fill to blocks matching that state (e.g. `filter: \"minecraft:air\"` builds only into empty space). Blocks are placed without physics by default (sand/gravel do not fall; water/lava sit frozen); `liquids: \"flow\"` makes water/lava spread and fall normally. Connectable blocks (panes, fences, walls, bars, stairs) get a shape-only update so they connect like hand-placed blocks. To write a sign, pass a `sign` object on a `blocks` entry whose block is a sign, e.g. `minecraft:oak_wall_sign[facing=south]` in the air block in front of the wall - never replace the wall block itself.\n\nSIDE EFFECTS: permanently modifies the world. Set `snapshot: true` to save the affected region first, so `mc_restore` can undo this call. Limits per call: 500,000 blocks total, 1,024 chunks footprint, one world (see `liquids` for its own, smaller cap); an over-limit request is rejected before anything changes. The response lists WARNINGS for unsupported blocks (ladders, torches, signs, doors, carpets...); fix those before reporting the build done.",
+  "description": "Places blocks in the Minecraft world in bulk: cuboid fills, individual block placements, and/or lettering rendered by the plugin (`text`), up to 500,000 blocks per call. Executes asynchronously across ticks, so large builds do not lag players.\n\nWHEN TO USE: build a saved reusable design with `blueprint:{id:...,palette:{...}}` (managed by mc_blueprint), or any task placing more than a handful of blocks - buildings, terrain shaping, clearing space, roads, walls. Prefer few large `fills`. Use `blocks` for details needing a specific orientation or state (stairs, doors, torches, signs): pass the full block state string, e.g. `minecraft:oak_stairs[facing=north,half=bottom]`. Use `text` for lettering bigger than a single sign - never place letter-shaped blocks by hand.\nWHEN NOT TO USE: to read the world (use `mc_survey`/`mc_inspect`); to run a server command (use `mc_command`).\n\nCOORDINATES: A `blueprint` selector cannot be combined with direct fills/blocks/text. Its component mirrors/rotations are applied first, then instance positions and project-frame repetition, then the project `transform`. All components compile into the existing global fills -> text -> blocks passes, preserving instance order within each pass; a snapshot captures their union once. Dimensions/constraints are advisory. X grows east, Z grows south, Y grows up. Coordinates are absolute unless `transform` is supplied: then every fill corner, block position and text position is local to `transform.origin`. Mirror local X or Z first, rotate clockwise viewed from above, then add the world origin. Block states (including omitted defaults), filter orientations and expanded text geometry transform with the positions; sign strings stay readable, but mirrored block lettering has mirrored glyphs. Supply both halves of doors/beds yourself. `from`/`to` are inclusive corners in any order. Volume = (x2-x1+1)*(y2-y1+1)*(z2-z1+1). Operations run in array order - put clearing (`minecraft:air`) before filling. `mode`: \"replace\" (default) overwrites everything; \"keep\" fills only air; \"outline\"/\"hollow\" place a 1-block shell (hollow also clears the inside); \"walls\" places only the four vertical sides - use it for rooms, then add a floor and roof separately. `filter` restricts a fill to blocks matching that state (e.g. `filter: \"minecraft:air\"` builds only into empty space). Blocks are placed without physics by default (sand/gravel do not fall; water/lava sit frozen); `liquids: \"flow\"` makes water/lava spread and fall normally. Connectable blocks (panes, fences, walls, bars, stairs) get a shape-only update so they connect like hand-placed blocks. To write a sign, pass a `sign` object on a `blocks` entry whose block is a sign, e.g. `minecraft:oak_wall_sign[facing=south]` in the air block in front of the wall - never replace the wall block itself.\n\nSIDE EFFECTS: dryRun:true returns read-only site diagnostics without snapshots or writes; use mc_plan for image previews. Otherwise permanently modifies the world. Every phase is structurally validated before the first snapshot/write, including aggregate limits and sign data. Optional preflight:true also rejects pairing/support failures or incomplete neighbor checks before writing; overwritten non-air cells remain advisory, since terrain cannot be distinguished from structures. Site checks do not reserve the world or simulate connections, fluid spreading or entities. Set `snapshot: true` to save the affected region first, so `mc_restore` can undo this call. Limits per call: 500,000 blocks total, 1,024 chunks footprint, one world (see `liquids` for its own, smaller cap); an over-limit request is rejected before anything changes. The response lists WARNINGS for unsupported blocks (ladders, torches, signs, doors, carpets...); fix those before reporting the build done.",
   "inputSchema": {
     "type": "object",
     "properties": {
+      "dryRun": { "type": "boolean", "default": false, "description": "Read-only final-scene analysis; no snapshots or writes. Returns a JSON report. Use mc_plan for images." },
+      "preflight": { "type": "boolean", "default": false, "description": "Before building, check the final virtual site and reject missing/incompatible door/bed parts, support warnings or incomplete neighbor checking. Collision/overlap counts are advisory. Structural validation always runs regardless of this flag." },
       "world": {
         "description": "World name. Omitted uses the plugin's configured default world.",
         "type": "string",
         "minLength": 1
+      },
+      "blueprint": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Build a saved mc_blueprint document. Exclusive with direct fills/blocks/text. Optional palette overrides document bindings; instance bindings take precedence. Compiled states are validated before snapshots/writes; expansion and aggregate server limits apply.",
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
+          "palette": { "type": "object", "maxProperties": 128, "additionalProperties": { "type": "string" }, "description": "Role name -> literal block state. Component defaults < document palette < these overrides < instance palette. Inline properties on $role[property=value] override bound properties." }
+        },
+        "required": ["id"]
+      },
+      "transform": {
+        "description": "Optional local coordinate frame for ALL fills, blocks and text. Mirror first, rotate second, translate last. Omit to preserve existing absolute-coordinate behavior. Rotation is clockwise viewed from above: 90 maps local east (+X) to world south (+Z). No automatic paired-block creation.",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "origin": {
+            "description": "World [x,y,z] location of local [0,0,0]. Required when transform is present; coordinates must be signed 32-bit integers.",
+            "type": "array",
+            "items": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 },
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "rotation": {
+            "description": "Clockwise degrees around local Y, viewed from above. Default 0.",
+            "type": "integer",
+            "enum": [0, 90, 180, 270]
+          },
+          "mirror": {
+            "description": "Local coordinate to negate before rotation: x reflects across the YZ plane; z reflects across the XY plane. Default none. Does not flip Y.",
+            "type": "string",
+            "enum": ["none", "x", "z"]
+          }
+        },
+        "required": ["origin"]
       },
       "fills": {
         "description": "Cuboid fill operations, executed in array order via the plugin's fill_batch RPC.",
@@ -120,7 +157,7 @@
               "items": false,
               "minItems": 3,
               "maxItems": 3,
-              "description": "Absolute [x, y, z] position."
+              "description": "[x, y, z] position: absolute by default, local when transform is supplied."
             },
             "block": {
               "type": "string",

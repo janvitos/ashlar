@@ -86,7 +86,9 @@ final class SupportCheck {
             Material.LILY_OF_THE_VALLEY, Material.WITHER_ROSE, Material.SUNFLOWER,
             Material.LILAC, Material.ROSE_BUSH, Material.PEONY);
 
-    private final World world;
+    @FunctionalInterface
+    interface Lookup { BlockData get(int x, int y, int z); }
+    private final Lookup lookup;
     private final List<int[]> positions;
     private final List<int[]> neighbourPositions;
     private final boolean enabled;
@@ -104,7 +106,12 @@ final class SupportCheck {
 
     /** {@code flagGravity}: whether unsupported gravity blocks are reported; see {@link #needsCheck(BlockData, boolean)}. */
     SupportCheck(World world, List<int[]> positions, List<int[]> neighbourPositions, boolean enabled, boolean flagGravity) {
-        this.world = world;
+        this((x, y, z) -> world.getBlockAt(x, y, z).getBlockData(), positions, neighbourPositions, enabled, flagGravity);
+    }
+
+    /** Read-only virtual scenes can reuse the same advisory rules without placing blocks. */
+    SupportCheck(Lookup lookup, List<int[]> positions, List<int[]> neighbourPositions, boolean enabled, boolean flagGravity) {
+        this.lookup = lookup;
         this.positions = positions;
         this.neighbourPositions = neighbourPositions;
         this.enabled = enabled;
@@ -207,7 +214,7 @@ final class SupportCheck {
         if (!seen.add(key)) {
             return;
         }
-        BlockData data = world.getBlockAt(x, y, z).getBlockData();
+        BlockData data = lookup.get(x, y, z);
         Warning w = evaluate(x, y, z, data);
         if (w != null) {
             warnings.add(w);
@@ -261,7 +268,7 @@ final class SupportCheck {
             // Vanilla-legal, but a ladder run whose lowest rung hangs above the
             // floor is almost always an off-by-one: players cannot step onto it.
             if (data instanceof Ladder && !isSolid(x, y - 1, z)
-                    && !(world.getBlockAt(x, y - 1, z).getBlockData() instanceof Ladder)) {
+                    && !(lookup.get(x, y - 1, z) instanceof Ladder)) {
                 return new Warning(x, y, z, data.getAsString(),
                         "ladder bottom is floating (air below); extend the ladder down to the floor");
             }
@@ -389,6 +396,6 @@ final class SupportCheck {
     }
 
     private boolean isSolid(int x, int y, int z) {
-        return world.getBlockAt(x, y, z).getType().isSolid();
+        return lookup.get(x, y, z).getMaterial().isSolid();
     }
 }

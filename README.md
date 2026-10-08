@@ -10,7 +10,7 @@ AI building tools for Minecraft Paper servers - no SSH, no LAN world: one jar pl
 
 *Built by Claude through this MCP.*
 
-Ashlar is a Paper plugin plus a Node MCP server. Point an AI client - Claude Desktop, Claude Code, OpenCode, Cursor, or anything else that speaks MCP - at the MCP server, and it gets nine tools to survey terrain, render images of the world, build in bulk, inspect exact block data, snapshot/restore regions, and run console commands. No mods, no SSH access to the host, no need to run the world on your own machine: the plugin runs inside your existing Paper server (a panel-hosted one works fine) and talks to the MCP server over a WebSocket. Players who have no MCP client at all can instead just type `/ashlar <request>` in chat and get an answer from the plugin's own built-in assistant - no Node process or inbound port needed for that path; see [In-game assistant](#in-game-assistant-no-ai-client-needed) below.
+Ashlar is a Paper plugin plus a Node MCP server. Point an AI client - Claude Desktop, Claude Code, OpenCode, Cursor, or anything else that speaks MCP - at the MCP server, and it gets eleven tools to survey terrain, render images of the world, build in bulk, inspect exact block data, snapshot/restore regions, and run console commands. No mods, no SSH access to the host, no need to run the world on your own machine: the plugin runs inside your existing Paper server (a panel-hosted one works fine) and talks to the MCP server over a WebSocket. Players who have no MCP client at all can instead just type `/ashlar <request>` in chat and get an answer from the plugin's own built-in assistant - no Node process or inbound port needed for that path; see [In-game assistant](#in-game-assistant-no-ai-client-needed) below.
 
 ## How it works
 
@@ -45,12 +45,139 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | `mc_survey` | Terrain survey of an x/z area: heightmap image plus exact numbers (min/max/median height, surface mix, largest flat zone); `format:"text"` for an ASCII map. |
 | `mc_render` | PNG image of a region: top view, north/south/east/west facades, a slice, or a heightmap (top/heightmap are area-priced, any y range). |
 | `mc_build` | Places blocks in bulk (cuboid fills with modes replace/keep/outline/hollow/walls, individual blocks and sign text, plus lettering rendered by the plugin via `text`); the only tool that builds. |
+| `mc_blueprint` | Save/get/list/delete persistent reusable designs with named components, palettes and repeated instances; no world writes. |
+| `mc_plan` | Read-only preflight and virtual-scene previews for direct builds or saved blueprints; collision/support/pairing diagnostics without placement. |
 | `mc_inspect` | Exact block contents of a region (statistics, ASCII slice, sign text). |
 | `mc_snapshot` | Save a region before changing it (or list saved snapshots). |
 | `mc_restore` | Roll a region back to a snapshot. |
 | `mc_command` | Run a server console command and return its output (escape hatch). |
 
 Typical flow: `mc_players` (if the request is relative to a player) -> `mc_survey` or `mc_render` to see the site -> `mc_snapshot` -> `mc_build` -> `mc_render`/`mc_inspect` to verify -> `mc_restore` if it went wrong. Coordinates: X grows east, Z grows south, Y grows up; `from`/`to` corners are inclusive.
+
+## Local coordinates, rotation and mirroring (fork enhancement)
+
+`mc_build` accepts an optional `transform` for designing in a local coordinate frame:
+
+```json
+{
+  "transform": { "origin": [100, 64, 200], "rotation": 90, "mirror": "none" },
+  "fills": [
+    { "from": [0, 0, 0], "to": [8, 0, 6], "block": "minecraft:stone_bricks" }
+  ],
+  "blocks": [
+    { "pos": [4, 1, 0], "block": "minecraft:oak_stairs[facing=north,half=bottom]" }
+  ]
+}
+```
+
+- `origin` is required when `transform` is present. Every fill corner, block position and text position is then local to that world origin.
+- `mirror` defaults to `none`: `x` negates local X (reflect across YZ); `z` negates local Z (reflect across XY). Y is never flipped.
+- `rotation` defaults to `0`: `0`, `90`, `180` or `270` degrees clockwise viewed from above. At `90`, east becomes south and north becomes east.
+- Order is **mirror -> rotate -> translate**. Rotation and mirroring pivot around local `[0,0,0]`, not the building's center. Negative local positions are allowed.
+- Paper's native block-data transformations handle facing, axes, rail shapes, door hinges and standing-sign rotation, including omitted default properties. Ashlar additionally corrects corner-stair handedness on reflection: native mirroring alone preserves the wrong left/right shape for some facing/axis combinations. Provide BOTH halves of doors and beds; no new blocks are synthesized.
+- Fill filters rotate/mirror too, while omitted properties remain wildcards. Expanded lettering and backgrounds transform geometrically; mirroring reverses block-letter glyphs. Sign strings are not reversed.
+- Transformed states are cached per request and processed in bounded main-thread batches before snapshots or writes. Existing connection updates can subsequently recompute stair/fence/pane shapes; use `connect:false` when testing exact state transforms.
+- Local coordinates and origins must be signed 32-bit integers; fractional inputs and overflowing world results are rejected. Existing calls without `transform` retain their absolute-coordinate behavior.
+- Build reports, snapshots, surveys and inspections use **world coordinates**. This is a plugin-side feature; the MCP adapter forwards the updated schema without changes.
+
+### Transformation acceptance test
+
+After building the plugin and running `npm ci && npm run build` in `mcp-server/`, the opt-in test is:
+
+```sh
+ASHLAR_DISPOSABLE_TEST=1 \
+  MC_PLUGIN_URL=ws://127.0.0.1:<test-port> \
+  MC_PLUGIN_TOKEN=<test-token> \
+  node tools/e2e-transforms.mjs
+```
+
+Run this **only on an isolated disposable Paper server** with no connected players. It writes fixed regions around `[0,100,0]` and `[64,100,0]`, snapshots and restores them, and requires loopback connectivity and explicit opt-in. It checks all 12 rotation/mirror combinations with and without the connection pass, partial filters, paired blocks, sign content, rendered lettering, snapshot restoration, invalid-state rejection and multi-batch state transforms. It does not start or stop the server.
+
+## Reusable blueprints and components (fork enhancement)
+
+Use `mc_blueprint` to **save**, **get**, **list** or **delete** persistent project documents. These operations do not place blocks. Documents are shared in the plugin's `blueprints/` directory and survive plugin reloads and server restarts. Replacing an existing ID requires `overwrite:true`; deletion never removes existing world structures.
+
+Example arguments to `mc_blueprint`:
+
+```json
+{
+  "action": "save",
+  "id": "window_row",
+  "document": {
+    "version": 1,
+    "description": "Three matching windows",
+    "dimensions": [21, 5, 1],
+    "constraints": { "style": "stone cottage" },
+    "palette": { "frame": "minecraft:stone_bricks", "glass": "minecraft:light_blue_stained_glass" },
+    "components": {
+      "window": {
+        "fills": [
+          { "from": [0, 0, 0], "to": [4, 0, 0], "block": "$frame" },
+          { "from": [0, 4, 0], "to": [4, 4, 0], "block": "$frame" },
+          { "from": [0, 1, 0], "to": [0, 3, 0], "block": "$frame" },
+          { "from": [4, 1, 0], "to": [4, 3, 0], "block": "$frame" },
+          { "from": [1, 1, 0], "to": [3, 3, 0], "block": "$glass" }
+        ]
+      }
+    },
+    "instances": [
+      { "component": "window", "pos": [0, 0, 0], "repeat": { "count": 3, "step": [8, 0, 0] } }
+    ]
+  }
+}
+```
+
+Then build with `mc_build`, choosing a surveyed world origin:
+
+```json
+{
+  "blueprint": { "id": "window_row", "palette": { "frame": "minecraft:sandstone" } },
+  "transform": { "origin": [100, 64, 200], "rotation": 90 },
+  "snapshot": true
+}
+```
+
+- Version 1 has **flat named components**, each containing the same local `fills`, `blocks` and/or `text` entries as `mc_build`. No nested references or cross-document component links yet.
+- Every instance names a component and supplies a local `pos`. Optional `rotation`/`mirror` orient that component. `repeat:{count,step}` repeats it in the **project frame**, not its own rotated frame; negative and vertical steps are allowed.
+- Order: component mirror/rotation -> instance position plus repeated offset -> project mirror/rotation -> world origin. Without a project transform, the project origin is world `[0,0,0]`.
+- Materials use `$role` or `$role[property=value]`. Inline properties override bound properties; for example `$trim[facing=north]` can bind to `minecraft:oak_stairs[half=top]`. Palette precedence is **component defaults < document palette < build overrides < instance overrides**. Recursive palette bindings are rejected. Literal block states still work.
+- Sign strings and lettering content are not substituted. Mirrored lettering follows Step 1's geometric rules; sign strings remain readable.
+- Compilation uses the existing **all fills -> all text -> all blocks** passes, preserving instance order within each pass. Overlaps follow those passes, not whole-component sequential writes. One optional snapshot covers the union of final world-space bounds.
+- The compiler bounds expansion and checks aggregate requested volume, flow targets and union chunk footprint against current server limits. All compiled block states are prepared before snapshots/writes, with a request-local orientation-aware cache. Read-only previews and collision/support preflight are now available through `mc_plan` (see below).
+- `description`, `dimensions` and `constraints` are retained as **advisory metadata**, not enforced constraints. Missing material-role bindings may be saved and supplied later; they must resolve before building.
+- Limits: 256 saved documents, 2 MiB per document, 128 components, 10,000 raw operations, 4,096 expanded instances and 100,000 expanded operations, plus existing server block/chunk/liquid limits. IDs and component/role names use a lowercase letter followed by letters, digits, `_` or `-`, at most 64 characters.
+
+The opt-in `mcp-server/tools/e2e-blueprints.mjs` acceptance test uses the same disposable-server environment variables as the transformation test. It reserves regions around `[128,100,0]` and `[256,100,0]`, restores them in cleanup, and removes its generated document by default. `ASHLAR_TEST_KEEP_BLUEPRINT=1` retains that document for a separate reload-persistence check. It never starts, stops or reloads the server.
+
+## Check and preview before building (fork enhancement)
+
+`mc_plan` accepts a `build` object with the **same schema as `mc_build`**, including saved blueprints, palettes, transforms, fills, text and sparse blocks. It checks the full request and simulates placement without temporary world edits:
+
+```json
+{
+  "build": {
+    "blueprint": { "id": "window_row" },
+    "transform": { "origin": [100, 64, 200], "rotation": 90 },
+    "connect": false
+  },
+  "preview": { "view": "south", "grid": 0 }
+}
+```
+
+The report includes bounds/dimensions, requested volume, accepted/skipped visits, unique planned cells, final material counts for eligible planned cells, predicted block-state changes, existing non-air changes/clearing, overlapping cells, capped collision/overlap positions, and door/bed pairing and common support diagnostics. `valid:false` identifies pairing errors; `strictSitePass` additionally requires no support warnings or incomplete neighbor checking. Missing halves are **not automatically synthesized**. Collision samples distinguish clearing from replacement; neither is automatically forbidden because terrain and existing structures cannot be reliably classified without provenance.
+
+- **No placement, snapshot creation, blueprint writes or console commands.** Reading can load chunks. World data is observed over ticks, not locked or reserved.
+- Simulation follows actual **fills -> text -> blocks** ordering, including `keep`, `outline`, `hollow`, `walls`, partial-state filters, repeated components and palette/property overrides.
+- Images use existing **map colors**, not textures or shape-aware perspective. Choose `top`, a compass facade, or `slice` with `{axis,at}`. Unchanged world cells inside preview bounds are included. Legends and coordinate axes are returned; transparent/identically colored materials can look alike.
+- Full top/facade previews must fit `limits.max-read-volume` by envelope volume. Slice previews read only their plane, so a larger design may still be previewed. Use `image:false` for site analysis without image reads. Existing image scale/grid/pixel caps and the 3 MiB PNG cap apply.
+- Common support rules are advisory and not an exhaustive vanilla survival/voxel-face solver. Final-scene checks include supports supplied later in the request and existing neighboring blocks losing support. Neighbor candidates are capped at the smaller of 200,000 and `max-read-volume`; omitted checks and capped issue/sample lists are explicitly flagged.
+- **Not simulated:** automatic connection shapes/chest pairing, flowing fluids, entities, block-entity/NBT edits, or later concurrent changes. Counts describe planned block states before those effects. Use `connect:false` when exact static-state/image comparison is intended. State-change counts exclude sign text edits; requested sign edits are reported separately.
+
+Every production `mc_build` now validates **all three phases before its first snapshot/write**, including states, sign target/color data, allowed world/build region, Y range, signed integer coordinates, conservative horizontal safety bounds, aggregate requested block/flow volume, envelope chunk tickets and optional snapshot capacity. Invalid fractional/overflow coordinates, text scales and spacing are rejected rather than silently truncated. Current hot-reloaded limits are honored. The executor acquires an entire bounding envelope, so widely separated small fills are bounded by that envelope, not just the union of occupied chunks.
+
+For report-only analysis, use the same build request with **`dryRun:true`**. For placement only after a fresh clean site analysis, set **`preflight:true`**. This rejects pairing/support problems or incomplete neighbor coverage before snapshotting/placing; clearing/collision/overlap counts remain advisory. Without that flag, complete structural validation still runs, but site warnings remain the existing post-build diagnostics. Preflight is not transactional execution: runtime failures or concurrent edits are still possible.
+
+The opt-in `mcp-server/tools/e2e-preflight.mjs` reserves `[344,99,-40]` through `[424,118,40]`, restores it and removes its generated blueprint in cleanup. It also performs a separately fingerprinted **read-only** large-slice test around `[384,100,0]` through `[463,139,79]`. Use the disposable-server environment variables described above. Optional `ASHLAR_PREVIEW_OUTPUT` saves PNGs to that directory. The test does not manage server lifecycle.
 
 ## Install (three steps)
 
@@ -172,7 +299,7 @@ The model is expected to read this and fix the flagged blocks (or explain the tr
 
 ## In-game assistant (no AI client needed)
 
-Everything above needs an AI client on the player's own machine. `/ashlar <request>` is the alternative: the plugin runs the assistant itself, inside the same process as everything else, through the same nine tools - without anyone needing Claude Desktop, Claude Code, Cursor, any other MCP client, or a separate Node process. This is for the players and friends on your server who do not run an AI client at all - the server owner sets one API key and pays for the model API; everyone else just types in chat.
+Everything above needs an AI client on the player's own machine. `/ashlar <request>` is the alternative: the plugin runs the assistant itself, inside the same process as everything else, through the same eleven tools - without anyone needing Claude Desktop, Claude Code, Cursor, any other MCP client, or a separate Node process. This is for the players and friends on your server who do not run an AI client at all - the server owner sets one API key and pays for the model API; everyone else just types in chat.
 
 ### Setup
 
@@ -389,7 +516,7 @@ The in-game assistant has no environment variables of its own any more - see the
 **Cause:** some hosting providers filter plain HTTP by the `Host` header and reject anything that is not a recognized domain, including a raw WebSocket upgrade request sent to an IP.
 **Fix:** set `MC_PLUGIN_URL` to the server's raw IP address, not a domain name.
 
-**Symptom:** Claude only sees one or two `mc_*` tools instead of nine.
+**Symptom:** Claude only sees one or two `mc_*` tools instead of eleven.
 **Cause:** Claude Desktop's "Load tools when needed" setting loads tool definitions lazily and unreliably.
 **Fix:** switch the connector's tool access setting to "Tools already loaded", or start a new chat.
 

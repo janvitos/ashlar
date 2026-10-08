@@ -126,7 +126,7 @@ async function runHttpChecks() {
         } catch {
             // reported as a failed check below
         }
-        check(`/mcp/<token> tools/list response lists 9 tools (got ${toolCount})`, toolCount === 9);
+        check(`/mcp/<token> tools/list response lists 11 tools (got ${toolCount})`, toolCount === 11);
 
         const wrongToken = await fetch(`${base}/mcp/wrong-token`, { method: "POST", headers: jsonHeaders, body });
         await wrongToken.text();
@@ -154,12 +154,14 @@ async function main() {
     // --- tools/list -------------------------------------------------------
     section("tools/list");
     const { tools } = await client.listTools();
-    check("exactly 9 tools", tools.length === 9);
+    check("exactly 11 tools", tools.length === 11);
     const expectedNames = [
         "mc_status",
         "mc_players",
         "mc_survey",
         "mc_build",
+        "mc_blueprint",
+        "mc_plan",
         "mc_inspect",
         "mc_render",
         "mc_snapshot",
@@ -173,7 +175,9 @@ async function main() {
         const words = tool.description.trim().split(/\s+/).length;
         console.log(`  ${tool.name}: ${words} words`);
         check(`${tool.name} description >= 150 words`, words >= 150);
-        check(`${tool.name} description <= 350 words`, words <= 350);
+        // Build documents both direct operations and the fork's transforms/blueprints/preflight.
+        const maxWords = tool.name === "mc_build" ? 600 : 350;
+        check(`${tool.name} description <= ${maxWords} words`, words <= maxWords);
         check(`${tool.name} description contains "WHEN TO USE"`, tool.description.includes("WHEN TO USE"));
         check(`${tool.name} description contains "WHEN NOT TO USE"`, tool.description.includes("WHEN NOT TO USE"));
         check(`${tool.name} description contains "SIDE EFFECTS"`, tool.description.includes("SIDE EFFECTS"));

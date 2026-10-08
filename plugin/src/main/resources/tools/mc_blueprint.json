@@ -1,0 +1,104 @@
+{
+  "name": "mc_blueprint",
+  "title": "Blueprints",
+  "description": "Stores reusable project blueprints with named components, palettes and repeated instances. save/get/list/delete operate on plugin-owned JSON documents, not world blocks.\n\nWHEN TO USE: reusable windows, columns, towers or rooms; preserving an overall design across calls or agent sessions. Save once, then build with mc_build({blueprint:{id:...},transform:{origin:[x,y,z],...}}). Components use the same fills/blocks/text entries and block orientation rules as mc_build.\nWHEN NOT TO USE: terrain inspection, block placement or previews. Use mc_build to place a saved blueprint.\n\nPARAMETERS: action save/get/list/delete; id is 1-64 lowercase characters (letter first, then letters/digits/_/-). save requires a version-1 document and explicit overwrite:true to replace an existing ID. A document contains named flat components and ordered instances with local pos, optional rotation/mirror and repeat:{count,step}. Repetition step is in the project frame. Components can use $role or $role[property=value] for materials; inline properties override palette properties. Precedence: component defaults < document palette < mc_build blueprint.palette < instance palette. Sign strings and lettering content are not substituted. dimensions and constraints are advisory metadata, not enforced design rules. Nested components are not supported in version 1.\n\nSIDE EFFECTS: save/delete modify persistent blueprint files only; no world changes. get/list are read-only. Maximum 256 documents, 2 MiB per document, 128 components, 10,000 raw operations and 4,096 expanded instances. Saving validates structure, not native block states or all role bindings; mc_build validates compiled states before any writes and applies server build limits. Deleting a blueprint never removes already-built structures.",
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "action": { "type": "string", "enum": ["save", "get", "list", "delete"] },
+      "id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$", "description": "Required for save/get/delete." },
+      "overwrite": { "type": "boolean", "description": "save only. Default false; explicit true permits replacement." },
+      "document": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "save only. Flat components, with local coordinates. Dimensions and constraints are retained as metadata.",
+        "properties": {
+          "version": { "type": "integer", "enum": [1] },
+          "description": { "type": "string", "maxLength": 4096 },
+          "dimensions": { "type": "array", "items": { "type": "integer", "minimum": 1, "maximum": 2147483647 }, "minItems": 3, "maxItems": 3 },
+          "constraints": { "type": "object", "description": "Optional advisory project requirements. Preserved verbatim; not enforced yet." },
+          "palette": { "type": "object", "maxProperties": 128, "additionalProperties": { "type": "string" }, "description": "Role name -> literal block state. No recursive $role bindings." },
+          "components": {
+            "type": "object", "minProperties": 1, "maxProperties": 128,
+            "description": "Names follow the same format as id. Each component has raw mc_build operations and optional material defaults. No nested instances.",
+            "additionalProperties": {
+              "type": "object", "additionalProperties": false,
+              "properties": {
+                "palette": { "type": "object", "maxProperties": 128, "additionalProperties": { "type": "string" } },
+                "fills": {
+                  "type": "array",
+                  "items": {
+                    "type": "object", "additionalProperties": false,
+                    "properties": {
+                      "from": { "type": "array", "items": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 }, "minItems": 3, "maxItems": 3 },
+                      "to": { "type": "array", "items": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 }, "minItems": 3, "maxItems": 3 },
+                      "block": { "type": "string", "minLength": 1, "description": "Literal block state or $role, optionally with [properties] to override palette properties." },
+                      "mode": { "type": "string", "enum": ["replace", "keep", "outline", "hollow", "walls"] },
+                      "filter": { "type": "string", "description": "Partial block-state filter, including optional $role. Omitted properties remain wildcards." }
+                    }, "required": ["from", "to", "block"]
+                  }
+                },
+                "blocks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object", "additionalProperties": false,
+                    "properties": {
+                      "pos": { "type": "array", "items": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 }, "minItems": 3, "maxItems": 3 },
+                      "block": { "type": "string", "minLength": 1, "description": "Literal block state or $role[property=value]. Orientation rules are the same as mc_build; supply both door/bed halves." },
+                      "sign": {
+                        "type": "object", "additionalProperties": false,
+                        "properties": {
+                          "front": { "type": "array", "items": { "type": "string", "maxLength": 64 }, "minItems": 1, "maxItems": 4 },
+                          "back": { "type": "array", "items": { "type": "string", "maxLength": 64 }, "minItems": 1, "maxItems": 4 },
+                          "color": { "type": "string" }, "glowing": { "type": "boolean" }, "waxed": { "type": "boolean" }
+                        }
+                      }
+                    }, "required": ["pos", "block"]
+                  }
+                },
+                "text": {
+                  "type": "array",
+                  "items": {
+                    "type": "object", "additionalProperties": false,
+                    "properties": {
+                      "text": { "type": "string", "minLength": 1, "maxLength": 64 },
+                      "pos": { "type": "array", "items": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 }, "minItems": 3, "maxItems": 3 },
+                      "block": { "type": "string", "minLength": 1 }, "background": { "type": "string" },
+                      "facing": { "type": "string", "enum": ["south", "north", "east", "west", "up"] },
+                      "align": { "type": "string", "enum": ["left", "center"] },
+                      "scale": { "type": "integer", "minimum": 1, "maximum": 4 },
+                      "spacing": { "type": "integer", "minimum": 0, "maximum": 3 }
+                    }, "required": ["text", "pos", "block"]
+                  }
+                }
+              }
+            }
+          },
+          "instances": {
+            "type": "array", "minItems": 1, "maxItems": 4096,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "properties": {
+                "component": { "type": "string", "description": "Name of a component in this document." },
+                "pos": { "type": "array", "items": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 }, "minItems": 3, "maxItems": 3 },
+                "rotation": { "type": "integer", "enum": [0, 90, 180, 270] },
+                "mirror": { "type": "string", "enum": ["none", "x", "z"] },
+                "palette": { "type": "object", "maxProperties": 128, "additionalProperties": { "type": "string" } },
+                "repeat": {
+                  "type": "object", "additionalProperties": false,
+                  "properties": {
+                    "count": { "type": "integer", "minimum": 1, "maximum": 4096 },
+                    "step": { "type": "array", "items": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 }, "minItems": 3, "maxItems": 3 }
+                  }, "required": ["count", "step"]
+                }
+              }, "required": ["component", "pos"]
+            }
+          }
+        }, "required": ["version", "components", "instances"]
+      }
+    }, "required": ["action"]
+  },
+  "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false }
+}

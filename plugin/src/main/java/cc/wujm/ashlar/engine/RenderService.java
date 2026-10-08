@@ -281,7 +281,7 @@ public final class RenderService {
         return arr;
     }
 
-    private static byte[] encodePng(int[] pixels, int width, int height) throws IOException {
+    public static byte[] encodePng(int[] pixels, int width, int height) throws IOException {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         image.setRGB(0, 0, width, height, pixels, 0, width);
         ByteArrayOutputStream bos = new ByteArrayOutputStream();

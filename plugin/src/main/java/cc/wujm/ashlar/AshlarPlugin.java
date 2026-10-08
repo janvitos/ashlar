@@ -51,6 +51,11 @@ import cc.wujm.ashlar.rpc.RpcHandler;
 import cc.wujm.ashlar.snapshot.SnapshotStore;
 import cc.wujm.ashlar.tool.ToolRegistry;
 import cc.wujm.ashlar.tool.mc.McBuild;
+import cc.wujm.ashlar.tool.mc.McBlueprint;
+import cc.wujm.ashlar.tool.mc.McPlan;
+import cc.wujm.ashlar.tool.mc.BuildPreflight;
+import cc.wujm.ashlar.tool.mc.BlueprintStore;
+import cc.wujm.ashlar.tool.mc.BlueprintCompiler;
 import cc.wujm.ashlar.tool.mc.McCommand;
 import cc.wujm.ashlar.tool.mc.McInspect;
 import cc.wujm.ashlar.tool.mc.McPlayers;
@@ -194,13 +199,21 @@ public final class AshlarPlugin extends JavaPlugin {
         dispatcher.register("send_message", new SendMessageHandler(chatOut));
         dispatcher.register("render", renderHandler);
 
-        // The nine mc_* tools (plan.md step7.2b), in the same order as mcp-server's
-        // tools/index.ts registerAllTools, each backed by the RpcHandler instances above.
+        // Plugin-owned tools are reused by MCP clients and the embedded agent.
+        BlueprintStore blueprintStore = new BlueprintStore(dataFolder.resolve("blueprints"));
+        BuildPreflight preflight = new BuildPreflight(configHolder, executor);
+        McBuild buildTool = new McBuild(snapshotCreateHandler, fillBatchHandler, setBlocksHandler, blueprintStore, () -> {
+            var limits = configHolder.get().limits();
+            return new BlueprintCompiler.Limits(limits.maxBlocksPerOperation(), limits.maxChunksPerOperation(),
+                    limits.maxFlowingLiquidsPerOperation());
+        }).withPreflight(preflight);
         ToolRegistry toolRegistry = new ToolRegistry(List.of(
                 new McStatus(healthHandler),
                 new McPlayers(playersHandler),
                 new McSurvey(heightmapHandler, renderHandler),
-                new McBuild(snapshotCreateHandler, fillBatchHandler, setBlocksHandler),
+                buildTool,
+                new McBlueprint(blueprintStore),
+                new McPlan(buildTool, preflight, renderExecutor),
                 new McInspect(readRegionHandler),
                 new McRender(renderHandler),
                 new McSnapshot(snapshotCreateHandler, listSnapshotsHandler),

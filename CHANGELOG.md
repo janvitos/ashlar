@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased (fork)
+
+- New readonly `mc_plan` tool validates direct builds/saved blueprints, simulates fills/text/blocks with a virtual overlay in the tick-budgeted executor, and returns bounds, material/change/collision/overlap counts and samples, door/bed pairing errors and common support warnings, including neighboring support removal. Never places temporary blocks or creates snapshots.
+- Optional map-color top/facade/slice previews render off the main thread. Bounded slices read only their plane; large-envelope image requests reject safely. These previews explicitly exclude automatic connections, fluid/entity simulation and block-entity/NBT edits; shape-aware perspective rendering remains a later step.
+- Production `mc_build` validates every phase, sign metadata and aggregate/current server limits before any snapshot/write. `dryRun:true` returns readonly diagnostics; `preflight:true` adds strict final-site pairing/support checks. Signed coordinates and text scale/spacing reject fractional/overflow values rather than truncating. Executor bounding-envelope chunk tickets are capped, preventing widely separated fills from bypassing footprint guards.
+
+- New `mc_blueprint` tool saves/gets/lists/deletes persistent version-1 designs with named flat components, project metadata, material palettes and repeated instances. Storage uses safe names, explicit overwrite, bounded files/counts and atomic replacement; these actions never modify world blocks.
+- `mc_build` accepts a saved `blueprint:{id,palette}` instead of direct operations. Component orientation, project-frame repetition and project transforms compose correctly. `$role[property=value]` supports material substitution with explicit precedence and property overrides. All components compile into the existing global fills/text/blocks passes with one union snapshot.
+- Blueprint expansion enforces operation/instance caps, aggregate requested block/flow volume and union chunk footprint against current server limits. All compiled states use a request-local orientation-aware native cache and are validated before snapshots or writes.
+- Added compiler/storage tests and `e2e-blueprints.mjs`; verified 5,553 native blueprint checks, persistence across reload, non-destructive document deletion, and the full Step 1 transformation regression suite. Nested components, previews and enforced design constraints are not included in version 1.
+
+- `mc_build` gains an optional local coordinate `transform`: required world `origin`, clockwise quarter-turn `rotation`, and local `mirror` (`none`, `x`, `z`). Applies mirror, rotation and translation to fills, sparse blocks and expanded text before snapshots or writes. Calls without a transform are unchanged.
+- Native Paper block-data transforms preserve directional states and omitted defaults; partial fill filters retain wildcard properties. Sign content is preserved, mirrored block lettering mirrors its glyphs, and paired blocks must still be supplied explicitly.
+- Local inputs reject fractional/out-of-range integers and transformed coordinate overflow. Added coordinate, geometry, filter and compatibility tests.
+- Correct mirrored corner-stair handedness independently of facing: Paper's native mirror leaves some inner/outer left/right shapes unchanged. Verified the fix against a geometric oracle on Paper 26.2 build 132.
+- Added an opt-in disposable-server MCP acceptance test (`mcp-server/tools/e2e-transforms.mjs`): 116,844 checks across exact and default connection modes, partial filters, paired structures, signs, lettering, restoration and multi-batch transforms.
+
 ## 0.4.9
 
 - New `engine.text-font-file` config key (hot, `/ashlar reload` applies it): points `mc_build`'s `text` entries at a `.ttf`/`.otf`/`.ttc` file for non-ASCII (CJK) lettering instead of this JVM's system font - the fix for a Docker container with no CJK font installed, since a mounted file needs no image rebuild or restart. Empty (the default) keeps the previous behaviour; a path that does not exist, is a directory, or fails to load as a font logs one warning and falls back to the system font rather than stopping the server.
