@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- Lightweight default agent policy: one relevant survey and one finished-build render for substantial builds, targeted inspection/correction only for concrete issues, no routine stacked/repeated full checks. Site analysis and exact verification remain optional/opt-in. Mandatory plugin-side structural safety and rollback precautions are unchanged; development acceptance tests are not per-build agent steps.
+
 - New `mc_verify` freezes eligible final cells before placement and completely checks actual canonical states and supported sign values afterward. Bounded expiring owner-scoped in-memory receipts retain keep/filter eligibility and survive source blueprint deletion. Exact coordinate/property diagnostics, full counts and fresh comparison IDs; no world writes or snapshot creation.
 - New `mc_repair` repairs only reviewed mismatches from the latest comparison, with explicit subsets, strict selection caps, stale-value guards, block-entity replacement protection and optional delta snapshots, then verifies the full receipt again. Matching cells and neighbor refreshes are never written. Static physics-disabled writes only; flowing plans cannot be auto-repaired. Existing snapshots do not back up sign text, inventories or arbitrary NBT.
 - Optional placement comparison explicitly excludes a narrow set of automatically generated connection properties; exact remains the default. Native tests cover all transformed blueprints, sign patches, conditional eligibility, paired chest/inventory preservation, stale/oversized selections and idempotent no-op repairs.
