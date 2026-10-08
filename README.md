@@ -547,7 +547,7 @@ A small hut (survey, snapshot, build, a couple of renders, a final reply - about
 
 | Component | Status |
 |---|---|
-| Paper 26.1.2 | Fork compiles against build 74 API; declares minimum `api-version: 26.1`. Runtime deployment confirmation pending. |
+| Paper 26.1.2 | Compiles against build 74 API; minimum `api-version: 26.1`. Deployment smoke check passed: startup, authenticated MCP, 13-tool catalog and photo instructions. |
 | Paper 26.2 | Fork development runtime tested on build 132 |
 | Paper 26.3 | Upstream reported build 5 (alpha); not independently tested for this fork |
 | Paper 26.x | Other builds unverified; check compatibility before deployment |

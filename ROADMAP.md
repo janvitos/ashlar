@@ -12,8 +12,8 @@ Each step requires user approval before work begins. Pause after each step and r
 6. **Architectural generators** - complete and merged via PR #5.
 7. **Terrain-aware site planning** - complete and merged via PR #6.
 8. **Design constraints and alternative concepts** - skipped by user decision.
-9. **Photo-reference reconstruction workflow** - approved; lightweight agent guidance complete on feature branch, basic checks passed; paused for review/merge.
-10. **Safe project revisions and selective undo** - not started, approval required.
+9. **Photo-reference reconstruction workflow** - complete and merged via PR #7.
+10. **Safe project revisions and selective undo** - deferred by user decision; no implementation.
 
 ## Step 1 implementation
 
@@ -169,7 +169,11 @@ Branch: `feat/photo-reference-workflow`.
 - Basic verification only: one affected plugin build with 10 focused tool/schema tests passed (one newly added instruction test), zero failures. No native/world tests needed for instructions/documentation; no production or disposable-server changes.
 - Added repository `AGENTS.md` with the approved basic-testing policy, persistent across new/resumed/compacted contexts.
 
-Pause for review/merge after completion. Step 10 remains unstarted and requires explicit approval.
+Merged via PR #7. Step 10 was subsequently deferred by user decision; implementation work is complete for now.
+
+## Fork activation
+
+User-approved deployment uses Paper 26.1.2 build 74, without a Paper upgrade. The fork now compiles against that exact API and declares minimum API 26.1. One build passed; an approved restart used a verified full 30-second in-game countdown before a graceful stop/install/start. Original artifact retained for rollback; plugin configuration/credentials unchanged. Pi points at the locally built fork adapter through the existing Docker network arrangement. Basic read-only deployment check confirmed plugin 0.4.9-dev, authenticated MCP, 13 tools and photo-reference instructions. No construction/terrain test writes or exhaustive regressions were performed on production. Pi needs `/reload` to refresh an existing session's connection and catalog.
 
 ### Separate upstream dependency finding
 
