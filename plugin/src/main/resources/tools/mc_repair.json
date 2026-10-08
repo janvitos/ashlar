@@ -1,0 +1,20 @@
+{
+  "name": "mc_repair",
+  "title": "Targeted build repairs",
+  "description": "Repairs only mismatching frozen eligible cells from a fresh mc_verify comparison, then checks the whole expectation again and returns the remaining differences and a new comparisonId. Never replays the complete original building request.\n\nWHEN TO USE: after mc_verify check identified differences; review their positions before repairing. Use positions to select explicit mismatches, otherwise all are selected. WHEN NOT TO USE: broad rebuilds, flowing-fluid plans, arbitrary NBT/inventory restoration or concurrent transactional editing. Matching cells are never written. No connection pass, neighbor refresh or fluid physics runs.\n\nPARAMETERS: required planId and comparisonId from the latest check. Optional positions are unique absolute [x,y,z] mismatches. maxChanges 1-10000 (default 1000) rejects oversized selections rather than silently taking a prefix. snapshot defaults true, covering the selected delta envelope and subject to current snapshot limits; false explicitly disables it. allowBlockEntityReplacement defaults false and protects deletion/material replacement of existing signs/chests/etc. Same-material state repairs preserve their entity data. Placement-mode repairs retain excluded live properties. Diagnostic limit is 1-1000.\n\nSIDE EFFECTS: writes selected block states with physics disabled and supported differing sign values only; optional snapshot creation. IMPORTANT: existing snapshots store block states only, not sign text/colors, inventory or arbitrary NBT. Entity replacement opt-in can destroy that data. All observed selected states/sign values are rechecked before the first snapshot/write. Late edits are skipped; there is no atomic lock or rollback guarantee. Correct cells and untouched cells are outside the repair write set. Reuse the returned comparisonId for further repairs, not the old one.",
+  "inputSchema": {
+    "type":"object",
+    "properties": {
+      "planId":{"type":"string","minLength":1},
+      "comparisonId":{"type":"string","minLength":1},
+      "positions":{"type":"array","maxItems":10000,"items":{"type":"array","minItems":3,"maxItems":3,"items":{"type":"integer","minimum":-2147483648,"maximum":2147483647}}},
+      "maxChanges":{"type":"integer","minimum":1,"maximum":10000,"default":1000},
+      "snapshot":{"type":"boolean","default":true},
+      "allowBlockEntityReplacement":{"type":"boolean","default":false},
+      "limit":{"type":"integer","minimum":1,"maximum":1000,"default":100}
+    },
+    "required":["planId","comparisonId"],
+    "additionalProperties":false
+  },
+  "annotations":{"readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":false}
+}

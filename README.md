@@ -10,7 +10,7 @@ AI building tools for Minecraft Paper servers - no SSH, no LAN world: one jar pl
 
 *Built by Claude through this MCP.*
 
-Ashlar is a Paper plugin plus a Node MCP server. Point an AI client - Claude Desktop, Claude Code, OpenCode, Cursor, or anything else that speaks MCP - at the MCP server, and it gets eleven tools to survey terrain, render images of the world, build in bulk, inspect exact block data, snapshot/restore regions, and run console commands. No mods, no SSH access to the host, no need to run the world on your own machine: the plugin runs inside your existing Paper server (a panel-hosted one works fine) and talks to the MCP server over a WebSocket. Players who have no MCP client at all can instead just type `/ashlar <request>` in chat and get an answer from the plugin's own built-in assistant - no Node process or inbound port needed for that path; see [In-game assistant](#in-game-assistant-no-ai-client-needed) below.
+Ashlar is a Paper plugin plus a Node MCP server. Point an AI client - Claude Desktop, Claude Code, OpenCode, Cursor, or anything else that speaks MCP - at the MCP server, and it gets thirteen tools to survey terrain, render images of the world, build in bulk, inspect exact block data, snapshot/restore regions, and run console commands. No mods, no SSH access to the host, no need to run the world on your own machine: the plugin runs inside your existing Paper server (a panel-hosted one works fine) and talks to the MCP server over a WebSocket. Players who have no MCP client at all can instead just type `/ashlar <request>` in chat and get an answer from the plugin's own built-in assistant - no Node process or inbound port needed for that path; see [In-game assistant](#in-game-assistant-no-ai-client-needed) below.
 
 ## How it works
 
@@ -47,6 +47,8 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | `mc_build` | Places blocks in bulk (cuboid fills with modes replace/keep/outline/hollow/walls, individual blocks and sign text, plus lettering rendered by the plugin via `text`); the only tool that builds. |
 | `mc_blueprint` | Save/get/list/delete persistent reusable designs with named components, palettes and repeated instances; no world writes. |
 | `mc_plan` | Read-only preflight and virtual-scene previews for direct builds or saved blueprints; collision/support/pairing diagnostics without placement. |
+| `mc_verify` | Freeze expected cells before building; compare actual states/sign values afterward with exact coordinate/property differences. |
+| `mc_repair` | Guarded repairs of mismatches from a fresh comparison, followed by full verification; no matching-cell or neighbor refresh writes. |
 | `mc_inspect` | Exact block contents of a region (statistics, ASCII slice, sign text). |
 | `mc_snapshot` | Save a region before changing it (or list saved snapshots). |
 | `mc_restore` | Roll a region back to a snapshot. |
@@ -179,6 +181,32 @@ For report-only analysis, use the same build request with **`dryRun:true`**. For
 
 The opt-in `mcp-server/tools/e2e-preflight.mjs` reserves `[344,99,-40]` through `[424,118,40]`, restores it and removes its generated blueprint in cleanup. It also performs a separately fingerprinted **read-only** large-slice test around `[384,100,0]` through `[463,139,79]`. Use the disposable-server environment variables described above. Optional `ASHLAR_PREVIEW_OUTPUT` saves PNGs to that directory. The test does not manage server lifecycle.
 
+## Verify what was built and repair only differences (fork enhancement)
+
+Step 4 adds **`mc_verify`** and **`mc_repair`**. The reliable workflow is:
+
+1. `mc_verify {"action":"prepare","build": <your mc_build request>}` -> `planId`.
+2. Run `mc_build` with that same request.
+3. `mc_verify {"action":"check","planId":"plan-..."}` -> exact differences and `comparisonId`.
+4. Review them, then `mc_repair {"planId":"plan-...","comparisonId":"comparison-..."}` -> repair report, full recheck and a new comparison ID.
+
+**Prepare before placing.** Expectations freeze final eligible cells through the same transforms, blueprints, palettes, lettering, keep/filters and phase ordering as planning. Re-running a filter afterward may skip the very cells that went wrong; a frozen receipt does not. Skipped/untouched cells and gaps outside the write set are not audited. A zero-eligible-cell capture rejects rather than reporting a misleading empty success.
+
+Verification scans **every** frozen cell and reports missing/unexpected blocks, wrong materials/properties, and supported sign differences. Returned absolute coordinates include expected/actual states and differing property values. `limit` (1-1000, default 100) caps displayed diagnostics, **not the scan or stored repair selection**. `matched`, complete counts and `differencesTruncated` remain accurate.
+
+- Default **`mode:"exact"`** includes every canonical native property. For static literal state parity, build with `connect:false` and static liquids. Automatic shapes/chest pairing can legitimately differ from raw requested states.
+- Optional **`mode:"placement"`** explicitly excludes generated fence/pane/bar/wall/wire/tripwire connections and stair `shape` only for captured connected builds. Exclusions and ignored-cell counts are reported. Orientation, half, waterlogging, power and **chest type stay checked**. This mode is not shape verification; use exact mode and explicit final chest halves when paired-type parity is required.
+- Sign expectations cover both faces' **plain text, color/glow and waxed state**, preserving prebuild values not overwritten and merging sequential patches. Rich component styling and arbitrary NBT/inventories are not compared. Repair changes only differing managed sign fields, retaining unchanged rich-text lines.
+- Owner-scoped receipts are **in-memory**, expire after two hours and disappear on plugin reload/restart. Quotas are 32 plans and 1,000,000 total cells; current read/block/chunk/build-region limits also apply. `action:"list"` lists your receipts; `action:"delete"` frees one without changing the world or blueprint files. Preparing/checking never snapshots or places temporary blocks. Source blueprint deletion does not invalidate a frozen receipt.
+
+Repairs require the **latest** comparison ID. `positions:[[x,y,z],...]` selects unique mismatches explicitly; omitted means all mismatches. `maxChanges` (1-10000, default 1000) rejects oversized selections rather than silently repairing a prefix. Matching cells are not written. Repairs do not replay fill modes or run a connection/neighbor refresh pass; all block writes use physics disabled. Placement-mode repairs preserve excluded live properties when the material matches. Flowing-fluid receipts can be checked but cannot be auto-repaired.
+
+All selected observed block/sign values are rechecked before the first snapshot/write. A stale or protected selection rejects entirely at this guard. Each actual write rechecks its observation, so later edits are skipped/stopped, not blindly overwritten. A full recheck afterward reports what still differs; **there is no transactional lock, atomic reservation or guaranteed rollback**. Runtime failures/concurrent changes remain possible. A clean repeated repair creates no snapshot and performs no writes.
+
+**Block-entity safety:** material replacement/deletion of an existing sign/chest/etc. is blocked unless `allowBlockEntityReplacement:true` is explicitly supplied. Same-material state changes retain their entity data. **`snapshot:true` is the default**, covering only the selected delta's bounding envelope and subject to current snapshot capacity. Existing snapshots store **block states only, not sign text/colors, inventories or arbitrary NBT**. Do not treat that snapshot as an NBT backup. `snapshot:false` explicitly opts out; Step 10's richer project revision/undo workflow is still future work.
+
+The opt-in `mcp-server/tools/e2e-verification.mjs` reserves pristine air `[536,99,-40]` through `[616,120,40]`, restores it, deletes all generated receipts/documents and removes its temporary forced chunk. It requires the same disposable-server variables described above and zero online players. Item/forced-chunk administration is used only for inventory-preservation assertions; it never manages server lifecycle.
+
 ## Install (three steps)
 
 ### 1. Install the plugin
@@ -299,7 +327,7 @@ The model is expected to read this and fix the flagged blocks (or explain the tr
 
 ## In-game assistant (no AI client needed)
 
-Everything above needs an AI client on the player's own machine. `/ashlar <request>` is the alternative: the plugin runs the assistant itself, inside the same process as everything else, through the same eleven tools - without anyone needing Claude Desktop, Claude Code, Cursor, any other MCP client, or a separate Node process. This is for the players and friends on your server who do not run an AI client at all - the server owner sets one API key and pays for the model API; everyone else just types in chat.
+Everything above needs an AI client on the player's own machine. `/ashlar <request>` is the alternative: the plugin runs the assistant itself, inside the same process as everything else, through the same thirteen tools - without anyone needing Claude Desktop, Claude Code, Cursor, any other MCP client, or a separate Node process. This is for the players and friends on your server who do not run an AI client at all - the server owner sets one API key and pays for the model API; everyone else just types in chat.
 
 ### Setup
 
@@ -516,7 +544,7 @@ The in-game assistant has no environment variables of its own any more - see the
 **Cause:** some hosting providers filter plain HTTP by the `Host` header and reject anything that is not a recognized domain, including a raw WebSocket upgrade request sent to an IP.
 **Fix:** set `MC_PLUGIN_URL` to the server's raw IP address, not a domain name.
 
-**Symptom:** Claude only sees one or two `mc_*` tools instead of eleven.
+**Symptom:** Claude only sees one or two `mc_*` tools instead of thirteen.
 **Cause:** Claude Desktop's "Load tools when needed" setting loads tool definitions lazily and unreliably.
 **Fix:** switch the connector's tool access setting to "Tools already loaded", or start a new chat.
 

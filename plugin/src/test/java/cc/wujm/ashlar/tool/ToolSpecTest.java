@@ -20,7 +20,7 @@ class ToolSpecTest {
 
     /** Same order as mcp-server/src/tools/index.ts's registerAllTools and ToolRegistry's registration in AshlarPlugin. */
     private static final List<String> EXPECTED_ORDER = List.of(
-            "mc_status", "mc_players", "mc_survey", "mc_build", "mc_blueprint", "mc_plan", "mc_inspect", "mc_render", "mc_snapshot", "mc_restore", "mc_command");
+            "mc_status", "mc_players", "mc_survey", "mc_build", "mc_blueprint", "mc_plan", "mc_verify", "mc_repair", "mc_inspect", "mc_render", "mc_snapshot", "mc_restore", "mc_command");
 
     @Test
     void everyToolSpecLoadsWithMatchingName() {
