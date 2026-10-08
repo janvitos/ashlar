@@ -54,6 +54,26 @@ class ToolSpecTest {
     }
 
     @Test
+    void defaultInstructionsKeepVerificationLightweight() {
+        String instructions = new ToolRegistry(List.of()).instructions();
+        assertTrue(instructions.contains("Default lightweight workflow:"));
+        assertTrue(instructions.contains("one mc_survey"));
+        assertTrue(instructions.contains("one mc_render"));
+        assertTrue(instructions.contains("Full exact verification is opt-in"));
+        assertTrue(instructions.contains("mandatory plugin-side structural safety validation"));
+        assertTrue(instructions.contains("Preserve rollback protection"));
+        assertFalse(instructions.contains("Before nontrivial builds, run mc_plan"));
+        assertTrue(instructions.contains("Thirteen tools"));
+    }
+
+    @Test
+    void advancedToolDescriptionsDoNotImplyRoutineVerification() {
+        assertTrue(ToolSpec.load("mc_plan").description().contains("optional escalation"));
+        assertTrue(ToolSpec.load("mc_verify").description().contains("not for ordinary builds by default"));
+        assertTrue(ToolSpec.load("mc_repair").description().contains("opt-in exact-verification workflow"));
+    }
+
+    @Test
     void toJsonRoundTripsTheSameFields() {
         ToolSpec spec = ToolSpec.load("mc_status");
         var json = spec.toJson();

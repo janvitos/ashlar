@@ -54,7 +54,7 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | `mc_restore` | Roll a region back to a snapshot. |
 | `mc_command` | Run a server console command and return its output (escape hatch). |
 
-Typical flow: `mc_players` (if the request is relative to a player) -> `mc_survey` or `mc_render` to see the site -> `mc_snapshot` -> `mc_build` -> `mc_render`/`mc_inspect` to verify -> `mc_restore` if it went wrong. Coordinates: X grows east, Z grows south, Y grows up; `from`/`to` corners are inclusive.
+Default lightweight flow for substantial builds: `mc_players` only for player context/safety -> one `mc_survey` (reuse a recent relevant survey) -> `mc_build` -> one `mc_render` for appearance. Tiny edits can rely on build feedback. If a concrete issue appears, inspect/correct only that area and recheck it if needed; no repeated whole-build verification loops. Keep rollback protection when editing existing terrain/structures, preferably `mc_build snapshot:true` rather than a redundant separate call; snapshots do not cover NBT. Coordinates: X grows east, Z grows south, Y grows up; `from`/`to` corners are inclusive.
 
 ## Local coordinates, rotation and mirroring (fork enhancement)
 
@@ -151,6 +151,12 @@ Then build with `mc_build`, choosing a surveyed world origin:
 
 The opt-in `mcp-server/tools/e2e-blueprints.mjs` acceptance test uses the same disposable-server environment variables as the transformation test. It reserves regions around `[128,100,0]` and `[256,100,0]`, restores them in cleanup, and removes its generated document by default. `ASHLAR_TEST_KEEP_BLUEPRINT=1` retains that document for a separate reload-persistence check. It never starts, stops or reloads the server.
 
+## Verification policy: lightweight by default
+
+Mandatory structural safety checks run inside `mc_build` without extra agent calls. Site simulation (`mc_plan`, `dryRun`, strict `preflight`) is optional, for requested previews/checks or concrete placement risks. Exact cell-by-cell verification (`mc_verify`) is opt-in when the user asks for exact verification/fidelity, such as a precise photo reconstruction; size alone does not trigger it. Do not stack equivalent analyses or launch full scans to fix a small visible defect. Stop when the result is satisfactory and no concrete issue remains; explain unresolved issues instead of looping indefinitely.
+
+The comprehensive unit/native tests used to develop Ashlar are **not** run for each agent build. Advanced tools remain available; this is an agent instruction policy, not a hard runtime call-budget or removal of safety guards.
+
 ## Check and preview before building (fork enhancement)
 
 `mc_plan` accepts a `build` object with the **same schema as `mc_build`**, including saved blueprints, palettes, transforms, fills, text and sparse blocks. It checks the full request and simulates placement without temporary world edits:
@@ -183,7 +189,7 @@ The opt-in `mcp-server/tools/e2e-preflight.mjs` reserves `[344,99,-40]` through 
 
 ## Verify what was built and repair only differences (fork enhancement)
 
-Step 4 adds **`mc_verify`** and **`mc_repair`**. The reliable workflow is:
+Step 4 adds **`mc_verify`** and **`mc_repair`**. These are **opt-in**, not the default build workflow. When exact verification is requested, use:
 
 1. `mc_verify {"action":"prepare","build": <your mc_build request>}` -> `planId`.
 2. Run `mc_build` with that same request.
