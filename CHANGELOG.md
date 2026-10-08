@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- Lightweight photo-reference reconstruction workflow in public documentation and plugin-served agent instructions: scale/proportions, distinctive features, observed/inferred/unknown evidence and interior uncertainty. Uses existing tools; no automatic image-to-3D conversion or photographic similarity scoring. Visual fidelity requests no longer imply exact block-state auditing.
+- Repository `AGENTS.md` persists the approved basic-testing policy: focused checks, no exhaustive sweeps or repeated native regressions without explicit approval, runtime safety protections unchanged.
+
 - Optional `mc_blueprint fit` creates site-specific additive solid/pier foundations and bounded descending entrances from one tick-budgeted terrain capture. Explicit walking plane, conservative natural anchors, headroom/hazard/landing rejection, air-type filters, compressed columns, original world/origin recommendation and shared live build validation before persistence. No world placement, excavation or new mandatory verification stages; later-world/relocation limitations explicit.
 - Added terrain geometry/schema tests and disposable `e2e-terrain-fit.mjs`: 354,449 native checks, late protected edits preserved, four entry directions, rejected-fit atomicity, static preview/live parity and read/write cap rejection. Ordinary build/snapshot safeguards unchanged.
 - Optional `mc_blueprint generate` saves reusable gable/hip/shed roofs, rounded/pointed arches, circular towers and straight/switchback stairs. Pure deterministic bounded geometry, face-connected thin profiles, compressed fills, material/expanded-native-state validation before persistence, explicit overwrite and bounded summaries. Existing compiler/transforms/build safety remain authoritative; no world changes or implicit clearing and no extra mandatory verification calls.

@@ -10,9 +10,9 @@ Each step requires user approval before work begins. Pause after each step and r
 4. **Exact verification and targeted repairs** - complete; approved implementation, exact state/sign checks and guarded sparse native repairs passed. Merged via PR #2; lightweight policy merged via PR #3.
 5. **Shape-aware isometric and perspective rendering** - complete and merged via PR #4.
 6. **Architectural generators** - complete and merged via PR #5.
-7. **Terrain-aware site planning** - approved foundations/entrances complete on feature branch; paused for review before Step 8.
-8. **Design constraints and alternative concepts** - not started, approval required.
-9. **Photo-reference reconstruction workflow** - not started, approval required.
+7. **Terrain-aware site planning** - complete and merged via PR #6.
+8. **Design constraints and alternative concepts** - skipped by user decision.
+9. **Photo-reference reconstruction workflow** - approved; lightweight agent guidance complete on feature branch, basic checks passed; paused for review/merge.
 10. **Safe project revisions and selective undo** - not started, approval required.
 
 ## Step 1 implementation
@@ -157,7 +157,19 @@ Branch: `feat/terrain-aware-foundations`, based on merged main `5aac02a`.
 - Fixtures/documents/items/forced chunk cleaned/restored. Same isolated PID **35309** retained; no new runtime errors, production untouched, no restart/shutdown.
 - Routine workflow stays one relevant survey -> build -> one appearance render. fit is optional adaptation, not a per-build verification requirement; exact auditing remains opt-in.
 
-Next: explicit approval required for Step 8 (constraints/design alternatives); no Step 8 work has begun.
+Step 8 was subsequently skipped by user decision. Step 9 was approved as a lightweight reference-reconstruction workflow, not a new image-to-3D engine.
+
+## Step 9 implementation
+
+Branch: `feat/photo-reference-workflow`.
+
+- Public `PHOTO_REFERENCE_WORKFLOW.md` and plugin-served agent guidance: reference selection/access limits, explicit scale/proportion brief, observed/inferred/unknown separation, distinctive features, interior uncertainty, local reusable geometry, and honest handoff.
+- Existing blueprint descriptions/advisory constraints can retain reference notes; no new tool, schema, runtime geometry engine or automatic fidelity score.
+- Corrected visual-fidelity wording: photographic similarity does not trigger exact block-state auditing. `mc_verify` compares a frozen specification, not photographs.
+- Basic verification only: one affected plugin build with 10 focused tool/schema tests passed (one newly added instruction test), zero failures. No native/world tests needed for instructions/documentation; no production or disposable-server changes.
+- Added repository `AGENTS.md` with the approved basic-testing policy, persistent across new/resumed/compacted contexts.
+
+Pause for review/merge after completion. Step 10 remains unstarted and requires explicit approval.
 
 ### Separate upstream dependency finding
 

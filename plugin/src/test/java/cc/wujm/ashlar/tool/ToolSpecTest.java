@@ -67,6 +67,16 @@ class ToolSpecTest {
     }
 
     @Test
+    void photoWorkflowSeparatesEvidenceFromBlockAuditing() {
+        String instructions = new ToolRegistry(List.of()).instructions();
+        assertTrue(instructions.contains("Photo-reference reconstruction:"));
+        assertTrue(instructions.contains("observed features from inferred geometry and unknown/hidden areas"));
+        assertTrue(instructions.contains("does not automatically request exact block-state auditing"));
+        assertTrue(instructions.contains("not with a photograph"));
+        assertFalse(instructions.contains("exact verification/fidelity"));
+    }
+
+    @Test
     void advancedToolDescriptionsDoNotImplyRoutineVerification() {
         assertTrue(ToolSpec.load("mc_plan").description().contains("optional escalation"));
         assertTrue(ToolSpec.load("mc_verify").description().contains("not for ordinary builds by default"));

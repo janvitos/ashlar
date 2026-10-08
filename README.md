@@ -219,9 +219,15 @@ Use the returned build request to place it, then the usual one appearance render
 
 Disposable `mcp-server/tools/e2e-terrain-fit.mjs` reserves `[1024,99,-40]` through `[1104,125,40]`, restores it and deletes generated documents. It checks hill/pier/entry geometry, read-only fitting, late protected edits, all entry directions, hazard/atomic rejection and virtual/live image parity. PNGs go to `/tmp/ashlar-step7-previews` (`ASHLAR_TERRAIN_OUTPUT` override); no lifecycle management. Developer tests are not per-build agent verification steps.
 
+## Photo-reference reconstruction (fork enhancement)
+
+See [Photo-reference workflow](PHOTO_REFERENCE_WORKFLOW.md). The plugin's agent instructions also carry its essential guidance, so MCP and in-game agents receive it without needing to read repository files. This is agent guidance using existing tools, not automatic image-to-3D conversion: image/web access belongs to the calling agent.
+
+Use a compact reference/scale/proportion brief, distinguish observed features from inferred and unknown details, prioritize silhouette and distinctive architecture, and disclose invented interiors or material approximations. Ordinary blueprint descriptions/advisory constraints can preserve reference notes. Keep the usual one relevant survey -> build -> one appearance render; no additional mandatory verification tools. Exact block-state comparison cannot establish photographic similarity.
+
 ## Verification policy: lightweight by default
 
-Mandatory structural safety checks run inside `mc_build` without extra agent calls. Site simulation (`mc_plan`, `dryRun`, strict `preflight`) is optional, for requested previews/checks or concrete placement risks. Exact cell-by-cell verification (`mc_verify`) is opt-in when the user asks for exact verification/fidelity, such as a precise photo reconstruction; size alone does not trigger it. Do not stack equivalent analyses or launch full scans to fix a small visible defect. Stop when the result is satisfactory and no concrete issue remains; explain unresolved issues instead of looping indefinitely.
+Mandatory structural safety checks run inside `mc_build` without extra agent calls. Site simulation (`mc_plan`, `dryRun`, strict `preflight`) is optional, for requested previews/checks or concrete placement risks. Exact cell-by-cell verification (`mc_verify`) is opt-in when the user explicitly asks for exact block-state verification. Visual fidelity requests, photo reconstruction and build size alone do not trigger it; this tool compares against a frozen build specification, not against photographs. Do not stack equivalent analyses or launch full scans to fix a small visible defect. Stop when the result is satisfactory and no concrete issue remains; explain unresolved issues instead of looping indefinitely.
 
 The comprehensive unit/native tests used to develop Ashlar are **not** run for each agent build. Advanced tools remain available; this is an agent instruction policy, not a hard runtime call-budget or removal of safety guards.
 
