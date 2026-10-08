@@ -48,6 +48,14 @@ public final class PlanTask extends BuildTask {
     private long accepted, skipped, changedCells, existingChanged, cleared, pairErrors;
     private RegionData previewData;
     private int[] paletteArgb;
+    private boolean capture;
+    private final List<BuildExpectation.Cell> expected = new ArrayList<>();
+    private final Map<Cell,SignSnapshot> expectedSigns = new HashMap<>();
+    private final Map<BlockData,String> expectedStates = new HashMap<>();
+    public PlanTask captureExpectation() { capture=true; return this; }
+    public BuildExpectation expectation(String worldName,boolean connected,boolean flowing) {
+        return new BuildExpectation(worldName,bounds,expected,connected,flowing);
+    }
 
     public PlanTask(Region ticketRegion, Region bounds, World world, List<FillOp> fills,
             List<SparseOp> blocks, int minY, int maxY, Region previewBounds, long requested, int neighbourCap) {
@@ -73,7 +81,10 @@ public final class PlanTask extends BuildTask {
         }
         while (sparseIndex < blocks.size()) {
             SparseOp op = blocks.get(sparseIndex++);
-            apply(new Cell(op.x(),op.y(),op.z()),op.block(),false,null); advance(1);
+            Cell c=new Cell(op.x(),op.y(),op.z());
+            apply(c,op.block(),false,null);
+            if (capture && op.sign()!=null) expectedSigns.put(c,expectedSigns.get(c).patch(op.sign()));
+            advance(1);
             if (++batch % 128 == 0 && System.nanoTime() >= deadline) return false;
         }
         if (finalCursor == null) finalCursor = overlay.entrySet().iterator();
@@ -98,6 +109,7 @@ public final class PlanTask extends BuildTask {
                         addNeighbour(c.x,c.y,c.z+1); addNeighbour(c.x,c.y,c.z-1);
                     }
                 }
+                if (capture) expected.add(new BuildExpectation.Cell(new BuildExpectation.Pos(c.x,c.y,c.z),expectedStates.computeIfAbsent(data,BlockData::getAsString),expectedSigns.get(c)));
                 materials.merge(data.getMaterial().getKey().toString(),1L,Long::sum);
                 if (SupportCheck.needsCheck(data)) support.add(c.array());
                 checkPair(c,data);
@@ -147,6 +159,13 @@ public final class PlanTask extends BuildTask {
         if (current == null) current = original.computeIfAbsent(c,k -> world.getBlockAt(k.x,k.y,k.z).getBlockData());
         if ((keep && !current.getMaterial().isAir()) || (filter != null && !current.matches(filter))) { skipped++; return; }
         if (overlay.containsKey(c) && overlaps.add(c) && overlapSamples.size() < 50) overlapSamples.add(coords(c.array()));
+        if (capture) {
+            if (target.getMaterial().name().endsWith("_SIGN")) {
+                SignSnapshot sign=expectedSigns.get(c);
+                if (sign==null && current.getMaterial()==target.getMaterial()) sign=SignAccess.read(world.getBlockAt(c.x,c.y,c.z));
+                expectedSigns.put(c,current.getMaterial()==target.getMaterial() && sign!=null ? sign : SignSnapshot.empty());
+            } else expectedSigns.remove(c);
+        }
         overlay.put(c,target); accepted++;
     }
     private void addNeighbour(int x,int y,int z) {

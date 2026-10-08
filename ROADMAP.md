@@ -6,8 +6,8 @@ Each step requires user approval before work begins. Pause after each step and r
 
 1. **Local coordinates and reliable transformations** - complete; implementation and isolated Paper runtime acceptance tests passed.
 2. **Reusable blueprints and components** - complete; approved implementation, unit/native tests and reload-persistence checks passed.
-3. **Preflight validation and dry-run previews** - complete; approved implementation, unit/native tests and image parity checks passed. Paused for user review before Step 4.
-4. **Exact verification and targeted repairs** - not started, approval required.
+3. **Preflight validation and dry-run previews** - complete; approved implementation, unit/native tests and image parity checks passed. Steps 1-3 merged into main via PR #1.
+4. **Exact verification and targeted repairs** - complete; approved implementation, exact state/sign checks and guarded sparse native repairs passed. Paused for user review before Step 5.
 5. **Shape-aware isometric and perspective rendering** - not started, approval required.
 6. **Architectural generators** - not started, approval required.
 7. **Terrain-aware site planning** - not started, approval required.
@@ -90,7 +90,27 @@ Branch: `feat/build-preflight`, based on Step 2.
 - Step 1 regression: **116,844 checks, zero failures**. Step 2 regression: **5,553 checks, zero failures**. No unexpected runtime errors or unexplained support warnings in acceptance runs. An early helper omitted its timeout and disconnected immediately, causing an explained response-delivery WebsocketNotConnectedException; corrected before acceptance.
 - Test regions restored, temporary documents removed, development server still running with the same PID 35309. Only isolated development code/config reloads; no restart/shutdown or production modification.
 
-Next: user approval is required before Step 4 (exact verification and targeted repairs). No Step 4 work has begun.
+Step 4 was subsequently approved and completed; see below.
+
+## Step 4 implementation and verification
+
+Branch: `feat/exact-build-verification`, based on merged main `db1afbe`.
+
+- `mc_verify prepare` freezes immutable eligible final cells before construction using shared build compilation/preflight and tick-budgeted virtual replay. Conditional keep/filter eligibility, phase ordering, all transforms/blueprints/palettes/text and sequential supported sign patches are retained. Rechecking never reevaluates predicates and cannot hide missing cells by skipping them. Empty eligibility rejects.
+- `mc_verify check` scans every expected cell and reports missing/unexpected blocks, wrong materials/properties and supported sign text/color/glow/wax differences, exact absolute coordinates, complete counts and bounded diagnostics. Exact default includes all canonical properties; explicit placement mode excludes only narrow generated connection properties for connected builds, never orientation/chest types. Untouched/skipped cells, rich sign styling, inventories/arbitrary NBT and entities are outside scope.
+- Owner-scoped memory receipts: 32 plans, 1,000,000 aggregate cells, 2-hour expiry; lost on plugin reload/restart. Source document deletion does not invalidate captured cells. list/delete metadata do not change blocks. Reload persistence/project revisions remain Step 10 work.
+- `mc_repair` requires latest comparison ID, accepts explicit unique mismatch subsets, rejects oversized selections (default 1000, maximum 10000), revalidates current allowed world/region/Y/aggregate/read/chunk/snapshot limits and observed values before snapshot/write. Stale/protected selections reject; late changed values are skipped/stopped. Per-plan operations are exclusive. Default block-entity replacement/deletion guard, explicit opt-in for destructive material replacement.
+- Only mismatching selected cells are written, with physics disabled, no connection pass or neighboring refresh. Excluded live properties are retained for same-material placement repairs. Matching cells and supported unchanged sign fields remain untouched. Full post-repair verification yields a new comparison ID. No-op repair makes no writes/snapshots. Flowing-fluid receipts cannot be auto-repaired.
+- Optional default-true delta-envelope snapshot. Explicitly documented: existing snapshot payload stores block states only, not sign text/colors, inventory or arbitrary NBT. No atomic world-lock/transaction/rollback guarantee. Wider safe revision/undo remains Step 10, not claimed here.
+- **28 new unit tests; 618 plugin tests pass** with only the reproduced upstream font assumption excluded. MCP build and all **8 adapter tests pass**.
+- Native acceptance: **233 assertions, zero failures**, full-region/snapshot non-mutation checks, all five difference classes, truncated diagnostics with complete scan, exact stair-property reports, partial and full repairs, stale-ID/value rejection before snapshots/writes, keep/filter freezing and ignored-cell preservation, sequential sign metadata, default block-entity deletion guard, clean no-op repairs and snapshot opt-out.
+- Paired chest types remain exact and inventory survives both untouched-chest repairs elsewhere and same-material chest orientation repair. Inventory test uses item/temporary forced-chunk administration only; forced chunk removed. Initial command test found chunk unloading between long fingerprints; fixture now explicitly forces its chunk and checks item command success before asserting inventory.
+- All **12 transformed repeated-blueprint** captures/builds/damage/repairs pass. Receipts still repair after source blueprint deletion. Connected placement mode exclusions are visible, while wrong orientation is still detected/repaired.
+- Separate hot-limit checks: reduced aggregate block budget and snapshot capacity each reject before any writes or snapshot creation. Original isolated config restored/reloaded and fixture cleaned up.
+- Step 1 regression **116,844**, Step 2 **5,553**, Step 3 **202** assertions/checks: zero failures. No unexpected runtime errors.
+- Native regions restored, temporary blueprints/receipts removed. Isolated PID **35309** remains running. Development-only plugin/config reloads; no shutdown/restart or production changes.
+
+Next: user approval is required before Step 5 (shape-aware isometric and perspective rendering). No Step 5 work has begun.
 
 ### Separate upstream dependency finding
 

@@ -75,6 +75,9 @@ public final class BuildPreflight {
     }
 
     CompletableFuture<Result> analyze(InvocationContext ctx, Validated v, JsonObject preview) {
+        return analyze(ctx,v,preview,false);
+    }
+    CompletableFuture<Result> analyze(InvocationContext ctx, Validated v, JsonObject preview, boolean capture) {
         RequestValidator validator = new RequestValidator(v.settings());
         RequestValidator.RenderParams rp = preview == null ? null : validator.validateRenderParams(preview,v.bounds());
         if (rp != null && rp.view().equals("heightmap")) throw new ToolArgError("planned previews support top, compass facades and slice only");
@@ -92,6 +95,7 @@ public final class BuildPreflight {
         validator.checkChunkCount(tickets);
         PlanTask task = new PlanTask(tickets,b,v.world(),v.fills(),v.blocks(),v.minY(),v.maxY(),imageBounds,v.volume(),
                 (int)Math.min(200_000,v.settings().limits().maxReadVolume()));
+        if (capture) task.captureExpectation();
         return executor.submit(task,ctx).thenApply(report -> new Result(report.getAsJsonObject(),task,rp));
     }
     private static JsonObject fill(int[] from,int[] to,String block) {

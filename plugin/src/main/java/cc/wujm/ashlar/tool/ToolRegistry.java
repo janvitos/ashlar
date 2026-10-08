@@ -11,7 +11,7 @@ import java.util.function.Predicate;
 /**
  * Holds the registered {@code mc_*} tools in registration order (plan.md Step 7.2b: same order as
  * {@code mcp-server/src/tools/index.ts}'s {@code registerAllTools}): mc_status, mc_players,
- * mc_survey, mc_build, mc_blueprint, mc_plan, mc_inspect, mc_render, mc_snapshot, mc_restore, mc_command.
+ * mc_survey, mc_build, mc_blueprint, mc_plan, mc_verify, mc_repair, mc_inspect, mc_render, mc_snapshot, mc_restore, mc_command.
  *
  * <p>{@link #catalog(Predicate)} is a hook for a later per-token visibility filter (plan.md v0.5
  * scopes); no scopes exist yet, so {@link #catalog()} passes a filter that accepts everything.

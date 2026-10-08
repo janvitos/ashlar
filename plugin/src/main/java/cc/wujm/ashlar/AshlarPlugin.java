@@ -53,6 +53,10 @@ import cc.wujm.ashlar.tool.ToolRegistry;
 import cc.wujm.ashlar.tool.mc.McBuild;
 import cc.wujm.ashlar.tool.mc.McBlueprint;
 import cc.wujm.ashlar.tool.mc.McPlan;
+import cc.wujm.ashlar.tool.mc.McVerify;
+import cc.wujm.ashlar.tool.mc.McRepair;
+import cc.wujm.ashlar.tool.mc.VerificationService;
+import cc.wujm.ashlar.tool.mc.VerificationStore;
 import cc.wujm.ashlar.tool.mc.BuildPreflight;
 import cc.wujm.ashlar.tool.mc.BlueprintStore;
 import cc.wujm.ashlar.tool.mc.BlueprintCompiler;
@@ -207,6 +211,8 @@ public final class AshlarPlugin extends JavaPlugin {
             return new BlueprintCompiler.Limits(limits.maxBlocksPerOperation(), limits.maxChunksPerOperation(),
                     limits.maxFlowingLiquidsPerOperation());
         }).withPreflight(preflight);
+        VerificationService verification = new VerificationService(buildTool, preflight, executor, configHolder,
+                new VerificationStore(), snapshotCreateHandler);
         ToolRegistry toolRegistry = new ToolRegistry(List.of(
                 new McStatus(healthHandler),
                 new McPlayers(playersHandler),
@@ -214,6 +220,8 @@ public final class AshlarPlugin extends JavaPlugin {
                 buildTool,
                 new McBlueprint(blueprintStore),
                 new McPlan(buildTool, preflight, renderExecutor),
+                new McVerify(buildTool, verification),
+                new McRepair(verification),
                 new McInspect(readRegionHandler),
                 new McRender(renderHandler),
                 new McSnapshot(snapshotCreateHandler, listSnapshotsHandler),
