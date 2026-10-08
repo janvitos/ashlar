@@ -99,6 +99,16 @@ class ToolSpecTest {
     }
 
     @Test
+    void terrainFitIsOptionalAndRequiresAnExplicitWalkingPlane() {
+        var spec=ToolSpec.load("mc_blueprint");var props=spec.inputSchema().getAsJsonObject("properties");
+        assertTrue(props.getAsJsonObject("action").get("enum").toString().contains("fit"));
+        assertTrue(props.getAsJsonObject("site").get("required").toString().contains("floorY"));
+        assertTrue(spec.description().contains("not a mandatory check"));
+        assertTrue(spec.description().contains("site-specific"));
+        assertTrue(new ToolRegistry(List.of()).instructions().contains("one mc_render"));
+    }
+
+    @Test
     void toJsonRoundTripsTheSameFields() {
         ToolSpec spec = ToolSpec.load("mc_status");
         var json = spec.toJson();

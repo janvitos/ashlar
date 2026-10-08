@@ -17,20 +17,27 @@ import java.util.concurrent.CompletableFuture;
 public final class McBlueprint implements Tool {
     private final ToolSpec spec = ToolSpec.load("mc_blueprint");
     private final BlueprintStore store;
+    private final TerrainFitService terrain;
 
-    public McBlueprint(BlueprintStore store) { this.store = store; }
+    public McBlueprint(BlueprintStore store) { this(store,null); }
+    public McBlueprint(BlueprintStore store,TerrainFitService terrain) { this.store = store; this.terrain=terrain; }
     @Override public ToolSpec spec() { return spec; }
 
     @Override public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
         return ToolRunner.runText("mc_blueprint", () -> {
-            String action = ArgParse.requireEnum(args, "action", List.of("save", "get", "list", "delete", "generate"));
+            String action = ArgParse.requireEnum(args, "action", List.of("save", "get", "list", "delete", "generate", "fit"));
             Set<String> allowed = switch (action) {
                 case "save" -> Set.of("action", "id", "document", "overwrite");
                 case "generate" -> Set.of("action", "id", "generator", "overwrite");
+                case "fit" -> Set.of("action", "id", "site", "overwrite");
                 case "list" -> Set.of("action");
                 default -> Set.of("action", "id");
             };
             BlueprintCompiler.fields(args, allowed, "mc_blueprint");
+            if(action.equals("fit")) {
+                if(terrain==null)throw new cc.wujm.ashlar.tool.ToolArgError("terrain fitting service is unavailable");
+                return terrain.fit(ctx,args,store);
+            }
             String result = switch (action) {
                 case "save" -> store.save(ArgParse.requireString(args, "id"),
                         ArgParse.requireObject(args.get("document"), "document"),
