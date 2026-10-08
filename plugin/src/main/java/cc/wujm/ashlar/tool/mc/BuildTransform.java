@@ -87,6 +87,18 @@ record BuildTransform(int originX, int originY, int originZ, int rotation, Strin
         return p[2] > 0 ? "south" : "north";
     }
 
+    /** Reflections reverse stair chirality, regardless of facing; rotations preserve it. */
+    String stairShape(String shape) {
+        if (mirror.equals("none")) return shape;
+        return switch (shape) {
+            case "INNER_LEFT" -> "INNER_RIGHT";
+            case "INNER_RIGHT" -> "INNER_LEFT";
+            case "OUTER_LEFT" -> "OUTER_RIGHT";
+            case "OUTER_RIGHT" -> "OUTER_LEFT";
+            default -> shape;
+        };
+    }
+
     int[][] bounds(int[] from, int[] to) {
         return normalized(position(from), position(to));
     }

@@ -4,7 +4,7 @@ Each step requires user approval before work begins. Pause after each step and r
 
 ## Priorities and status
 
-1. **Local coordinates and reliable transformations** - approved; implementation ready, Paper runtime acceptance testing pending approval to start and stop an isolated disposable test server.
+1. **Local coordinates and reliable transformations** - complete; implementation and isolated Paper runtime acceptance tests passed. Paused for user review before Step 2.
 2. **Reusable blueprints and components** - not started, approval required.
 3. **Preflight validation and dry-run previews** - not started, approval required.
 4. **Exact verification and targeted repairs** - not started, approval required.
@@ -22,7 +22,7 @@ Branch: `feat/local-coordinate-transforms`.
 - Optional `mc_build.transform` with required world `origin`, clockwise `rotation` (0/90/180/270), and local `mirror` (none/x/z).
 - Mirror local coordinates first, rotate about local zero second, then translate into world space.
 - Transforms fills, individual blocks, expanded wall/floor lettering, lettering backgrounds, and snapshot bounds.
-- Native Paper `BlockData.mirror`/`rotate` handle directional properties and unspecified defaults, in batches of at most 64 distinct states per main-thread callback.
+- Native Paper `BlockData.mirror`/`rotate` handle directional properties and unspecified defaults, in batches of at most 64 distinct states per main-thread callback. Explicitly correct mirrored stair handedness, because native mirroring alone is geometrically wrong for some facing/axis combinations.
 - Partial filters retain wildcard properties after transformation; cardinal property names are transformed too.
 - Sign strings and metadata are preserved. Mirrored block lettering intentionally mirrors glyph geometry. Callers still provide both door/bed halves.
 - Local-coordinate integer and overflow validation runs before snapshots or writes. Local lettering expands around zero and uses long intermediate coordinates to avoid wrap.
@@ -30,23 +30,29 @@ Branch: `feat/local-coordinate-transforms`.
 
 ### Verification performed
 
-- 15 new JUnit tests pass, covering all 12 rotation/mirror combinations, paired-block positional invariants, cuboid geometry, exact glyph pixels, partial filters, backward compatibility, overflow, handler ordering, world-space snapshot bounds and tool schema.
-- Plugin full suite: 548 tests, 547 pass. The sole failure is upstream `AwtGlyphsTest.anUncoveredCodePointFailsInsteadOfDrawingTheMissingGlyphBox`: this host's font covers U+E000, contrary to the test's assumption. Reproduced on untouched upstream commit `73026c7`; unrelated code was not changed.
+- 16 new JUnit tests pass, covering all 12 rotation/mirror combinations, stair reflection chirality, paired-block positional invariants, cuboid geometry, exact glyph pixels, partial filters, backward compatibility, overflow, handler ordering, world-space snapshot bounds and tool schema.
+- Plugin full suite: 549 tests, 548 pass. The sole failure is upstream `AwtGlyphsTest.anUncoveredCodePointFailsInsteadOfDrawingTheMissingGlyphBox`: this host's font covers U+E000, contrary to the test's assumption. Reproduced on untouched upstream commit `73026c7`; unrelated code was not changed.
 - Plugin build passes with only that reproduced upstream test excluded via an external temporary Gradle init script. Built artifact: `plugin/build/libs/ashlar-0.4.9-dev.jar`.
 - MCP TypeScript build passes; all 8 existing adapter tests pass.
 - `git diff --check` passes; new Java sources are ASCII and carry SPDX headers.
-- No production plugin, world or server configuration changed. No server started, stopped or restarted.
+- No production plugin, world or server configuration changed. All runtime work used the approved isolated Paper server.
 
-### Remaining Step 1 acceptance work
+### Completed runtime acceptance
 
-With explicit approval to start and stop a separate disposable Paper test server:
+- Paper 26.2 build 132, Java 25; bound Minecraft to `127.0.0.1:25585` and plugin WebSocket to `127.0.0.1:18765`. Used a temporary flat world and a development jar only; no connected players.
+- Tested through a real MCP stdio client and adapter, with exact palette/RLE world readback. An independent geometric oracle checked all 12 rotation/mirror combinations, both `connect:false` and the normal default connection pass.
+- Verified all stair shapes and facings, top/bottom stairs, both door halves and hinges, bed parts and offsets, automatic double-chest pairing, standing/wall sign orientation and preserved front/back text, log axes, rail shapes, panes/fences, hoppers, levers, trapdoors and jigsaw orientation. Omitted default states were included.
+- Verified wall and floor lettering/background geometry, mirrored shape filters, cardinal-property filters, wildcard preservation, world-space auto-snapshot bounds and exact restoration.
+- Exercised 160 distinct stair states, each used twice (320 placements), to cross native-transform batch boundaries and test caching.
+- Verified a late invalid block state rejects the entire transformed request without earlier writes or an auto-snapshot.
+- Final acceptance run: **116,844 checks, zero failures**, no unexplained support warnings and no plugin runtime errors.
+- Runtime testing exposed incorrect native corner-stair mirroring. Added an explicit geometric-handedness correction and regression test, then repeated the expanded suite successfully.
+- Shut down the isolated server after verified vanilla in-game announcements at 30/20/10/0 seconds, allowing the full countdown. Confirmed both test ports closed. The live server remained untouched.
+- Reusable acceptance script: `mcp-server/tools/e2e-transforms.mjs`; requires explicit disposable-server opt-in, loopback connectivity and no players. It restores reserved test regions in cleanup and does not manage server lifecycle.
 
-1. Load the development jar only on that isolated instance; use loopback-only ports and a temporary world.
-2. Exercise the actual `mc_build` tool path for all rotations and mirrors, then read exact world states back.
-3. Verify stair shape/facing, both door halves and hinges, bed offsets, standing/wall sign orientations and text, log axes, rail shapes, and cardinal connection properties. Test omitted directional defaults too.
-4. Verify transformed partial filters, lettering/background geometry, snapshot bounds and restoration end-to-end.
-5. Require no unexplained support warnings or runtime errors; fix discrepancies before marking Step 1 accepted.
-6. Shut down only the approved test instance, using the required verified in-game countdown. Do not touch the live server.
+### Out-of-scope observation
+
+Rebuilding an already paired chest fixture in place produced unpaired baseline chests under the existing chest-pairing behavior. Fresh builds pair correctly across all transforms. The acceptance test uses identical pristine starting states for source and target rather than conflating this upstream rebuild behavior with coordinate transformation. Revisit idempotent repairs in Step 4; Step 1 does not change the chest-pairing engine.
 
 ### Separate upstream dependency finding
 

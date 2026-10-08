@@ -7,6 +7,8 @@ All notable changes to this project are documented in this file.
 - `mc_build` gains an optional local coordinate `transform`: required world `origin`, clockwise quarter-turn `rotation`, and local `mirror` (`none`, `x`, `z`). Applies mirror, rotation and translation to fills, sparse blocks and expanded text before snapshots or writes. Calls without a transform are unchanged.
 - Native Paper block-data transforms preserve directional states and omitted defaults; partial fill filters retain wildcard properties. Sign content is preserved, mirrored block lettering mirrors its glyphs, and paired blocks must still be supplied explicitly.
 - Local inputs reject fractional/out-of-range integers and transformed coordinate overflow. Added coordinate, geometry, filter and compatibility tests.
+- Correct mirrored corner-stair handedness independently of facing: Paper's native mirror leaves some inner/outer left/right shapes unchanged. Verified the fix against a geometric oracle on Paper 26.2 build 132.
+- Added an opt-in disposable-server MCP acceptance test (`mcp-server/tools/e2e-transforms.mjs`): 116,844 checks across exact and default connection modes, partial filters, paired structures, signs, lettering, restoration and multi-batch transforms.
 
 ## 0.4.9
 

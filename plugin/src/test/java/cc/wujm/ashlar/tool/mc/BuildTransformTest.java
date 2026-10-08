@@ -53,6 +53,21 @@ class BuildTransformTest {
         }
     }
 
+    @Test void everyReflectionReversesStairHandednessAndEveryRotationPreservesIt() {
+        String[] shapes = {"STRAIGHT", "INNER_LEFT", "INNER_RIGHT", "OUTER_LEFT", "OUTER_RIGHT"};
+        String[] reflected = {"STRAIGHT", "INNER_RIGHT", "INNER_LEFT", "OUTER_RIGHT", "OUTER_LEFT"};
+        for (int rotation : List.of(0, 90, 180, 270)) {
+            for (int i = 0; i < shapes.length; i++) {
+                assertEquals(shapes[i], new BuildTransform(0, 0, 0, rotation, "none").stairShape(shapes[i]));
+                for (String mirror : List.of("x", "z")) {
+                    var t = new BuildTransform(0, 0, 0, rotation, mirror);
+                    assertEquals(reflected[i], t.stairShape(shapes[i]));
+                    assertEquals(shapes[i], t.stairShape(t.stairShape(shapes[i])));
+                }
+            }
+        }
+    }
+
     @Test void cuboidBoundsMatchAllTransformedCells() {
         for (int rotation : List.of(0, 90, 180, 270)) {
             for (String mirror : List.of("none", "x", "z")) {

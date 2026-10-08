@@ -5,6 +5,7 @@ import cc.wujm.ashlar.rpc.MainThread;
 import cc.wujm.ashlar.tool.ToolArgError;
 import org.bukkit.Bukkit;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.type.Stairs;
 import org.bukkit.block.structure.Mirror;
 import org.bukkit.block.structure.StructureRotation;
 
@@ -14,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-/** Uses Paper's native transformations, including defaults, rail shapes and handedness. No world writes. */
+/** Uses native transforms with geometrically correct stair reflections. No world writes. */
 final class BuildStateTransform {
     // Bound each main-thread callback; repeated states are transformed only once per request.
     private static final int BATCH_SIZE = 64;
@@ -52,6 +53,7 @@ final class BuildStateTransform {
                 String key = keys.get(i);
                 try {
                     BlockData data = Bukkit.createBlockData(key);
+                    Stairs.Shape originalStairShape = data instanceof Stairs stairs ? stairs.getShape() : null;
                     // FRONT_BACK reflects X, LEFT_RIGHT reflects Z in Minecraft's structure API.
                     data.mirror(switch (transform.mirror()) {
                         case "x" -> Mirror.FRONT_BACK;
@@ -64,6 +66,11 @@ final class BuildStateTransform {
                         case 270 -> StructureRotation.COUNTERCLOCKWISE_90;
                         default -> StructureRotation.NONE;
                     });
+                    if (originalStairShape != null && !transform.mirror().equals("none")) {
+                        // Verified on Paper 26.2: vanilla mirror preserves corner chirality for
+                        // some facing/axis combinations. A true reflection must always swap it.
+                        ((Stairs) data).setShape(Stairs.Shape.valueOf(transform.stairShape(originalStairShape.name())));
+                    }
                     states.put(key, data.getAsString());
                 } catch (IllegalArgumentException ex) {
                     throw new ToolArgError("transform: invalid block state '" + key + "': " + ex.getMessage());

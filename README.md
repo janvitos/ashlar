@@ -72,11 +72,24 @@ Typical flow: `mc_players` (if the request is relative to a player) -> `mc_surve
 - `mirror` defaults to `none`: `x` negates local X (reflect across YZ); `z` negates local Z (reflect across XY). Y is never flipped.
 - `rotation` defaults to `0`: `0`, `90`, `180` or `270` degrees clockwise viewed from above. At `90`, east becomes south and north becomes east.
 - Order is **mirror -> rotate -> translate**. Rotation and mirroring pivot around local `[0,0,0]`, not the building's center. Negative local positions are allowed.
-- Paper's native block-data transformations handle facing, axes, rail shapes, door hinges, stair handedness and standing-sign rotation, including omitted default properties. Provide BOTH halves of doors and beds; no new blocks are synthesized.
+- Paper's native block-data transformations handle facing, axes, rail shapes, door hinges and standing-sign rotation, including omitted default properties. Ashlar additionally corrects corner-stair handedness on reflection: native mirroring alone preserves the wrong left/right shape for some facing/axis combinations. Provide BOTH halves of doors and beds; no new blocks are synthesized.
 - Fill filters rotate/mirror too, while omitted properties remain wildcards. Expanded lettering and backgrounds transform geometrically; mirroring reverses block-letter glyphs. Sign strings are not reversed.
 - Transformed states are cached per request and processed in bounded main-thread batches before snapshots or writes. Existing connection updates can subsequently recompute stair/fence/pane shapes; use `connect:false` when testing exact state transforms.
 - Local coordinates and origins must be signed 32-bit integers; fractional inputs and overflowing world results are rejected. Existing calls without `transform` retain their absolute-coordinate behavior.
 - Build reports, snapshots, surveys and inspections use **world coordinates**. This is a plugin-side feature; the MCP adapter forwards the updated schema without changes.
+
+### Transformation acceptance test
+
+After building the plugin and running `npm ci && npm run build` in `mcp-server/`, the opt-in test is:
+
+```sh
+ASHLAR_DISPOSABLE_TEST=1 \
+  MC_PLUGIN_URL=ws://127.0.0.1:<test-port> \
+  MC_PLUGIN_TOKEN=<test-token> \
+  node tools/e2e-transforms.mjs
+```
+
+Run this **only on an isolated disposable Paper server** with no connected players. It writes fixed regions around `[0,100,0]` and `[64,100,0]`, snapshots and restores them, and requires loopback connectivity and explicit opt-in. It checks all 12 rotation/mirror combinations with and without the connection pass, partial filters, paired blocks, sign content, rendered lettering, snapshot restoration, invalid-state rejection and multi-batch state transforms. It does not start or stop the server.
 
 ## Install (three steps)
 
