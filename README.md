@@ -45,7 +45,7 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | `mc_survey` | Terrain survey of an x/z area: heightmap image plus exact numbers (min/max/median height, surface mix, largest flat zone); `format:"text"` for an ASCII map. |
 | `mc_render` | One visual PNG check: shape-aware isometric/perspective depth, or flat top/facade/slice/heightmap views. Angled views need tight 3D bounds; top/heightmap stay area-priced. |
 | `mc_build` | Places blocks in bulk (cuboid fills with modes replace/keep/outline/hollow/walls, individual blocks and sign text, plus lettering rendered by the plugin via `text`). |
-| `mc_blueprint` | Optionally generate roofs/arches/towers/stairs, or save/get/list/delete reusable components, palettes and repeated instances; no world writes. |
+| `mc_blueprint` | Optionally generate architectural parts or fit foundations/entrances to terrain; save/get/list/delete reusable designs. No world writes. |
 | `mc_plan` | Read-only preflight and virtual-scene previews for direct builds or saved blueprints; collision/support/pairing diagnostics without placement. |
 | `mc_verify` | Freeze expected cells before building; compare actual states/sign values afterward with exact coordinate/property differences. |
 | `mc_repair` | Guarded repairs of mismatches from a fresh comparison, followed by full verification; no matching-cell or neighbor refresh writes. |
@@ -190,6 +190,34 @@ Then use the existing placement path:
 - Compose generated components through existing version-1 blueprints. Explicitly clear an opening/interior only when appropriate, with rollback protection for existing terrain/structures. Planning and exact verification remain optional/opt-in; generator calls are not mandatory for ordinary builds.
 
 Disposable `mcp-server/tools/e2e-generators.mjs` reserves `[896,99,-40]` through `[976,125,40]`, restores it and deletes generated documents by default. It checks native states, all 12 hip-roof frames, rejection atomicity and virtual/live gallery parity; saves PNGs under `/tmp/ashlar-step6-previews` (`ASHLAR_GENERATOR_OUTPUT` override). Diagnostic `ASHLAR_TEST_KEEP_BLUEPRINT=1` retains documents; `ASHLAR_TEST_KEEP_SCENE=1` retains the world fixture for a read-only probe and must be explicitly restored afterward. No lifecycle management. These acceptance tests are not per-build agent steps.
+
+## Terrain-aware foundations and entrances (fork enhancement)
+
+`mc_blueprint action:"fit"` is an **optional authoring helper**, not an extra mandatory site audit. It takes one bounded, tick-budgeted terrain capture and saves an additive, site-specific blueprint. Select `floorY` (walking level) using a recent relevant survey or design; it does not guess a safe global height under trees/buildings.
+
+```json
+{
+  "action": "fit", "id": "hill_foundation",
+  "site": {
+    "from": [100, 200], "to": [112, 214],
+    "floorY": 75, "maxDepth": 16,
+    "mode": "piers", "spacing": 4,
+    "entrance": { "facing": "south", "width": 3, "maxRun": 12 }
+  }
+}
+```
+
+- Inclusive footprint `[x,z]` corners, 1-64 cells per axis; optional `world`. Deck blocks are at `floorY-1`; two blocks of footprint/entrance headroom must be empty. `maxDepth` 1-64 (32) bounds searches below the deck. Read envelope includes that depth, headroom and the optional entire entry run; cap 200,000/current `max-read-volume`, world/build-region/Y/chunk restrictions apply before capture.
+- `solid` fills each column above its observed anchor through the deck. `piers` uses grid intersections plus far edges (`spacing` 1-16, default 4), with a full deck between supports. It can span interior gaps but all selected piers need anchors. This is schematic spacing, not structural engineering or survival/environment simulation.
+- A conservative whitelist accepts natural full-block anchors (stone/dirt/grass, deepslate, clay, sandstone and similar). Sand/gravel, plants/leaves/logs, liquids, block entities, constructed/unknown anchors and unanchored selected columns reject instead of guessing or excavating. Existing natural deck cells are preserved. A completely satisfied plane produces no empty saved blueprint.
+- Optional entrance: north/south/east/west (south), width 1-16 fitting its side (default min(3,span)), centered `offset` unless supplied, `maxRun` 1-32 and <=maxDepth (min(16,maxDepth)). Runs straight outward, descends one block per row with stairs facing back toward the deck, then finishes on a level filled/existing terrain landing. Uneven lanes are supported to that common level. Uphill/obstructed routes or missing bounded landings reject; no arbitrary rerouting, ascent or clearing.
+- `materials:{full,stairs}` defaults to stone bricks/stone brick stairs. Full material must be occluding and non-gravity; stairs must be a native stair state. Generated orientation/half/shape overrides binding defaults. Shared compiled build validation and current write limits run **before saving**. Existing IDs require `overwrite:true`.
+- All emitted fills have **observed air-type filters** (`air`, `cave_air` or `void_air`), never excavation or terrain/NBT replacement. Adjacent identical support runs compress. Capture reads no inventories and writes no world blocks, signs, snapshots or console commands. Persistent files are the only modification.
+- Result includes absolute generated bounds, original world/origin, anchor/count/entry summaries and a recommended ordinary `mc_build` request with `connect:false` and `snapshot:true`. Keep rollback precautions; snapshots still do not back up NBT. Fit metadata is advisory. **No world lock or reservation**: later non-air edits cause filters to skip rather than overwrite, possibly leaving gaps; later anchor/headroom changes can invalidate the design. Inspect concrete changes if needed, not repeated blanket scans. Moving/rotating this site-specific document does not refit terrain.
+
+Use the returned build request to place it, then the usual one appearance render. Planning/exact verification remain optional/opt-in. Explicit excavation, liquid displacement, vegetation clearing, upward/curved routes and automatic alternative selection are outside this step.
+
+Disposable `mcp-server/tools/e2e-terrain-fit.mjs` reserves `[1024,99,-40]` through `[1104,125,40]`, restores it and deletes generated documents. It checks hill/pier/entry geometry, read-only fitting, late protected edits, all entry directions, hazard/atomic rejection and virtual/live image parity. PNGs go to `/tmp/ashlar-step7-previews` (`ASHLAR_TERRAIN_OUTPUT` override); no lifecycle management. Developer tests are not per-build agent verification steps.
 
 ## Verification policy: lightweight by default
 

@@ -9,8 +9,8 @@ Each step requires user approval before work begins. Pause after each step and r
 3. **Preflight validation and dry-run previews** - complete; approved implementation, unit/native tests and image parity checks passed. Steps 1-3 merged into main via PR #1.
 4. **Exact verification and targeted repairs** - complete; approved implementation, exact state/sign checks and guarded sparse native repairs passed. Merged via PR #2; lightweight policy merged via PR #3.
 5. **Shape-aware isometric and perspective rendering** - complete and merged via PR #4.
-6. **Architectural generators** - approved implementation complete on feature branch; paused for review before Step 7.
-7. **Terrain-aware site planning** - not started, approval required.
+6. **Architectural generators** - complete and merged via PR #5.
+7. **Terrain-aware site planning** - approved foundations/entrances complete on feature branch; paused for review before Step 8.
 8. **Design constraints and alternative concepts** - not started, approval required.
 9. **Photo-reference reconstruction workflow** - not started, approval required.
 10. **Safe project revisions and selective undo** - not started, approval required.
@@ -141,7 +141,23 @@ Branch: `feat/architectural-generators`, based on merged main `9a6b048`.
 - Previous native regressions: transforms **116,844**, blueprints **5,553**, preflight **202**, exact verification **233**, shapes **71**; zero failures. No unexpected new runtime errors. Same isolated PID **35309** retained; production untouched, no restart/shutdown.
 - Routine agent verification stays lightweight. Generators are optional authoring helpers, not extra site/verification loops. Existing `mc_build` performs mandatory safety validation and snapshot checks; appearance remains one relevant render.
 
-Next: explicit approval required for Step 7 (terrain-aware foundations/entrances); no Step 7 work has begun.
+Step 7 was subsequently approved and completed; see below.
+
+## Step 7 implementation and verification
+
+Branch: `feat/terrain-aware-foundations`, based on merged main `5aac02a`.
+
+- Optional `mc_blueprint action:fit` takes an explicit footprint/world/walking `floorY` selected from a recent survey/design, one bounded tick-budgeted state capture, pure terrain fitting and shared compiled build validation before saving. No new tool, mandatory survey/plan/exact scan or world placement.
+- Additive solid foundations or spaced piers with full decks, plus optional straight outward descending stairs to a common level terrain landing. Conservative natural full-block anchors; rejects unknown/constructed/protected/vegetation/liquid/gravity anchors, occupied decks/headroom, missing bounded anchors, uphill routes or absent landings. No excavation, implicit clearing, upward/curved routing or automatic design alternatives.
+- Explicit observed-air-type filters preserve terrain/NBT and later non-air edits. Adjacent identical columns compress. Site-specific world/origin/build recommendation, anchor/count/entry metadata and limitations returned; persisted provenance is advisory, not a world reservation. Relocating/rotating does not refit; skipped supports or changed anchors/headroom are explicitly possible after later edits.
+- Network-side parameter/native-state validation, main-thread material/world-height checks, tick-budgeted reads; immutable region encoding/pure solver/storage run off-main. Read envelope <=200,000/current read caps, dimensions/depth/run bounded, world/build-region/Y/chunk checks before enqueue. Existing live compiled write limits checked before persistence; normal placement/snapshot safety unchanged.
+- **20 new unit/schema tests; 700 filtered plugin tests and 8 adapter tests pass.** Unfiltered run: 701 tests, sole failure is the known upstream host-font assumption at `AwtGlyphsTest.java:46`; no tracked exclusion/dependency changes.
+- Native terrain acceptance: **354,449 checks, zero failures**, including whole-fixture preservation outside emitted matching-air cells, hill/pier geometry and entry counts, no-world/snapshot mutation during fitting, late protected edits, invalid overwrite/file atomicity, hazardous anchors/headroom, all four entry directions and byte-for-byte static planned/live PNG parity. Solid/pier appearance image visually reviewed.
+- Hot isolated read/write caps: **8 checks, zero failures**, rejecting before document/snapshot/world changes; original limits restored. Previous native regressions: transforms **116,844**, blueprints **5,553**, preflight **202**, exact verification **233**, shape rendering **71**, generators **9,933**; zero failures.
+- Fixtures/documents/items/forced chunk cleaned/restored. Same isolated PID **35309** retained; no new runtime errors, production untouched, no restart/shutdown.
+- Routine workflow stays one relevant survey -> build -> one appearance render. fit is optional adaptation, not a per-build verification requirement; exact auditing remains opt-in.
+
+Next: explicit approval required for Step 8 (constraints/design alternatives); no Step 8 work has begun.
 
 ### Separate upstream dependency finding
 

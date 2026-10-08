@@ -218,7 +218,7 @@ public final class AshlarPlugin extends JavaPlugin {
                 new McPlayers(playersHandler),
                 new McSurvey(heightmapHandler, renderHandler),
                 buildTool,
-                new McBlueprint(blueprintStore),
+                new McBlueprint(blueprintStore, new cc.wujm.ashlar.tool.mc.TerrainFitService(configHolder, executor, preflight)),
                 new McPlan(buildTool, preflight, renderExecutor),
                 new McVerify(buildTool, verification),
                 new McRepair(verification),
