@@ -43,6 +43,9 @@ public final class McBuild implements Tool {
     private final RpcHandler setBlocksHandler;
     private final BlueprintStore blueprintStore;
     private final java.util.function.Supplier<BlueprintCompiler.Limits> blueprintLimits;
+    private BuildPreflight preflight;
+
+    public McBuild withPreflight(BuildPreflight service) { this.preflight = service; return this; }
 
     public McBuild(RpcHandler snapshotHandler, RpcHandler fillBatchHandler, RpcHandler setBlocksHandler) {
         this(snapshotHandler, fillBatchHandler, setBlocksHandler, null, () -> BlueprintCompiler.Limits.DEFAULT);
@@ -99,8 +102,8 @@ public final class McBuild implements Tool {
                 JsonArray arr = ArgParse.requireArray(o, "fills");
                 for (int i = 0; i < arr.size(); i++) {
                     JsonObject f = ArgParse.requireObject(arr.get(i), "fills[" + i + "]");
-                    int[] from = local ? BuildTransform.strictCoords(f, "from") : ArgParse.requireCoords3(f, "from");
-                    int[] to = local ? BuildTransform.strictCoords(f, "to") : ArgParse.requireCoords3(f, "to");
+                    int[] from = BuildTransform.strictCoords(f, "from");
+                    int[] to = BuildTransform.strictCoords(f, "to");
                     if (local) {
                         int[][] bounds = transform.bounds(from, to);
                         from = bounds[0];
@@ -121,8 +124,8 @@ public final class McBuild implements Tool {
                 JsonArray arr = ArgParse.requireArray(o, "blocks");
                 for (int i = 0; i < arr.size(); i++) {
                     JsonObject b = ArgParse.requireObject(arr.get(i), "blocks[" + i + "]");
-                    int[] pos = local ? transform.position(BuildTransform.strictCoords(b, "pos"))
-                            : ArgParse.requireCoords3(b, "pos");
+                    int[] pos = BuildTransform.strictCoords(b, "pos");
+                    if (local) pos = transform.position(pos);
                     String block = ArgParse.requireString(b, "block");
                     if (block.isEmpty()) {
                         throw new ToolArgError("blocks[" + i + "].block: must contain at least 1 character(s)");
@@ -166,20 +169,20 @@ public final class McBuild implements Tool {
 
         private static TextArg parseTextEntry(int i, JsonObject t, boolean local) {
             String rawText = ArgParse.requireString(t, "text");
-            int[] pos = local ? BuildTransform.strictCoords(t, "pos") : ArgParse.requireCoords3(t, "pos");
+            int[] pos = BuildTransform.strictCoords(t, "pos");
             String block = ArgParse.requireString(t, "block");
             if (block.isEmpty()) {
                 throw new ToolArgError("text[" + i + "].block: must contain at least 1 character(s)");
             }
             String background = ArgParse.optString(t, "background");
             String facing = ArgParse.optEnum(t, "facing", TextExpand.FACINGS, "south");
-            Integer scaleOpt = ArgParse.optInt(t, "scale");
+            Integer scaleOpt = ArgParse.has(t, "scale") ? BuildTransform.strictInt(t.get("scale"), "text[" + i + "].scale") : null;
             int scale = scaleOpt != null ? scaleOpt : 1;
             if (scale < TextExpand.MIN_SCALE || scale > TextExpand.MAX_SCALE) {
                 throw new ToolArgError("text[" + i + "].scale: must be between " + TextExpand.MIN_SCALE + " and "
                         + TextExpand.MAX_SCALE + ", got " + scale);
             }
-            Integer spacingOpt = ArgParse.optInt(t, "spacing");
+            Integer spacingOpt = ArgParse.has(t, "spacing") ? BuildTransform.strictInt(t.get("spacing"), "text[" + i + "].spacing") : null;
             int spacing = spacingOpt != null ? spacingOpt : 1;
             if (spacing < TextExpand.MIN_SPACING || spacing > TextExpand.MAX_SPACING) {
                 throw new ToolArgError("text[" + i + "].spacing: must be between " + TextExpand.MIN_SPACING + " and "
@@ -231,21 +234,42 @@ public final class McBuild implements Tool {
         long chestsPaired = 0;
     }
 
+    /** Shared direct/blueprint compilation; planning never invokes the execution path. */
+    CompletableFuture<Args> prepare(JsonObject args, boolean validateIdentity) {
+        if (ArgParse.has(args, "blueprint")) {
+            for (String kind : List.of("fills", "blocks", "text")) if (ArgParse.has(args, kind))
+                throw new ToolArgError("blueprint cannot be combined with direct fills, blocks or text");
+            if (blueprintStore == null) throw new ToolArgError("blueprint store is unavailable");
+            JsonObject selector = ArgParse.requireObject(args.get("blueprint"), "blueprint selector");
+            JsonObject document = blueprintStore.get(ArgParse.requireString(selector, "id"));
+            List<Part> parts = BlueprintCompiler.compile(document, args, blueprintLimits.get());
+            return BuildStateTransform.applyParts(parts, true);
+        }
+        Args a = Args.parse(args);
+        return validateIdentity ? BuildStateTransform.applyParts(List.of(new Part(a, BuildTransform.parse(args))), true)
+                : BuildStateTransform.apply(a, BuildTransform.parse(args));
+    }
+
     @Override
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
-        return ToolRunner.runText("mc_build", () -> {
-            if (ArgParse.has(args, "blueprint")) {
-                for (String kind : List.of("fills", "blocks", "text")) if (ArgParse.has(args, kind))
-                    throw new ToolArgError("blueprint cannot be combined with direct fills, blocks or text");
-                if (blueprintStore == null) throw new ToolArgError("blueprint store is unavailable");
-                JsonObject selector = ArgParse.requireObject(args.get("blueprint"), "blueprint selector");
-                JsonObject document = blueprintStore.get(ArgParse.requireString(selector, "id"));
-                List<Part> parts = BlueprintCompiler.compile(document, args, blueprintLimits.get());
-                return BuildStateTransform.applyParts(parts, true).thenCompose(prepared -> execute(ctx, prepared));
+        return ToolRunner.runText("mc_build", () -> prepare(args, preflight != null).thenCompose(a -> {
+            boolean dryRun = ArgParse.optBoolean(args, "dryRun", false);
+            boolean siteCheck = ArgParse.optBoolean(args, "preflight", false);
+            if (preflight == null) {
+                if (dryRun || siteCheck) throw new ToolArgError("preflight service is unavailable");
+                return execute(ctx,a);
             }
-            Args a = Args.parse(args);
-            return BuildStateTransform.apply(a, BuildTransform.parse(args)).thenCompose(prepared -> execute(ctx, prepared));
-        });
+            return preflight.validate(a).thenCompose(validated -> {
+                if (dryRun || siteCheck) return preflight.analyze(ctx,validated,null).thenCompose(result -> {
+                    JsonObject report = result.report();
+                    if (dryRun) return CompletableFuture.completedFuture(report.toString());
+                    if (!report.get("strictSitePass").getAsBoolean())
+                        throw new ToolArgError("site preflight failed; no snapshot or blocks written: " + report);
+                    return execute(ctx,a);
+                });
+                return execute(ctx,a);
+            });
+        }));
     }
 
     private CompletableFuture<String> execute(InvocationContext ctx, Args a) {
@@ -436,7 +460,7 @@ public final class McBuild implements Tool {
         }
     }
 
-    private static JsonObject fillOpJson(FillOpArg f) {
+    static JsonObject fillOpJson(FillOpArg f) {
         JsonObject o = new JsonObject();
         o.add("from", intArray(f.from()));
         o.add("to", intArray(f.to()));
@@ -450,7 +474,7 @@ public final class McBuild implements Tool {
         return o;
     }
 
-    private static JsonObject sparseOpJson(SparseOpArg b) {
+    static JsonObject sparseOpJson(SparseOpArg b) {
         JsonObject o = new JsonObject();
         o.add("pos", intArray(b.pos()));
         o.addProperty("block", b.block());
@@ -476,7 +500,7 @@ public final class McBuild implements Tool {
         return o;
     }
 
-    private static int[][] boundingBox(List<FillOpArg> fills, List<SparseOpArg> blocks, List<TextArg> text) {
+    static int[][] boundingBox(List<FillOpArg> fills, List<SparseOpArg> blocks, List<TextArg> text) {
         int[] min = {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE};
         int[] max = {Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
         for (FillOpArg f : fills) {

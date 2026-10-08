@@ -19,7 +19,7 @@ import org.bukkit.Material;
  * fence, a slab, ...) are not liquids either: their {@link Material} is the fence/slab, never
  * {@code WATER}, so they fall through to {@code physics=false} without any extra check here.
  */
-final class LiquidBlocks {
+public final class LiquidBlocks {
 
     private LiquidBlocks() {
     }
@@ -45,7 +45,7 @@ final class LiquidBlocks {
      * ...) has some other id before its {@code [waterlogged=true]} suffix, so it correctly never
      * counts here either.
      */
-    static boolean isFlowableBlockString(String raw) {
+    public static boolean isFlowableBlockString(String raw) {
         if (raw == null) {
             return false;
         }

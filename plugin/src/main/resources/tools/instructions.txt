@@ -1,10 +1,11 @@
-Ashlar: tools for reading and building in a live Minecraft (Paper) server. Ten tools are available - load them by name when needed:
+Ashlar: tools for reading and building in a live Minecraft (Paper) server. Eleven tools are available - load them by name when needed:
 
 mc_status   - server/plugin health and queue length
 mc_players  - online players with position and facing ("here", "in front of me", "at my feet")
 mc_survey   - terrain survey of an x/z area: heightmap image plus exact numbers (min/max/median height, surface mix, largest flat zone); format:"text" for an ASCII map
 mc_render   - PNG image of a region: top view, north/south/east/west facades, a slice, or a heightmap (top/heightmap are area-priced, any y range)
 mc_build    - place blocks in bulk (cuboid fills with modes replace/keep/outline/hollow/walls, individual blocks and sign text, plus rendered lettering via `text`); the only tool that builds
+mc_plan - validate and preview a build without placing blocks; report site collisions, overlaps, door/bed pairing and support problems
 mc_blueprint - save/get/list/delete reusable blueprints with named components, palettes and repeated instances; no world writes
 mc_inspect  - exact block contents of a region (statistics, per-column runs, ASCII slice, sign text)
 mc_snapshot - save a region before changing it (or list saved snapshots)
@@ -13,4 +14,6 @@ mc_command  - run a server console command and return its output (escape hatch)
 
 Typical flow: mc_players (if the request is relative to a player) -> mc_survey or mc_render to see the site -> mc_snapshot -> mc_build -> mc_render or mc_inspect to verify -> mc_restore if it went wrong.
 Coordinates: X east, Z south, Y up; from/to corners are inclusive.
-For rotated or mirrored designs, mc_build accepts transform:{origin:[x,y,z],rotation:0|90|180|270,mirror:"none"|"x"|"z"}. All build coordinates then become local: mirror first, rotate clockwise viewed from above, translate last. States, partial filters and text geometry transform too. Saved blueprints use mc_blueprint version:1 documents with flat named components and instances. mc_build accepts blueprint:{id,palette?} instead of direct fills/blocks/text, and composes component orientation, instance position/repetition and project transform. Use $role[property=value] for material bindings. Other tools still use world coordinates. Include both door/bed halves; mirrored block lettering mirrors glyphs, not sign strings.
+For rotated or mirrored designs, mc_build accepts transform:{origin:[x,y,z],rotation:0|90|180|270,mirror:"none"|"x"|"z"}. All build coordinates then become local: mirror first, rotate clockwise viewed from above, translate last. States, partial filters and text geometry transform too. Before nontrivial builds, run mc_plan with the same build request to inspect the final virtual scene. Fix pairing/support issues and review existing-non-air changes; those may be terrain or existing structures. Use mc_build preflight:true for a fresh strict site check before writing, or dryRun:true for report-only analysis. Planning does not reserve the world or simulate connections, fluids or entities. Previews are map-color views, not shape-aware perspective views. All build phases are structurally validated before the first snapshot/write.
+
+Saved blueprints use mc_blueprint version:1 documents with flat named components and instances. mc_build accepts blueprint:{id,palette?} instead of direct fills/blocks/text, and composes component orientation, instance position/repetition and project transform. Use $role[property=value] for material bindings. Other tools still use world coordinates. Include both door/bed halves; mirrored block lettering mirrors glyphs, not sign strings.

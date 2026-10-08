@@ -5,8 +5,8 @@ Each step requires user approval before work begins. Pause after each step and r
 ## Priorities and status
 
 1. **Local coordinates and reliable transformations** - complete; implementation and isolated Paper runtime acceptance tests passed.
-2. **Reusable blueprints and components** - complete; approved implementation, unit/native tests and reload-persistence checks passed. Paused for user review before Step 3.
-3. **Preflight validation and dry-run previews** - not started, approval required.
+2. **Reusable blueprints and components** - complete; approved implementation, unit/native tests and reload-persistence checks passed.
+3. **Preflight validation and dry-run previews** - complete; approved implementation, unit/native tests and image parity checks passed. Paused for user review before Step 4.
 4. **Exact verification and targeted repairs** - not started, approval required.
 5. **Shape-aware isometric and perspective rendering** - not started, approval required.
 6. **Architectural generators** - not started, approval required.
@@ -71,7 +71,26 @@ Branch: `feat/reusable-blueprints`, based on the completed Step 1 branch.
 - The isolated development server remains running on loopback with the **same PID 35309**. Loaded code using `bukkit:reload confirm` only on this empty disposable instance; no server restart/shutdown or production modifications. This development-only reload procedure is not recommended for production.
 - Acceptance scripts restore their regions and close their own clients; they do not manage server lifecycle. Use fresh snapshots because retention remains bounded.
 
-Next: user approval is required before Step 3 (preflight validation and previews). No Step 3 work has begun.
+Step 3 was subsequently approved and completed; see below.
+
+## Step 3 implementation and verification
+
+Branch: `feat/build-preflight`, based on Step 2.
+
+- New readonly `mc_plan` shares direct/blueprint compilation and the authoritative build schema. Never calls writing handlers, temporarily places blocks, creates snapshots, saves blueprints or executes console commands. Reads can load chunks.
+- Production `mc_build` validates all fill/text/sparse phases and sign metadata before its first snapshot/write. Guards allowed world/build region, Y, strict integer coordinates/scale/spacing, conservative horizontal bounds, aggregate block/flow volume, snapshot capacity and full executor envelope chunk tickets. Hot-reloaded limits apply.
+- Tick-budgeted virtual overlay matches fill modes, partial filters and fills -> text -> blocks ordering. Reports bounds/dimensions, eligible material counts, predicted changes/clearing, overlaps and capped collision/overlap coordinates.
+- Checks door/bed pairs and common advisory support rules against the final virtual scene, including later-added supports and existing neighbors losing support. Truncation and bounded neighbor coverage are explicit. Terrain cannot be reliably distinguished from structures; collisions remain advisory.
+- `dryRun:true` returns report-only analysis. `preflight:true` additionally rejects pairing/support problems or incomplete neighbor checks before snapshot/write. Complete structural validation is always on in production wiring.
+- Existing map-color top/facade/slice previews render off-main-thread with image/read caps; slices read only their plane. Include unchanged world cells inside preview bounds. Connections/chest pairing, fluids, entities, NBT edits and concurrent changes are not simulated. No atomic reservation guarantee. Shape-aware perspective remains Step 5; constraints remain advisory.
+- **17 new JUnit tests pass; 590 plugin tests pass** with the one reproduced upstream font assumption excluded. MCP build and all 8 adapter tests pass.
+- **202 native assertions, zero failures**: full-region blocks/signs and snapshot IDs unchanged after planning; exact collision coordinates; all fill modes and keep/filter sequencing; late invalid states/signs/colors/Y and aggregate/envelope failures before any partial writes; missing pairs, support correction/loss, strict failure/success, dry run and bounded large slices.
+- All **12 transformed repeated-blueprint previews match actual unconnected build PNGs byte-for-byte**. Top/north/west/slice samples visually inspected. Predicted change/non-air/clear counts match execution.
+- Verified a temporarily lowered, hot-reloaded aggregate block limit rejects before snapshots/writes. Restored the exact original isolated config and reloaded it; no secret backup persisted.
+- Step 1 regression: **116,844 checks, zero failures**. Step 2 regression: **5,553 checks, zero failures**. No unexpected runtime errors or unexplained support warnings in acceptance runs. An early helper omitted its timeout and disconnected immediately, causing an explained response-delivery WebsocketNotConnectedException; corrected before acceptance.
+- Test regions restored, temporary documents removed, development server still running with the same PID 35309. Only isolated development code/config reloads; no restart/shutdown or production modification.
+
+Next: user approval is required before Step 4 (exact verification and targeted repairs). No Step 4 work has begun.
 
 ### Separate upstream dependency finding
 
