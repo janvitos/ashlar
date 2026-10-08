@@ -12,3 +12,4 @@ mc_command  - run a server console command and return its output (escape hatch)
 
 Typical flow: mc_players (if the request is relative to a player) -> mc_survey or mc_render to see the site -> mc_snapshot -> mc_build -> mc_render or mc_inspect to verify -> mc_restore if it went wrong.
 Coordinates: X east, Z south, Y up; from/to corners are inclusive.
+For rotated or mirrored designs, mc_build accepts transform:{origin:[x,y,z],rotation:0|90|180|270,mirror:"none"|"x"|"z"}. All build coordinates then become local: mirror first, rotate clockwise viewed from above, translate last. States, partial filters and text geometry transform too. Other tools still use world coordinates. Include both door/bed halves; mirrored block lettering mirrors glyphs, not sign strings.

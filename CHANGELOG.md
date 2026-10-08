@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased (fork)
+
+- `mc_build` gains an optional local coordinate `transform`: required world `origin`, clockwise quarter-turn `rotation`, and local `mirror` (`none`, `x`, `z`). Applies mirror, rotation and translation to fills, sparse blocks and expanded text before snapshots or writes. Calls without a transform are unchanged.
+- Native Paper block-data transforms preserve directional states and omitted defaults; partial fill filters retain wildcard properties. Sign content is preserved, mirrored block lettering mirrors its glyphs, and paired blocks must still be supplied explicitly.
+- Local inputs reject fractional/out-of-range integers and transformed coordinate overflow. Added coordinate, geometry, filter and compatibility tests.
+
 ## 0.4.9
 
 - New `engine.text-font-file` config key (hot, `/ashlar reload` applies it): points `mc_build`'s `text` entries at a `.ttf`/`.otf`/`.ttc` file for non-ASCII (CJK) lettering instead of this JVM's system font - the fix for a Docker container with no CJK font installed, since a mounted file needs no image rebuild or restart. Empty (the default) keeps the previous behaviour; a path that does not exist, is a directory, or fails to load as a font logs one warning and falls back to the system font rather than stopping the server.

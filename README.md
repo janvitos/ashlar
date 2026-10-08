@@ -52,6 +52,32 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 
 Typical flow: `mc_players` (if the request is relative to a player) -> `mc_survey` or `mc_render` to see the site -> `mc_snapshot` -> `mc_build` -> `mc_render`/`mc_inspect` to verify -> `mc_restore` if it went wrong. Coordinates: X grows east, Z grows south, Y grows up; `from`/`to` corners are inclusive.
 
+## Local coordinates, rotation and mirroring (fork enhancement)
+
+`mc_build` accepts an optional `transform` for designing in a local coordinate frame:
+
+```json
+{
+  "transform": { "origin": [100, 64, 200], "rotation": 90, "mirror": "none" },
+  "fills": [
+    { "from": [0, 0, 0], "to": [8, 0, 6], "block": "minecraft:stone_bricks" }
+  ],
+  "blocks": [
+    { "pos": [4, 1, 0], "block": "minecraft:oak_stairs[facing=north,half=bottom]" }
+  ]
+}
+```
+
+- `origin` is required when `transform` is present. Every fill corner, block position and text position is then local to that world origin.
+- `mirror` defaults to `none`: `x` negates local X (reflect across YZ); `z` negates local Z (reflect across XY). Y is never flipped.
+- `rotation` defaults to `0`: `0`, `90`, `180` or `270` degrees clockwise viewed from above. At `90`, east becomes south and north becomes east.
+- Order is **mirror -> rotate -> translate**. Rotation and mirroring pivot around local `[0,0,0]`, not the building's center. Negative local positions are allowed.
+- Paper's native block-data transformations handle facing, axes, rail shapes, door hinges, stair handedness and standing-sign rotation, including omitted default properties. Provide BOTH halves of doors and beds; no new blocks are synthesized.
+- Fill filters rotate/mirror too, while omitted properties remain wildcards. Expanded lettering and backgrounds transform geometrically; mirroring reverses block-letter glyphs. Sign strings are not reversed.
+- Transformed states are cached per request and processed in bounded main-thread batches before snapshots or writes. Existing connection updates can subsequently recompute stair/fence/pane shapes; use `connect:false` when testing exact state transforms.
+- Local coordinates and origins must be signed 32-bit integers; fractional inputs and overflowing world results are rejected. Existing calls without `transform` retain their absolute-coordinate behavior.
+- Build reports, snapshots, surveys and inspections use **world coordinates**. This is a plugin-side feature; the MCP adapter forwards the updated schema without changes.
+
 ## Install (three steps)
 
 ### 1. Install the plugin

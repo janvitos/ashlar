@@ -71,14 +71,21 @@ public final class McBuild implements Tool {
             Boolean connect, String liquids) {
         static Args parse(JsonObject o) {
             String world = ArgParse.optString(o, "world");
+            BuildTransform transform = BuildTransform.parse(o);
+            boolean local = ArgParse.has(o, "transform");
 
             List<FillOpArg> fills = new ArrayList<>();
             if (ArgParse.has(o, "fills")) {
                 JsonArray arr = ArgParse.requireArray(o, "fills");
                 for (int i = 0; i < arr.size(); i++) {
                     JsonObject f = ArgParse.requireObject(arr.get(i), "fills[" + i + "]");
-                    int[] from = ArgParse.requireCoords3(f, "from");
-                    int[] to = ArgParse.requireCoords3(f, "to");
+                    int[] from = local ? BuildTransform.strictCoords(f, "from") : ArgParse.requireCoords3(f, "from");
+                    int[] to = local ? BuildTransform.strictCoords(f, "to") : ArgParse.requireCoords3(f, "to");
+                    if (local) {
+                        int[][] bounds = transform.bounds(from, to);
+                        from = bounds[0];
+                        to = bounds[1];
+                    }
                     String block = ArgParse.requireString(f, "block");
                     if (block.isEmpty()) {
                         throw new ToolArgError("fills[" + i + "].block: must contain at least 1 character(s)");
@@ -94,7 +101,8 @@ public final class McBuild implements Tool {
                 JsonArray arr = ArgParse.requireArray(o, "blocks");
                 for (int i = 0; i < arr.size(); i++) {
                     JsonObject b = ArgParse.requireObject(arr.get(i), "blocks[" + i + "]");
-                    int[] pos = ArgParse.requireCoords3(b, "pos");
+                    int[] pos = local ? transform.position(BuildTransform.strictCoords(b, "pos"))
+                            : ArgParse.requireCoords3(b, "pos");
                     String block = ArgParse.requireString(b, "block");
                     if (block.isEmpty()) {
                         throw new ToolArgError("blocks[" + i + "].block: must contain at least 1 character(s)");
@@ -118,7 +126,10 @@ public final class McBuild implements Tool {
                 JsonArray arr = ArgParse.requireArray(o, "text");
                 for (int i = 0; i < arr.size(); i++) {
                     JsonObject t = ArgParse.requireObject(arr.get(i), "text[" + i + "]");
-                    text.add(parseTextEntry(i, t));
+                    TextArg entry = parseTextEntry(i, t, local);
+                    text.add(local ? new TextArg(entry.text(), transform.position(entry.pos()), entry.block(),
+                            entry.background(), transform.direction(entry.facing()), entry.scale(), entry.spacing(),
+                            entry.align(), transform.text(entry.expanded(), entry.pos())) : entry);
                 }
             }
 
@@ -133,9 +144,9 @@ public final class McBuild implements Tool {
             return new Args(world, fills, blocks, text, snapshot, connect, liquids);
         }
 
-        private static TextArg parseTextEntry(int i, JsonObject t) {
+        private static TextArg parseTextEntry(int i, JsonObject t, boolean local) {
             String rawText = ArgParse.requireString(t, "text");
-            int[] pos = ArgParse.requireCoords3(t, "pos");
+            int[] pos = local ? BuildTransform.strictCoords(t, "pos") : ArgParse.requireCoords3(t, "pos");
             String block = ArgParse.requireString(t, "block");
             if (block.isEmpty()) {
                 throw new ToolArgError("text[" + i + "].block: must contain at least 1 character(s)");
@@ -157,7 +168,8 @@ public final class McBuild implements Tool {
             String align = ArgParse.optEnum(t, "align", TextExpand.ALIGNS, TextExpand.ALIGN_LEFT);
             TextExpand.Result expanded;
             try {
-                expanded = TextExpand.expand(rawText, pos, facing, scale, spacing, align);
+                // Expand local glyphs around zero to avoid integer wrap before world translation.
+                expanded = TextExpand.expand(rawText, local ? new int[] {0, 0, 0} : pos, facing, scale, spacing, align);
             } catch (FontRenderException e) {
                 throw new ToolArgError(e.getMessage());
             } catch (IllegalArgumentException e) {
@@ -203,27 +215,30 @@ public final class McBuild implements Tool {
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
         return ToolRunner.runText("mc_build", () -> {
             Args a = Args.parse(args);
-            BuildState state = new BuildState();
-
-            CompletableFuture<Void> step = CompletableFuture.completedFuture(null);
-
-            if (a.snapshot()) {
-                step = step.thenCompose(ignored -> snapshotStep(ctx, a, state));
-            }
-            if (!a.fills().isEmpty()) {
-                step = step.thenCompose(ignored -> fillStep(ctx, a, state));
-            }
-            if (!a.text().isEmpty()) {
-                step = step.thenCompose(ignored -> textStep(ctx, a, state));
-            }
-            if (!a.blocks().isEmpty()) {
-                step = step.thenCompose(ignored -> blockStep(ctx, a, state));
-            }
-
-            return step.thenApply(ignored ->
-                    ToolText.buildResultText(state.snapshotLine, state.fillsSection, state.textSection, state.blocksLine,
-                            state.chestsPaired, state.warnings, state.warningsTruncated));
+            return BuildStateTransform.apply(a, BuildTransform.parse(args)).thenCompose(prepared -> execute(ctx, prepared));
         });
+    }
+
+    private CompletableFuture<String> execute(InvocationContext ctx, Args a) {
+        BuildState state = new BuildState();
+        CompletableFuture<Void> step = CompletableFuture.completedFuture(null);
+
+        if (a.snapshot()) {
+            step = step.thenCompose(ignored -> snapshotStep(ctx, a, state));
+        }
+        if (!a.fills().isEmpty()) {
+            step = step.thenCompose(ignored -> fillStep(ctx, a, state));
+        }
+        if (!a.text().isEmpty()) {
+            step = step.thenCompose(ignored -> textStep(ctx, a, state));
+        }
+        if (!a.blocks().isEmpty()) {
+            step = step.thenCompose(ignored -> blockStep(ctx, a, state));
+        }
+
+        return step.thenApply(ignored ->
+                ToolText.buildResultText(state.snapshotLine, state.fillsSection, state.textSection, state.blocksLine,
+                        state.chestsPaired, state.warnings, state.warningsTruncated));
     }
 
     private CompletableFuture<Void> snapshotStep(InvocationContext ctx, Args a, BuildState state) {
