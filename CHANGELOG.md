@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- `mc_build` defaults to compact phase totals (changed and unchanged/skipped), retaining snapshot IDs, chest pairing and support warnings. `detailed:true` restores per-fill/per-text-entry results; placement, errors and safety checks are unchanged.
+- Clarified global fills -> text -> blocks ordering and final-air opening corrections. Agent guidance reserves strict preflight for concrete risks, discourages redundant checks/backups, and explicitly warns that snapshots cannot restore sign text or inventories before deletion. No new audit or overlap-warning system.
+
 - Lightweight photo-reference reconstruction workflow in public documentation and plugin-served agent instructions: scale/proportions, distinctive features, observed/inferred/unknown evidence and interior uncertainty. Uses existing tools; no automatic image-to-3D conversion or photographic similarity scoring. Visual fidelity requests no longer imply exact block-state auditing.
 - Repository `AGENTS.md` persists the approved basic-testing policy: focused checks, no exhaustive sweeps or repeated native regressions without explicit approval, runtime safety protections unchanged.
 

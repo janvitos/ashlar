@@ -226,6 +226,7 @@ public final class McBuild implements Tool {
 
     private static final class BuildState {
         String snapshotLine;
+        boolean detailed;
         List<String> fillsSection;
         List<String> textSection;
         String blocksLine;
@@ -257,7 +258,7 @@ public final class McBuild implements Tool {
             boolean siteCheck = ArgParse.optBoolean(args, "preflight", false);
             if (preflight == null) {
                 if (dryRun || siteCheck) throw new ToolArgError("preflight service is unavailable");
-                return execute(ctx,a);
+                return execute(ctx,a,ArgParse.optBoolean(args, "detailed", false));
             }
             return preflight.validate(a).thenCompose(validated -> {
                 if (dryRun || siteCheck) return preflight.analyze(ctx,validated,null).thenCompose(result -> {
@@ -265,15 +266,16 @@ public final class McBuild implements Tool {
                     if (dryRun) return CompletableFuture.completedFuture(report.toString());
                     if (!report.get("strictSitePass").getAsBoolean())
                         throw new ToolArgError("site preflight failed; no snapshot or blocks written: " + report);
-                    return execute(ctx,a);
+                    return execute(ctx,a,ArgParse.optBoolean(args, "detailed", false));
                 });
-                return execute(ctx,a);
+                return execute(ctx,a,ArgParse.optBoolean(args, "detailed", false));
             });
         }));
     }
 
-    private CompletableFuture<String> execute(InvocationContext ctx, Args a) {
+    private CompletableFuture<String> execute(InvocationContext ctx, Args a, boolean detailed) {
         BuildState state = new BuildState();
+        state.detailed = detailed;
         CompletableFuture<Void> step = CompletableFuture.completedFuture(null);
 
         if (a.snapshot()) {
@@ -345,7 +347,9 @@ public final class McBuild implements Tool {
                 FillOpArg spec = a.fills().get(index);
                 opLines.add(new ToolText.FillOpLine(index, spec.from(), spec.to(), spec.block(), op.get("changed").getAsLong(), op.get("volume").getAsLong()));
             }
-            state.fillsSection = ToolText.fillsSection(opLines, r.get("totalChanged").getAsLong(), r.get("totalVolume").getAsLong(), r.get("elapsedMs").getAsLong());
+            state.fillsSection = state.detailed
+                    ? ToolText.fillsSection(opLines, r.get("totalChanged").getAsLong(), r.get("totalVolume").getAsLong(), r.get("elapsedMs").getAsLong())
+                    : ToolText.compactSection("Fills", r.get("totalChanged").getAsLong(), r.get("totalVolume").getAsLong(), r.get("elapsedMs").getAsLong());
             collectChestsPaired(state, r);
             collectWarnings(state, r);
         });
@@ -411,8 +415,9 @@ public final class McBuild implements Tool {
                 lines.add(new ToolText.TextEntryLine(i, t.text(), t.expanded().bboxMin(), t.expanded().bboxMax(),
                         t.expanded().widthBlocks(), t.expanded().heightBlocks(), entryChanged, entryVolume));
             }
-            state.textSection = ToolText.textSection(lines, r.get("totalChanged").getAsLong(),
-                    r.get("totalVolume").getAsLong(), r.get("elapsedMs").getAsLong());
+            state.textSection = state.detailed
+                    ? ToolText.textSection(lines, r.get("totalChanged").getAsLong(), r.get("totalVolume").getAsLong(), r.get("elapsedMs").getAsLong())
+                    : ToolText.compactSection("Text", r.get("totalChanged").getAsLong(), r.get("totalVolume").getAsLong(), r.get("elapsedMs").getAsLong());
             collectChestsPaired(state, r);
             collectWarnings(state, r);
         });
@@ -436,7 +441,9 @@ public final class McBuild implements Tool {
         }
         return setBlocksHandler.handle(ctx, params).thenAccept(el -> {
             JsonObject r = el.getAsJsonObject();
-            state.blocksLine = ToolText.blocksLine(r.get("changed").getAsLong(), r.get("requested").getAsLong(), r.get("elapsedMs").getAsLong());
+            state.blocksLine = state.detailed
+                    ? ToolText.blocksLine(r.get("changed").getAsLong(), r.get("requested").getAsLong(), r.get("elapsedMs").getAsLong())
+                    : ToolText.compactSection("Blocks", r.get("changed").getAsLong(), r.get("requested").getAsLong(), r.get("elapsedMs").getAsLong()).getFirst();
             collectChestsPaired(state, r);
             collectWarnings(state, r);
         });

@@ -67,6 +67,19 @@ class ToolSpecTest {
     }
 
     @Test
+    void buildReportAndOrderingGuidanceAreExplicit() {
+        var spec = ToolSpec.load("mc_build");
+        var detailed = spec.inputSchema().getAsJsonObject("properties").getAsJsonObject("detailed");
+        assertEquals("boolean", detailed.get("type").getAsString());
+        assertFalse(detailed.get("default").getAsBoolean());
+        assertTrue(spec.description().contains("ALWAYS fills -> text -> blocks"));
+        assertTrue(spec.description().contains("final minecraft:air entries"));
+        String instructions = new ToolRegistry(List.of()).instructions();
+        assertTrue(instructions.contains("not sign text or container inventories"));
+        assertTrue(instructions.contains("failed check is not permission to delete"));
+    }
+
+    @Test
     void photoWorkflowSeparatesEvidenceFromBlockAuditing() {
         String instructions = new ToolRegistry(List.of()).instructions();
         assertTrue(instructions.contains("Photo-reference reconstruction:"));
