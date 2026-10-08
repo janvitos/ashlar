@@ -87,6 +87,16 @@ record BuildTransform(int originX, int originY, int originZ, int rotation, Strin
         return p[2] > 0 ? "south" : "north";
     }
 
+    /** Compose this parent frame with a child frame (child first, parent second). */
+    BuildTransform compose(BuildTransform child) {
+        int[] origin = position(new int[] {child.originX, child.originY, child.originZ});
+        String east = direction(child.direction("east"));
+        int angle = List.of("east", "south", "west", "north").indexOf(east) * 90;
+        boolean reflected = !mirror.equals("none") ^ !child.mirror.equals("none");
+        return new BuildTransform(origin[0], origin[1], origin[2],
+                Math.floorMod(angle - (reflected ? 180 : 0), 360), reflected ? "x" : "none");
+    }
+
     /** Reflections reverse stair chirality, regardless of facing; rotations preserve it. */
     String stairShape(String shape) {
         if (mirror.equals("none")) return shape;

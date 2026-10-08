@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- New `mc_blueprint` tool saves/gets/lists/deletes persistent version-1 designs with named flat components, project metadata, material palettes and repeated instances. Storage uses safe names, explicit overwrite, bounded files/counts and atomic replacement; these actions never modify world blocks.
+- `mc_build` accepts a saved `blueprint:{id,palette}` instead of direct operations. Component orientation, project-frame repetition and project transforms compose correctly. `$role[property=value]` supports material substitution with explicit precedence and property overrides. All components compile into the existing global fills/text/blocks passes with one union snapshot.
+- Blueprint expansion enforces operation/instance caps, aggregate requested block/flow volume and union chunk footprint against current server limits. All compiled states use a request-local orientation-aware native cache and are validated before snapshots or writes.
+- Added compiler/storage tests and `e2e-blueprints.mjs`; verified 5,553 native blueprint checks, persistence across reload, non-destructive document deletion, and the full Step 1 transformation regression suite. Nested components, previews and enforced design constraints are not included in version 1.
+
 - `mc_build` gains an optional local coordinate `transform`: required world `origin`, clockwise quarter-turn `rotation`, and local `mirror` (`none`, `x`, `z`). Applies mirror, rotation and translation to fills, sparse blocks and expanded text before snapshots or writes. Calls without a transform are unchanged.
 - Native Paper block-data transforms preserve directional states and omitted defaults; partial fill filters retain wildcard properties. Sign content is preserved, mirrored block lettering mirrors its glyphs, and paired blocks must still be supplied explicitly.
 - Local inputs reject fractional/out-of-range integers and transformed coordinate overflow. Added coordinate, geometry, filter and compatibility tests.

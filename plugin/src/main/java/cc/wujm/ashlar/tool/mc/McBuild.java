@@ -41,11 +41,31 @@ public final class McBuild implements Tool {
     private final RpcHandler snapshotHandler;
     private final RpcHandler fillBatchHandler;
     private final RpcHandler setBlocksHandler;
+    private final BlueprintStore blueprintStore;
+    private final java.util.function.Supplier<BlueprintCompiler.Limits> blueprintLimits;
 
     public McBuild(RpcHandler snapshotHandler, RpcHandler fillBatchHandler, RpcHandler setBlocksHandler) {
+        this(snapshotHandler, fillBatchHandler, setBlocksHandler, null, () -> BlueprintCompiler.Limits.DEFAULT);
+    }
+
+    public McBuild(RpcHandler snapshotHandler, RpcHandler fillBatchHandler, RpcHandler setBlocksHandler,
+            BlueprintStore blueprintStore, java.util.function.Supplier<BlueprintCompiler.Limits> blueprintLimits) {
         this.snapshotHandler = snapshotHandler;
         this.fillBatchHandler = fillBatchHandler;
         this.setBlocksHandler = setBlocksHandler;
+        this.blueprintStore = blueprintStore;
+        this.blueprintLimits = blueprintLimits;
+    }
+
+    record Part(Args args, BuildTransform transform) {}
+
+    static Args combine(List<Args> parts) {
+        List<FillOpArg> fills = new ArrayList<>();
+        List<SparseOpArg> blocks = new ArrayList<>();
+        List<TextArg> text = new ArrayList<>();
+        for (Args a : parts) { fills.addAll(a.fills()); blocks.addAll(a.blocks()); text.addAll(a.text()); }
+        Args first = parts.getFirst();
+        return new Args(first.world(), fills, blocks, text, first.snapshot(), first.connect(), first.liquids());
     }
 
     @Override
@@ -214,6 +234,15 @@ public final class McBuild implements Tool {
     @Override
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
         return ToolRunner.runText("mc_build", () -> {
+            if (ArgParse.has(args, "blueprint")) {
+                for (String kind : List.of("fills", "blocks", "text")) if (ArgParse.has(args, kind))
+                    throw new ToolArgError("blueprint cannot be combined with direct fills, blocks or text");
+                if (blueprintStore == null) throw new ToolArgError("blueprint store is unavailable");
+                JsonObject selector = ArgParse.requireObject(args.get("blueprint"), "blueprint selector");
+                JsonObject document = blueprintStore.get(ArgParse.requireString(selector, "id"));
+                List<Part> parts = BlueprintCompiler.compile(document, args, blueprintLimits.get());
+                return BuildStateTransform.applyParts(parts, true).thenCompose(prepared -> execute(ctx, prepared));
+            }
             Args a = Args.parse(args);
             return BuildStateTransform.apply(a, BuildTransform.parse(args)).thenCompose(prepared -> execute(ctx, prepared));
         });

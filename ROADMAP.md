@@ -4,8 +4,8 @@ Each step requires user approval before work begins. Pause after each step and r
 
 ## Priorities and status
 
-1. **Local coordinates and reliable transformations** - complete; implementation and isolated Paper runtime acceptance tests passed. Paused for user review before Step 2.
-2. **Reusable blueprints and components** - not started, approval required.
+1. **Local coordinates and reliable transformations** - complete; implementation and isolated Paper runtime acceptance tests passed.
+2. **Reusable blueprints and components** - complete; approved implementation, unit/native tests and reload-persistence checks passed. Paused for user review before Step 3.
 3. **Preflight validation and dry-run previews** - not started, approval required.
 4. **Exact verification and targeted repairs** - not started, approval required.
 5. **Shape-aware isometric and perspective rendering** - not started, approval required.
@@ -53,6 +53,25 @@ Branch: `feat/local-coordinate-transforms`.
 ### Out-of-scope observation
 
 Rebuilding an already paired chest fixture in place produced unpaired baseline chests under the existing chest-pairing behavior. Fresh builds pair correctly across all transforms. The acceptance test uses identical pristine starting states for source and target rather than conflating this upstream rebuild behavior with coordinate transformation. Revisit idempotent repairs in Step 4; Step 1 does not change the chest-pairing engine.
+
+## Step 2 implementation and verification
+
+Branch: `feat/reusable-blueprints`, based on the completed Step 1 branch.
+
+- Added plugin-owned `mc_blueprint` save/get/list/delete and durable atomic JSON storage. IDs are path-safe, symlink reads are rejected, replacement requires explicit overwrite, and document/count caps apply. Read/list actions do not mutate documents; delete does not modify placed blocks.
+- Version-1 projects hold flat named raw components, ordered instances, palettes, description, advisory dimensions and advisory constraints. Components support the existing fills/blocks/text entries. No nested references or cross-document component links yet.
+- Instances support rotation, mirroring and parent/project-frame count/step repetition, including negative and vertical steps. Closed-form frame composition is verified for all 144 parent/child rotation/mirror pairs.
+- Material roles use `$name` with optional inline property overrides. Precedence: component defaults < document palette < build overrides < instance overrides. Recursive bindings and malformed property suffixes are rejected. Sign/lettering content stays literal.
+- `mc_build.blueprint` is exclusive with direct operations, expands into existing global fills -> text -> blocks passes, and snapshots union world-space bounds once. The MCP adapter needs no feature-specific implementation; it forwards the plugin's tenth tool and updated build schema.
+- Expansion guards 128 components, 10,000 raw operations, 4,096 expanded instances and 100,000 expanded operations. Aggregate requested volume, flow targets and union chunk footprint honor current server limits. All compiled native states are validated before snapshots/writes and share a request-local orientation-keyed cache.
+- **25 new JUnit tests pass.** Plugin build passes with the single reproduced upstream font-dependent test excluded: 573 tests pass. The unfiltered suite still has the known unrelated Private Use Area font assumption failure. MCP build and all 8 adapter tests pass.
+- Native blueprint acceptance: **5,553 checks, zero failures** against independently repeated Step 1 direct-build references. Covers all 12 project frames, mixed component frames, repetitions, palette overrides, property merging, filter roles, paired beds/doors, signs, lettering, CRUD, unresolved roles, invalid-state rejection and exact auto-snapshot restoration.
+- Verified a document and advisory metadata persisted across a real isolated plugin reload, built that saved document after reload, deleted it while blocks existed, and confirmed those blocks remained. Then restored the reserved region and removed the test document.
+- Re-ran Step 1 native regression on the Step 2 jar: **116,844 checks, zero failures**. No unexpected plugin runtime errors or unexplained support warnings.
+- The isolated development server remains running on loopback with the **same PID 35309**. Loaded code using `bukkit:reload confirm` only on this empty disposable instance; no server restart/shutdown or production modifications. This development-only reload procedure is not recommended for production.
+- Acceptance scripts restore their regions and close their own clients; they do not manage server lifecycle. Use fresh snapshots because retention remains bounded.
+
+Next: user approval is required before Step 3 (preflight validation and previews). No Step 3 work has begun.
 
 ### Separate upstream dependency finding
 

@@ -10,7 +10,7 @@ AI building tools for Minecraft Paper servers - no SSH, no LAN world: one jar pl
 
 *Built by Claude through this MCP.*
 
-Ashlar is a Paper plugin plus a Node MCP server. Point an AI client - Claude Desktop, Claude Code, OpenCode, Cursor, or anything else that speaks MCP - at the MCP server, and it gets nine tools to survey terrain, render images of the world, build in bulk, inspect exact block data, snapshot/restore regions, and run console commands. No mods, no SSH access to the host, no need to run the world on your own machine: the plugin runs inside your existing Paper server (a panel-hosted one works fine) and talks to the MCP server over a WebSocket. Players who have no MCP client at all can instead just type `/ashlar <request>` in chat and get an answer from the plugin's own built-in assistant - no Node process or inbound port needed for that path; see [In-game assistant](#in-game-assistant-no-ai-client-needed) below.
+Ashlar is a Paper plugin plus a Node MCP server. Point an AI client - Claude Desktop, Claude Code, OpenCode, Cursor, or anything else that speaks MCP - at the MCP server, and it gets ten tools to survey terrain, render images of the world, build in bulk, inspect exact block data, snapshot/restore regions, and run console commands. No mods, no SSH access to the host, no need to run the world on your own machine: the plugin runs inside your existing Paper server (a panel-hosted one works fine) and talks to the MCP server over a WebSocket. Players who have no MCP client at all can instead just type `/ashlar <request>` in chat and get an answer from the plugin's own built-in assistant - no Node process or inbound port needed for that path; see [In-game assistant](#in-game-assistant-no-ai-client-needed) below.
 
 ## How it works
 
@@ -45,6 +45,7 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | `mc_survey` | Terrain survey of an x/z area: heightmap image plus exact numbers (min/max/median height, surface mix, largest flat zone); `format:"text"` for an ASCII map. |
 | `mc_render` | PNG image of a region: top view, north/south/east/west facades, a slice, or a heightmap (top/heightmap are area-priced, any y range). |
 | `mc_build` | Places blocks in bulk (cuboid fills with modes replace/keep/outline/hollow/walls, individual blocks and sign text, plus lettering rendered by the plugin via `text`); the only tool that builds. |
+| `mc_blueprint` | Save/get/list/delete persistent reusable designs with named components, palettes and repeated instances; no world writes. |
 | `mc_inspect` | Exact block contents of a region (statistics, ASCII slice, sign text). |
 | `mc_snapshot` | Save a region before changing it (or list saved snapshots). |
 | `mc_restore` | Roll a region back to a snapshot. |
@@ -90,6 +91,62 @@ ASHLAR_DISPOSABLE_TEST=1 \
 ```
 
 Run this **only on an isolated disposable Paper server** with no connected players. It writes fixed regions around `[0,100,0]` and `[64,100,0]`, snapshots and restores them, and requires loopback connectivity and explicit opt-in. It checks all 12 rotation/mirror combinations with and without the connection pass, partial filters, paired blocks, sign content, rendered lettering, snapshot restoration, invalid-state rejection and multi-batch state transforms. It does not start or stop the server.
+
+## Reusable blueprints and components (fork enhancement)
+
+Use `mc_blueprint` to **save**, **get**, **list** or **delete** persistent project documents. These operations do not place blocks. Documents are shared in the plugin's `blueprints/` directory and survive plugin reloads and server restarts. Replacing an existing ID requires `overwrite:true`; deletion never removes existing world structures.
+
+Example arguments to `mc_blueprint`:
+
+```json
+{
+  "action": "save",
+  "id": "window_row",
+  "document": {
+    "version": 1,
+    "description": "Three matching windows",
+    "dimensions": [21, 5, 1],
+    "constraints": { "style": "stone cottage" },
+    "palette": { "frame": "minecraft:stone_bricks", "glass": "minecraft:light_blue_stained_glass" },
+    "components": {
+      "window": {
+        "fills": [
+          { "from": [0, 0, 0], "to": [4, 0, 0], "block": "$frame" },
+          { "from": [0, 4, 0], "to": [4, 4, 0], "block": "$frame" },
+          { "from": [0, 1, 0], "to": [0, 3, 0], "block": "$frame" },
+          { "from": [4, 1, 0], "to": [4, 3, 0], "block": "$frame" },
+          { "from": [1, 1, 0], "to": [3, 3, 0], "block": "$glass" }
+        ]
+      }
+    },
+    "instances": [
+      { "component": "window", "pos": [0, 0, 0], "repeat": { "count": 3, "step": [8, 0, 0] } }
+    ]
+  }
+}
+```
+
+Then build with `mc_build`, choosing a surveyed world origin:
+
+```json
+{
+  "blueprint": { "id": "window_row", "palette": { "frame": "minecraft:sandstone" } },
+  "transform": { "origin": [100, 64, 200], "rotation": 90 },
+  "snapshot": true
+}
+```
+
+- Version 1 has **flat named components**, each containing the same local `fills`, `blocks` and/or `text` entries as `mc_build`. No nested references or cross-document component links yet.
+- Every instance names a component and supplies a local `pos`. Optional `rotation`/`mirror` orient that component. `repeat:{count,step}` repeats it in the **project frame**, not its own rotated frame; negative and vertical steps are allowed.
+- Order: component mirror/rotation -> instance position plus repeated offset -> project mirror/rotation -> world origin. Without a project transform, the project origin is world `[0,0,0]`.
+- Materials use `$role` or `$role[property=value]`. Inline properties override bound properties; for example `$trim[facing=north]` can bind to `minecraft:oak_stairs[half=top]`. Palette precedence is **component defaults < document palette < build overrides < instance overrides**. Recursive palette bindings are rejected. Literal block states still work.
+- Sign strings and lettering content are not substituted. Mirrored lettering follows Step 1's geometric rules; sign strings remain readable.
+- Compilation uses the existing **all fills -> all text -> all blocks** passes, preserving instance order within each pass. Overlaps follow those passes, not whole-component sequential writes. One optional snapshot covers the union of final world-space bounds.
+- The compiler bounds expansion and checks aggregate requested volume, flow targets and union chunk footprint against current server limits. All compiled block states are prepared before snapshots/writes, with a request-local orientation-aware cache. Rendering previews and full collision/support preflight are Step 3 work, not provided here.
+- `description`, `dimensions` and `constraints` are retained as **advisory metadata**, not enforced constraints. Missing material-role bindings may be saved and supplied later; they must resolve before building.
+- Limits: 256 saved documents, 2 MiB per document, 128 components, 10,000 raw operations, 4,096 expanded instances and 100,000 expanded operations, plus existing server block/chunk/liquid limits. IDs and component/role names use a lowercase letter followed by letters, digits, `_` or `-`, at most 64 characters.
+
+The opt-in `mcp-server/tools/e2e-blueprints.mjs` acceptance test uses the same disposable-server environment variables as the transformation test. It reserves regions around `[128,100,0]` and `[256,100,0]`, restores them in cleanup, and removes its generated document by default. `ASHLAR_TEST_KEEP_BLUEPRINT=1` retains that document for a separate reload-persistence check. It never starts, stops or reloads the server.
 
 ## Install (three steps)
 
@@ -211,7 +268,7 @@ The model is expected to read this and fix the flagged blocks (or explain the tr
 
 ## In-game assistant (no AI client needed)
 
-Everything above needs an AI client on the player's own machine. `/ashlar <request>` is the alternative: the plugin runs the assistant itself, inside the same process as everything else, through the same nine tools - without anyone needing Claude Desktop, Claude Code, Cursor, any other MCP client, or a separate Node process. This is for the players and friends on your server who do not run an AI client at all - the server owner sets one API key and pays for the model API; everyone else just types in chat.
+Everything above needs an AI client on the player's own machine. `/ashlar <request>` is the alternative: the plugin runs the assistant itself, inside the same process as everything else, through the same ten tools - without anyone needing Claude Desktop, Claude Code, Cursor, any other MCP client, or a separate Node process. This is for the players and friends on your server who do not run an AI client at all - the server owner sets one API key and pays for the model API; everyone else just types in chat.
 
 ### Setup
 
@@ -428,7 +485,7 @@ The in-game assistant has no environment variables of its own any more - see the
 **Cause:** some hosting providers filter plain HTTP by the `Host` header and reject anything that is not a recognized domain, including a raw WebSocket upgrade request sent to an IP.
 **Fix:** set `MC_PLUGIN_URL` to the server's raw IP address, not a domain name.
 
-**Symptom:** Claude only sees one or two `mc_*` tools instead of nine.
+**Symptom:** Claude only sees one or two `mc_*` tools instead of ten.
 **Cause:** Claude Desktop's "Load tools when needed" setting loads tool definitions lazily and unreliably.
 **Fix:** switch the connector's tool access setting to "Tools already loaded", or start a new chat.
 
