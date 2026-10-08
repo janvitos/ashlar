@@ -7,8 +7,8 @@ Each step requires user approval before work begins. Pause after each step and r
 1. **Local coordinates and reliable transformations** - complete; implementation and isolated Paper runtime acceptance tests passed.
 2. **Reusable blueprints and components** - complete; approved implementation, unit/native tests and reload-persistence checks passed.
 3. **Preflight validation and dry-run previews** - complete; approved implementation, unit/native tests and image parity checks passed. Steps 1-3 merged into main via PR #1.
-4. **Exact verification and targeted repairs** - complete; approved implementation, exact state/sign checks and guarded sparse native repairs passed. Paused for user review before Step 5.
-5. **Shape-aware isometric and perspective rendering** - not started, approval required.
+4. **Exact verification and targeted repairs** - complete; approved implementation, exact state/sign checks and guarded sparse native repairs passed. Merged via PR #2; lightweight policy merged via PR #3.
+5. **Shape-aware isometric and perspective rendering** - approved implementation complete on feature branch; paused for review before Step 6.
 6. **Architectural generators** - not started, approval required.
 7. **Terrain-aware site planning** - not started, approval required.
 8. **Design constraints and alternative concepts** - not started, approval required.
@@ -110,7 +110,23 @@ Branch: `feat/exact-build-verification`, based on merged main `db1afbe`.
 - Step 1 regression **116,844**, Step 2 **5,553**, Step 3 **202** assertions/checks: zero failures. No unexpected runtime errors.
 - Native regions restored, temporary blueprints/receipts removed. Isolated PID **35309** remains running. Development-only plugin/config reloads; no shutdown/restart or production changes.
 
-Next: user approval is required before Step 5 (shape-aware isometric and perspective rendering). No Step 5 work has begun.
+Step 5 was subsequently approved and completed; see below.
+
+## Step 5 implementation and verification
+
+Branch: `feat/shape-aware-rendering`, based on merged main `95e542c`.
+
+- Added schematic `isometric` (orthographic) and `perspective` views to `mc_render` and optional `mc_plan.preview`, sharing a pure-Java off-main ray renderer. Tight inclusive 3D bounds, validated compass azimuth/elevation and perspective-only FOV; grids must be 0. Existing flat views remain separate.
+- Cuboids model slab heights, all stair facings/halves/corners, door facing/hinge/open state, trapdoors, stored fence/wall/pane/bar connections and glass blending. Gates, signs, beds/chests/liquids and similar approximations are labeled; unsupported states explicitly report cube fallback. Map colors remain lossy; missing colors and capped samples are reported. No textures/resource packs, entities, sign glyphs, fluid/waterlogging simulation, native lighting or shadows.
+- Bukkit state/color reads remain tick-budgeted on main; region encoding, ray tracing and PNG encoding run off-main. Captured world names prevent off-main Bukkit getter calls. Read-only: no placement, snapshots, physics or neighbor updates.
+- Bounded 200,000 cells/current read limits, 1,000,000 pixels, estimated 64,000,000 intersections and 3 MiB PNG. Adaptive resolution is reported; impossible bounds reject. Eight transparent layers per ray with capped-ray counts. Native angled legends cap at 50; fidelity samples at 30 with truncation flags.
+- **34 new unit/schema tests; 654 filtered plugin tests and 8 adapter tests pass.** Unfiltered run: 655 tests, sole failure is the known upstream host-font assumption at `AwtGlyphsTest.java:46`; no tracked exclusion or dependency change.
+- Opt-in `e2e-shapes.mjs`: **71 checks, zero failures**, including read-only state/sign/snapshot fingerprints, cameras/bounds/limits, native RPC validation and byte-for-byte virtual/live static house renders. Gallery and front/rear house PNGs were visually inspected. These are developer acceptance tests, not routine agent calls.
+- Temporary read-only native geometry probe compared **75 stair/slab/door/trapdoor states at 4,096 interior sample points each** against actual server collision boxes: **zero mismatches**. Probe removed; fixture restored.
+- Previous native regressions: Step 1 **116,844**, Step 2 **5,553**, Step 3 **202**, Step 4 **233** checks/assertions, zero failures. All fixture regions restored, documents/receipts/items/forced chunk cleaned up. No unexpected new runtime errors.
+- Default workflow remains one relevant survey -> build -> one appearance render. An angled image can replace that one render; planning and exact verification stay optional/opt-in. Production untouched; same isolated process retained, no restart/shutdown.
+
+Next: explicit approval required for Step 6 (architectural generators); no Step 6 work has begun.
 
 ### Separate upstream dependency finding
 

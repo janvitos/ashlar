@@ -123,6 +123,12 @@ public class ReadTask extends BuildTask {
         return true;
     }
 
+    /** Read-only palette access for budgeted render color resolution; no world access. */
+    protected final int paletteSize() { return encoder.paletteSize(); }
+    protected final String paletteEntry(int index) { return encoder.paletteEntry(index); }
+    /** Call only after reading completes; render callers finalize encoding off-main. */
+    protected final RegionData finishReadData() { return encoder.finish(region()); }
+
     /** Adds one {@code signs} entry for a sign block, up to {@link #MAX_SIGNS}. */
     private void collectSign(Block block, int x, int y, int z) {
         if (signs.size() >= MAX_SIGNS) {

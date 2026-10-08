@@ -191,6 +191,9 @@ public final class RegionData {
             }
         }
 
+        int paletteSize() { return palette.size(); }
+        String paletteEntry(int index) { return palette.get(index); }
+
         public RegionData finish(Region region) {
             int[] ri = new int[runIndexList.size()];
             int[] rl = new int[runLengthList.size()];

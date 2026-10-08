@@ -5,6 +5,7 @@ import cc.wujm.ashlar.config.ConfigHolder;
 import cc.wujm.ashlar.config.PluginConfig;
 import cc.wujm.ashlar.engine.*;
 import cc.wujm.ashlar.rpc.InvocationContext;
+import cc.wujm.ashlar.render.RenderCamera;
 import cc.wujm.ashlar.rpc.MainThread;
 import cc.wujm.ashlar.tool.ToolArgError;
 import com.google.gson.JsonArray;
@@ -80,7 +81,7 @@ public final class BuildPreflight {
     CompletableFuture<Result> analyze(InvocationContext ctx, Validated v, JsonObject preview, boolean capture) {
         RequestValidator validator = new RequestValidator(v.settings());
         RequestValidator.RenderParams rp = preview == null ? null : validator.validateRenderParams(preview,v.bounds());
-        if (rp != null && rp.view().equals("heightmap")) throw new ToolArgError("planned previews support top, compass facades and slice only");
+        if (rp != null && rp.view().equals("heightmap")) throw new ToolArgError("planned previews support top, compass facades, slice, isometric and perspective; not heightmap");
         Region b = v.bounds();
         Region imageBounds = rp == null ? null : b;
         if (rp != null && rp.view().equals("slice")) imageBounds = switch (rp.sliceAxis()) {
@@ -89,7 +90,10 @@ public final class BuildPreflight {
             case "z" -> new Region(b.minX(),b.minY(),rp.sliceAt(),b.maxX(),b.maxY(),rp.sliceAt());
             default -> throw new ToolArgError("invalid slice axis");
         };
-        if (imageBounds != null) validator.checkVolumeLimit(PlanGeometry.checkedVolume(imageBounds),v.settings().limits().maxReadVolume(),"preview envelope volume; use image:false or a slice for large designs");
+        long previewCap = v.settings().limits().maxReadVolume();
+        if (rp != null && RenderCamera.angled(rp.view())) previewCap = Math.min(200_000,previewCap);
+        if (imageBounds != null) validator.checkVolumeLimit(PlanGeometry.checkedVolume(imageBounds),previewCap,
+                "preview envelope volume; use image:false or a slice for large designs");
         Region tickets = new Region(Math.max(-29_999_999,b.minX()-1),Math.max(v.minY(),b.minY()-1),Math.max(-29_999_999,b.minZ()-1),
                 Math.min(29_999_999,b.maxX()+1),Math.min(v.maxY()-1,b.maxY()+1),Math.min(29_999_999,b.maxZ()+1));
         validator.checkChunkCount(tickets);

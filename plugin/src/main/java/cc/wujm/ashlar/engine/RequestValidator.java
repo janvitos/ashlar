@@ -332,7 +332,7 @@ public final class RequestValidator {
     }
 
     private static final List<String> VALID_RENDER_VIEWS =
-            List.of("top", "north", "south", "east", "west", "slice", "heightmap");
+            List.of("top", "north", "south", "east", "west", "slice", "heightmap", "isometric", "perspective");
     private static final List<String> VALID_SLICE_AXES = List.of("x", "y", "z");
 
     /**
@@ -346,7 +346,8 @@ public final class RequestValidator {
     }
 
     /** Validated {@code render} request parameters (docs/prompts/step4e-prompt.md), besides the region (see {@link #validateReadRegion}). */
-    public record RenderParams(String view, String sliceAxis, int sliceAt, int scale, int grid) {
+    public record RenderParams(String view, String sliceAxis, int sliceAt, int scale, int grid,
+            cc.wujm.ashlar.render.RenderCamera camera) {
     }
 
     /**
@@ -398,7 +399,13 @@ public final class RequestValidator {
             }
         }
 
-        return new RenderParams(view, sliceAxis, sliceAt, validateScale(params), validateGrid(params));
+        try {
+            var camera = cc.wujm.ashlar.render.RenderCamera.parse(params,view);
+            boolean angled = cc.wujm.ashlar.render.RenderCamera.angled(view);
+            int grid = angled && !params.has("grid") ? 0 : validateGrid(params);
+            if (angled && grid != 0) throw new IllegalArgumentException("angled views require grid:0; flat views retain coordinate grids");
+            return new RenderParams(view, sliceAxis, sliceAt, validateScale(params), grid, camera);
+        } catch (IllegalArgumentException e) { throw new RpcError(ErrorCode.BAD_REQUEST,e.getMessage()); }
     }
 
     /** The x/z area (inclusive) plus the image knobs a validated {@code render} {@code view: "heightmap"} request covers. */

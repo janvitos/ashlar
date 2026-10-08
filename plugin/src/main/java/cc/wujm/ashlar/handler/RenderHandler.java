@@ -9,6 +9,8 @@ import cc.wujm.ashlar.engine.Region;
 import cc.wujm.ashlar.engine.RenderService;
 import cc.wujm.ashlar.engine.RequestValidator;
 import cc.wujm.ashlar.rpc.InvocationContext;
+import cc.wujm.ashlar.rpc.ErrorCode;
+import cc.wujm.ashlar.render.RenderCamera;
 import cc.wujm.ashlar.rpc.MainThread;
 import cc.wujm.ashlar.rpc.RpcError;
 import cc.wujm.ashlar.rpc.RpcHandler;
@@ -40,6 +42,12 @@ public final class RenderHandler implements RpcHandler {
             RequestValidator validator = new RequestValidator(configHolder.get());
             World world = validator.resolveWorld(params);
             String view = validator.peekRenderView(params);
+            try {
+                RenderCamera.parse(params,view);
+                RenderCamera.validateBounds(params,view);
+            } catch (IllegalArgumentException e) {
+                throw new RpcError(ErrorCode.BAD_REQUEST,e.getMessage());
+            }
             if ("heightmap".equals(view)) {
                 return startHeightmapRender(validator, world, params, ctx);
             }
@@ -57,7 +65,9 @@ public final class RenderHandler implements RpcHandler {
     private CompletableFuture<JsonElement> startRender(RequestValidator validator, World world, JsonObject params,
             int[] heights, InvocationContext ctx) {
         try {
-            Region region = validator.validateReadRegion(params, heights[0], heights[1], configHolder.get().limits().maxReadVolume());
+            long cap = configHolder.get().limits().maxReadVolume();
+            if (RenderCamera.angled(validator.peekRenderView(params))) cap = Math.min(cap,200_000);
+            Region region = validator.validateReadRegion(params, heights[0], heights[1], cap);
             RequestValidator.RenderParams renderParams = validator.validateRenderParams(params, region);
             return renderService.renderRegion(world, region, renderParams, ctx);
         } catch (RpcError e) {

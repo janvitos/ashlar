@@ -5,44 +5,42 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import org.bukkit.World;
 
-/**
- * Executes the read side of a {@code render} request (docs/prompts/step4e-prompt.md
- * &sect;Design): reuses {@link ReadTask}'s budgeted main-thread scan to
- * obtain a {@link RegionData}, then - still on the main thread, inside
- * {@link #buildResult} (called by {@link TickBudgetExecutor#completeCurrent}) -
- * resolves every palette entry's vanilla map color via {@link
- * MapColorResolver}.
- *
- * <p>{@link #buildResult} intentionally returns a throwaway {@link
- * JsonNull}: this task's {@link java.util.concurrent.CompletableFuture} (as
- * returned by {@code TickBudgetExecutor#submit}) is never sent to the
- * client directly. {@code RenderHandler} chains {@code
- * thenComposeAsync(..., renderExecutor)} onto it and reads {@link
- * #regionData()}/{@link #paletteArgb()} from this task object once that
- * future completes, building the actual PNG response off the main thread.
- */
+/** Budgeted world/state/color reads; region encoding and rendering finalized off-main. */
 public final class RenderTask extends ReadTask {
-
     private int[] paletteArgb;
+    private int paletteIndex;
+    private boolean readDone;
+    private RegionData data;
+    private String worldName;
 
-    public RenderTask(Region region, World world) {
-        super(region, world);
+    public RenderTask(Region region, World world) { super(region, world); }
+
+    @Override
+    public boolean step(long deadline) {
+        if (!readDone) {
+            if (!super.step(deadline)) return false;
+            readDone = true;
+            paletteArgb = new int[paletteSize()];
+            worldName = world().getName();
+        }
+        while (paletteIndex < paletteArgb.length) {
+            if (System.nanoTime() >= deadline) return false;
+            paletteArgb[paletteIndex] = MapColorResolver.resolve(paletteEntry(paletteIndex));
+            paletteIndex++;
+        }
+        return true;
     }
 
     @Override
-    public JsonElement buildResult(long queuedMs, long elapsedMs) {
-        super.buildResult(queuedMs, elapsedMs); // populates regionData()
-        RegionData data = regionData();
-        int[] argb = new int[data.palette().size()];
-        for (int i = 0; i < argb.length; i++) {
-            argb[i] = MapColorResolver.resolve(data.palette().get(i));
-        }
-        this.paletteArgb = argb;
-        return JsonNull.INSTANCE;
+    public JsonElement buildResult(long queuedMs, long elapsedMs) { return JsonNull.INSTANCE; }
+
+    /** Call off-main only after task completion and its completion-future memory barrier. */
+    @Override
+    public RegionData regionData() {
+        if (data == null) data = finishReadData();
+        return data;
     }
 
-    /** ARGB color for each {@link RegionData#palette()} entry, parallel to it. Only populated once {@link #buildResult} has run. */
-    public int[] paletteArgb() {
-        return paletteArgb;
-    }
+    public int[] paletteArgb() { return paletteArgb; }
+    public String worldName() { return worldName; }
 }

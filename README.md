@@ -43,8 +43,8 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | `mc_status` | Server/plugin health and queue length. |
 | `mc_players` | Online players with position and facing ("here", "in front of me", "at my feet"). |
 | `mc_survey` | Terrain survey of an x/z area: heightmap image plus exact numbers (min/max/median height, surface mix, largest flat zone); `format:"text"` for an ASCII map. |
-| `mc_render` | PNG image of a region: top view, north/south/east/west facades, a slice, or a heightmap (top/heightmap are area-priced, any y range). |
-| `mc_build` | Places blocks in bulk (cuboid fills with modes replace/keep/outline/hollow/walls, individual blocks and sign text, plus lettering rendered by the plugin via `text`); the only tool that builds. |
+| `mc_render` | One visual PNG check: shape-aware isometric/perspective depth, or flat top/facade/slice/heightmap views. Angled views need tight 3D bounds; top/heightmap stay area-priced. |
+| `mc_build` | Places blocks in bulk (cuboid fills with modes replace/keep/outline/hollow/walls, individual blocks and sign text, plus lettering rendered by the plugin via `text`). |
 | `mc_blueprint` | Save/get/list/delete persistent reusable designs with named components, palettes and repeated instances; no world writes. |
 | `mc_plan` | Read-only preflight and virtual-scene previews for direct builds or saved blueprints; collision/support/pairing diagnostics without placement. |
 | `mc_verify` | Freeze expected cells before building; compare actual states/sign values afterward with exact coordinate/property differences. |
@@ -176,7 +176,7 @@ The report includes bounds/dimensions, requested volume, accepted/skipped visits
 
 - **No placement, snapshot creation, blueprint writes or console commands.** Reading can load chunks. World data is observed over ticks, not locked or reserved.
 - Simulation follows actual **fills -> text -> blocks** ordering, including `keep`, `outline`, `hollow`, `walls`, partial-state filters, repeated components and palette/property overrides.
-- Images use existing **map colors**, not textures or shape-aware perspective. Choose `top`, a compass facade, or `slice` with `{axis,at}`. Unchanged world cells inside preview bounds are included. Legends and coordinate axes are returned; transparent/identically colored materials can look alike.
+- Images use existing **map colors**, not textures. Choose flat `top`/compass facade/`slice` with `{axis,at}`, or shape-aware `isometric`/`perspective` with optional `camera` (see below). Unchanged cells inside preview bounds are included. Flat views retain legends/axes; angled views report geometry fidelity and adaptive resolution.
 - Full top/facade previews must fit `limits.max-read-volume` by envelope volume. Slice previews read only their plane, so a larger design may still be previewed. Use `image:false` for site analysis without image reads. Existing image scale/grid/pixel caps and the 3 MiB PNG cap apply.
 - Common support rules are advisory and not an exhaustive vanilla survival/voxel-face solver. Final-scene checks include supports supplied later in the request and existing neighboring blocks losing support. Neighbor candidates are capped at the smaller of 200,000 and `max-read-volume`; omitted checks and capped issue/sample lists are explicitly flagged.
 - **Not simulated:** automatic connection shapes/chest pairing, flowing fluids, entities, block-entity/NBT edits, or later concurrent changes. Counts describe planned block states before those effects. Use `connect:false` when exact static-state/image comparison is intended. State-change counts exclude sign text edits; requested sign edits are reported separately.
@@ -186,6 +186,29 @@ Every production `mc_build` now validates **all three phases before its first sn
 For report-only analysis, use the same build request with **`dryRun:true`**. For placement only after a fresh clean site analysis, set **`preflight:true`**. This rejects pairing/support problems or incomplete neighbor coverage before snapshotting/placing; clearing/collision/overlap counts remain advisory. Without that flag, complete structural validation still runs, but site warnings remain the existing post-build diagnostics. Preflight is not transactional execution: runtime failures or concurrent edits are still possible.
 
 The opt-in `mcp-server/tools/e2e-preflight.mjs` reserves `[344,99,-40]` through `[424,118,40]`, restores it and removes its generated blueprint in cleanup. It also performs a separately fingerprinted **read-only** large-slice test around `[384,100,0]` through `[463,139,79]`. Use the disposable-server environment variables described above. Optional `ASHLAR_PREVIEW_OUTPUT` saves PNGs to that directory. The test does not manage server lifecycle.
+
+## Shape-aware angled appearance views (fork enhancement)
+
+Use one angled render when it helps inspect the finished exterior; this replaces, rather than adds to, the default single appearance check:
+
+```json
+{
+  "from": [100, 63, 200],
+  "to": [120, 80, 220],
+  "view": "isometric",
+  "camera": { "azimuth": 135, "elevation": 35 },
+  "scale": 16,
+  "grid": 0
+}
+```
+
+- `isometric` is orthographic; `perspective` adds distance-dependent projection. Both automatically frame the requested **inclusive 3D bounds**. Compass azimuth: 0 north, 90 east, 180 south, 270 west; range [0,360). Elevation: 5-85 degrees. Perspective-only `fov`: 20-90 degrees. Defaults: southeast azimuth 135; elevations 35.264 (orthographic) / 30 (perspective); perspective FOV 50. Angled grids must be 0.
+- Schematic cuboids show slab heights, stair facing/half/corners, door facing/hinge/open state, trapdoors and stored fence/wall/pane/bar connections. Glass blends with geometry behind it. Signs, beds, chests, gates, liquids and other approximations are reported; unknown models explicitly use cube fallback. Colors remain lossy Minecraft map colors, with labeled fallback for missing colors. This is **not an in-game screenshot**, texture/resource-pack renderer, exhaustive voxel model, or exact fidelity audit.
+- Read-only, tick-budgeted block/color capture; ray tracing and PNG encoding run off-main-thread. No neighbor updates or state/sign/inventory writes. Connections and world cells are observed as stored, not simulated or refreshed.
+- Volume cap 200,000 cells (also current read/world/chunk limits), 1,000,000 pixels, estimated 64,000,000 intersection work and 3 MiB PNG cap. Resolution is lowered and reported when necessary; impossible scenes reject instead of allocating unbounded buffers. `geometry` reports projection/camera, effective scale, budget estimates, fallback/approximation samples and truncation flags. Up to eight transparent layers per ray; capped rays are explicitly counted. Tight bounds improve detail.
+- Optional `mc_plan.preview` accepts the same angled views/camera. It renders the virtual final scene with the same engine; static `connect:false` previews match actual render pixels. This does **not** make planning or exact verification mandatory. Existing flat map/facade/slice/heightmap behavior remains separate.
+
+The disposable opt-in `mcp-server/tools/e2e-shapes.mjs` reserves pristine `[720,99,-40]` through `[816,119,40]`, restores it by default, and saves gallery/house images under `/tmp/ashlar-step5-previews` (override `ASHLAR_SHAPE_OUTPUT`). It checks read-only state/sign/snapshot fingerprints, cameras, limits and planned/live parity. It uses the same disposable environment variables as earlier tests and never manages server lifecycle. Developer tests are not per-build agent steps.
 
 ## Verify what was built and repair only differences (fork enhancement)
 

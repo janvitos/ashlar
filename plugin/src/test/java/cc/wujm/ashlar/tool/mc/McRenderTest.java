@@ -76,6 +76,23 @@ class McRenderTest {
         assertEquals(20, a.grid());
     }
 
+    @Test
+    void angledViewsParseCameraAndRequireThreeDimensions() {
+        var a=McRender.Args.parse(obj("{\"from\":[0,60,0],\"to\":[10,70,10],\"view\":\"perspective\",\"camera\":{\"azimuth\":45.5,\"fov\":60}}"));
+        assertEquals(45.5,a.camera().get("azimuth").getAsDouble());
+        assertThrows(ToolArgError.class,() -> McRender.Args.parse(obj("{\"from\":[0,0],\"to\":[10,10],\"view\":\"isometric\"}")));
+    }
+    @Test
+    void angledCoordinatesAndControlsRejectFractionalOverflow() {
+        for(String field:new String[]{"\"from\":[0.5,60,0],\"to\":[10,70,10]","\"from\":[2147483648,60,0],\"to\":[10,70,10]","\"from\":[0,60,0],\"to\":[10,70,10],\"scale\":1.5","\"from\":[0,60,0],\"to\":[10,70,10],\"grid\":10"})
+            assertThrows(ToolArgError.class,() -> McRender.Args.parse(obj("{"+field+",\"view\":\"isometric\"}")));
+    }
+    @Test
+    void cameraOnFlatViewAndFovOnIsometricReject() {
+        assertThrows(IllegalArgumentException.class,() -> McRender.Args.parse(obj("{\"from\":[0,0],\"to\":[10,10],\"view\":\"top\",\"camera\":{}}")));
+        assertThrows(IllegalArgumentException.class,() -> McRender.Args.parse(obj("{\"from\":[0,60,0],\"to\":[10,70,10],\"view\":\"isometric\",\"camera\":{\"fov\":50}}")));
+    }
+
     // Body-level checks (mc-render.ts's plain `throw new Error(...)` statements), extracted as static helpers.
 
     @Test

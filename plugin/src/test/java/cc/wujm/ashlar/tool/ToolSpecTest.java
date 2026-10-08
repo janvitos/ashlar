@@ -74,6 +74,21 @@ class ToolSpecTest {
     }
 
     @Test
+    void renderAndPlanExposeMatchingAngledCameraSchemas() {
+        var render=ToolSpec.load("mc_render").inputSchema().getAsJsonObject("properties");
+        var preview=ToolSpec.load("mc_plan").inputSchema().getAsJsonObject("properties").getAsJsonObject("preview").getAsJsonObject("properties");
+        assertEquals(render.get("camera"),preview.get("camera"));
+        for(var p:List.of(render,preview)){
+            String views=p.getAsJsonObject("view").getAsJsonArray("enum").toString();
+            assertTrue(views.contains("isometric"));assertTrue(views.contains("perspective"));
+            assertEquals(360,p.getAsJsonObject("camera").getAsJsonObject("properties").getAsJsonObject("azimuth").get("exclusiveMaximum").getAsInt());
+        }
+        String instructions=new ToolRegistry(List.of()).instructions();
+        assertTrue(instructions.contains("schematic visual cuboids"));
+        assertFalse(instructions.contains("not shape-aware perspective views"));
+    }
+
+    @Test
     void toJsonRoundTripsTheSameFields() {
         ToolSpec spec = ToolSpec.load("mc_status");
         var json = spec.toJson();

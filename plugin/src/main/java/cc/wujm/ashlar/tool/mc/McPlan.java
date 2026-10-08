@@ -48,9 +48,12 @@ public final class McPlan implements Tool {
         if (result.preview() == null) return List.of(ContentBlock.text(report.toString()));
         var rp = result.preview(); int scale = rp.scale();
         try {
-            ImageRenderer.Output out; byte[] png;
+            ImageRenderer.Output out; byte[] png; JsonObject geometry = null;
             while (true) {
-                out = ImageRenderer.render(result.task().previewData(),result.task().paletteArgb(),rp.view(),rp.sliceAxis(),rp.sliceAt(),scale,rp.grid());
+                if (cc.wujm.ashlar.render.RenderCamera.angled(rp.view())) {
+                    var shaped = cc.wujm.ashlar.render.ShapeRenderer.render(result.task().previewData(),result.task().paletteArgb(),rp.view(),rp.camera(),scale);
+                    out = shaped.image(); geometry = shaped.details();
+                } else out = ImageRenderer.render(result.task().previewData(),result.task().paletteArgb(),rp.view(),rp.sliceAxis(),rp.sliceAt(),scale,rp.grid());
                 png = RenderService.encodePng(out.pixels(),out.width(),out.height());
                 if (png.length <= 3*1024*1024 || out.scale() <= 1) break;
                 scale = out.scale()/2;
@@ -64,7 +67,9 @@ public final class McPlan implements Tool {
             for (var entry:out.legend().stream().limit(50).toList()) {
                 JsonObject row = new JsonObject(); row.addProperty("block",entry.block()); row.addProperty("color",entry.colorHex()); row.addProperty("pixels",entry.pixels()); legend.add(row);
             }
-            info.add("legend",legend); info.addProperty("legendTruncated",out.legend().size() > 50); report.add("preview",info);
+            info.add("legend",legend); info.addProperty("legendTruncated",out.legend().size() > 50);
+            if (geometry != null) info.add("geometry",geometry);
+            report.add("preview",info);
             return List.of(ContentBlock.text(report.toString()),ContentBlock.image(Base64.getEncoder().encodeToString(png),"image/png"));
         } catch (java.io.IOException e) { throw new ToolArgError("preview encoding failed: " + e.getMessage()); }
     }
