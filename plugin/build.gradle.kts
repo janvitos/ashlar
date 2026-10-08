@@ -23,7 +23,7 @@ repositories {
 
 dependencies {
     // Provided by the Paper server at runtime; not shaded into the jar.
-    compileOnly("io.papermc.paper:paper-api:26.2.build.+")
+    compileOnly("io.papermc.paper:paper-api:26.1.2.build.74-stable")
 
     // Declared as a runtime library in plugin.yml under `libraries:` so Paper
     // downloads it at runtime. compileOnly here so it is not bundled.

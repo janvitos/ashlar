@@ -1,6 +1,6 @@
 # Ashlar — notes for Claude Code sessions and contributors
 
-Two components: `plugin/` (Paper 26.2 plugin, Java 25, Gradle) and `mcp-server/` (TypeScript MCP server, MCP SDK v2, Node >= 22). Planning docs, per-step implementation prompts and other private notes live in `docs/private/` (gitignored; Chinese is fine there). Only `docs/images/` is tracked.
+Two components: `plugin/` (Paper 26.1.2+ plugin, Java 25, Gradle; disposable server target 26.2) and `mcp-server/` (TypeScript MCP server, MCP SDK v2, Node >= 22). Planning docs, per-step implementation prompts and other private notes live in `docs/private/` (gitignored; Chinese is fine there). Only `docs/images/` is tracked.
 
 ## Build and test
 

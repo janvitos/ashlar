@@ -547,9 +547,10 @@ A small hut (survey, snapshot, build, a couple of renders, a final reply - about
 
 | Component | Status |
 |---|---|
-| Paper 26.2 | Tested (build 124) |
-| Paper 26.3 | Tested (build 5, alpha channel - the same jar, `api-version` stays 26.2) |
-| Paper 26.x | Expected to work (same major API line) |
+| Paper 26.1.2 | Fork compiles against build 74 API; declares minimum `api-version: 26.1`. Runtime deployment confirmation pending. |
+| Paper 26.2 | Fork development runtime tested on build 132 |
+| Paper 26.3 | Upstream reported build 5 (alpha); not independently tested for this fork |
+| Paper 26.x | Other builds unverified; check compatibility before deployment |
 | Java | 25 required (Paper 26.x's hard requirement) |
 | Node | >= 22 required (MCP server uses the built-in `WebSocket` global) |
 | MCP clients | Any MCP SDK v2 client: Claude Desktop, Claude Code, OpenCode, Cursor, etc. |

@@ -1,9 +1,9 @@
 name: Ashlar
 version: ${version}
 main: cc.wujm.ashlar.AshlarPlugin
-# api-version "26.2" is the format documented by Paper for the 26.x line
-# (docs.papermc.io/paper/dev/project-setup); confirmed accepted at load time.
-api-version: "26.2"
+# Minimum supported API. Sources compile against Paper 26.1.2; newer
+# Paper 26.2 remains the disposable development server target.
+api-version: "26.1"
 author: Rcwalter
 description: Lets AI assistants (via MCP) survey, render, build, inspect and snapshot a Paper server over a WebSocket RPC bridge.
 
