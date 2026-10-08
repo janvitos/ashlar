@@ -64,9 +64,8 @@ public final class RenderService {
             InvocationContext ctx) {
         MainThread.assertNotPrimary("RenderService.renderRegion");
         RenderTask task = new RenderTask(region, world);
-        String worldName = world.getName();
         return executor.submit(task, ctx)
-                .thenComposeAsync(ignored -> renderAsync(task, worldName, region, rp), renderExecutor);
+                .thenComposeAsync(ignored -> renderAsync(task, task.worldName(), region, rp), renderExecutor);
     }
 
     /** Runs on {@link #renderExecutor}: {@link ImageRenderer#render}, PNG encoding, and the halve-on-oversize retry loop. */
@@ -78,23 +77,25 @@ public final class RenderService {
 
             int scale = rp.scale();
             ImageRenderer.Output out;
+            JsonObject geometry = null;
             byte[] png;
             while (true) {
-                out = ImageRenderer.render(data, paletteArgb, rp.view(), rp.sliceAxis(), rp.sliceAt(), scale, rp.grid());
+                if (cc.wujm.ashlar.render.RenderCamera.angled(rp.view())) {
+                    var shaped = cc.wujm.ashlar.render.ShapeRenderer.render(data,paletteArgb,rp.view(),rp.camera(),scale);
+                    out = shaped.image(); geometry = shaped.details();
+                } else out = ImageRenderer.render(data, paletteArgb, rp.view(), rp.sliceAxis(), rp.sliceAt(), scale, rp.grid());
                 png = encodePng(out.pixels(), out.width(), out.height());
-                if (png.length <= MAX_PNG_BYTES || out.scale() <= 1) {
-                    break;
-                }
+                if (png.length <= MAX_PNG_BYTES || out.scale() <= 1) break;
                 scale = out.scale() / 2;
             }
-            if (png.length > MAX_PNG_BYTES) {
-                throw new RpcError(ErrorCode.VOLUME_EXCEEDED,
-                        "rendered PNG is " + png.length + " bytes, exceeding the " + MAX_PNG_BYTES
-                                + "-byte limit even at scale=1; request a smaller area");
-            }
-            return CompletableFuture.completedFuture(buildResultJson(worldName, region, rp, out, png));
+            if (png.length > MAX_PNG_BYTES) throw new RpcError(ErrorCode.VOLUME_EXCEEDED,"rendered PNG exceeds 3 MiB even at scale=1; request a smaller area");
+            JsonObject result = buildResultJson(worldName, region, rp, out, png);
+            if (geometry != null) result.add("geometry",geometry);
+            return CompletableFuture.completedFuture(result);
         } catch (RpcError e) {
             return CompletableFuture.failedFuture(e);
+        } catch (cc.wujm.ashlar.render.ShapeRenderer.BudgetExceededException e) {
+            return CompletableFuture.failedFuture(new RpcError(ErrorCode.VOLUME_EXCEEDED,e.getMessage()));
         } catch (Exception e) {
             return CompletableFuture.failedFuture(new RpcError(ErrorCode.INTERNAL, "render failed: " + e.getMessage()));
         }
@@ -114,9 +115,8 @@ public final class RenderService {
             InvocationContext ctx) {
         MainThread.assertNotPrimary("RenderService.renderTop");
         TopViewTask task = new TopViewTask(region, world);
-        String worldName = world.getName();
-        return executor.submit(task, ctx)
-                .thenComposeAsync(ignored -> renderTopAsync(task, worldName, region, rp), renderExecutor);
+        return MainThread.call(world::getName).thenCompose(worldName -> executor.submit(task, ctx)
+                .thenComposeAsync(ignored -> renderTopAsync(task, worldName, region, rp), renderExecutor));
     }
 
     /** Runs on {@link #renderExecutor}: {@link ImageRenderer#renderTop}, PNG encoding, and the halve-on-oversize retry loop. */
@@ -162,9 +162,8 @@ public final class RenderService {
         MainThread.assertNotPrimary("RenderService.renderHeightmap");
         Region region = new Region(hp.x1(), 0, hp.z1(), hp.x2(), 0, hp.z2());
         HeightmapImageTask task = new HeightmapImageTask(region, world, hp.x1(), hp.z1(), hp.x2(), hp.z2(), requestedMap);
-        String worldName = world.getName();
-        return executor.submit(task, ctx)
-                .thenComposeAsync(ignored -> renderHeightmapAsync(task, worldName, hp), renderExecutor);
+        return MainThread.call(world::getName).thenCompose(worldName -> executor.submit(task, ctx)
+                .thenComposeAsync(ignored -> renderHeightmapAsync(task, worldName, hp), renderExecutor));
     }
 
     /** Runs on {@link #renderExecutor}: {@link HeightmapImageRenderer#render}, PNG encoding, stats. */
@@ -318,7 +317,9 @@ public final class RenderService {
 
         JsonArray legend = new JsonArray();
         List<ImageRenderer.LegendEntry> entries = out.legend();
-        for (ImageRenderer.LegendEntry entry : entries) {
+        boolean angled = cc.wujm.ashlar.render.RenderCamera.angled(rp.view());
+        if (angled) json.addProperty("legendTruncated",entries.size()>50);
+        for (ImageRenderer.LegendEntry entry : angled ? entries.stream().limit(50).toList() : entries) {
             JsonObject e = new JsonObject();
             e.addProperty("block", entry.block());
             e.addProperty("color", entry.colorHex());

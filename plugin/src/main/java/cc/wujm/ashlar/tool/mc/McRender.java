@@ -28,7 +28,7 @@ public final class McRender implements Tool {
 
     private static final long MAX_VOLUME = 200_000;
     private static final long MAX_HEIGHTMAP_AREA = 200_000;
-    private static final List<String> VIEWS = List.of("top", "north", "south", "east", "west", "slice", "heightmap");
+    private static final List<String> VIEWS = List.of("top", "north", "south", "east", "west", "slice", "heightmap", "isometric", "perspective");
     private static final List<String> HEIGHTMAP_TYPES = List.of("SOLID", "SOLID_OR_LIQUID", "SOLID_OR_LIQUID_NO_LEAVES", "ANY");
     private static final List<String> SLICE_AXES = List.of("x", "y", "z");
 
@@ -48,12 +48,15 @@ public final class McRender implements Tool {
     }
 
     record Args(String world, int[] from, int[] to, String view, SliceArg slice, Integer scale, Integer grid,
-                String heightmapType, Integer contour) {
+                String heightmapType, Integer contour, JsonObject camera) {
         static Args parse(JsonObject o) {
             String world = ArgParse.optString(o, "world");
-            int[] from = ArgParse.requireCoords2Or3(o, "from");
-            int[] to = ArgParse.requireCoords2Or3(o, "to");
             String view = ArgParse.optEnum(o, "view", VIEWS, null);
+            boolean angled = cc.wujm.ashlar.render.RenderCamera.angled(view == null ? "top" : view);
+            cc.wujm.ashlar.render.RenderCamera.parse(o,view == null ? "top" : view);
+            int[] from = angled ? BuildTransform.strictCoords(o,"from") : ArgParse.requireCoords2Or3(o, "from");
+            int[] to = angled ? BuildTransform.strictCoords(o,"to") : ArgParse.requireCoords2Or3(o, "to");
+            if (angled) BuildPreflight.checkHorizontal(cc.wujm.ashlar.engine.Region.of(from,to));
             SliceArg slice = null;
             if (ArgParse.has(o, "slice")) {
                 JsonObject s = ArgParse.requireObject(o.get("slice"), "slice");
@@ -61,11 +64,12 @@ public final class McRender implements Tool {
                 int at = ArgParse.requireInt(s, "at");
                 slice = new SliceArg(axis, at);
             }
-            Integer scale = ArgParse.optInt(o, "scale");
+            Integer scale = angled && ArgParse.has(o,"scale") ? Integer.valueOf(BuildTransform.strictInt(o.get("scale"),"scale")) : ArgParse.optInt(o, "scale");
             if (scale != null && (scale < 0 || scale > 16)) {
                 throw new ToolArgError("scale: must be between 0 and 16, got " + scale);
             }
-            Integer grid = ArgParse.optInt(o, "grid");
+            Integer grid = angled && ArgParse.has(o,"grid") ? Integer.valueOf(BuildTransform.strictInt(o.get("grid"),"grid")) : ArgParse.optInt(o, "grid");
+            if (angled && grid != null && grid != 0) throw new ToolArgError("angled views require grid:0");
             if (grid != null && (grid < 0 || grid > 64)) {
                 throw new ToolArgError("grid: must be between 0 and 64, got " + grid);
             }
@@ -74,7 +78,8 @@ public final class McRender implements Tool {
             if (contour != null && (contour < 0 || contour > 4096)) {
                 throw new ToolArgError("contour: must be between 0 and 4096, got " + contour);
             }
-            return new Args(world, from, to, view, slice, scale, grid, heightmapType, contour);
+            return new Args(world, from, to, view, slice, scale, grid, heightmapType, contour,
+                    ArgParse.has(o,"camera") ? o.getAsJsonObject("camera").deepCopy() : null);
         }
     }
 
@@ -128,7 +133,7 @@ public final class McRender implements Tool {
             if (resolvedView.equals("heightmap") || resolvedView.equals("top")) {
                 checkArea(resolvedView, (long) (x2 - x1 + 1) * (z2 - z1 + 1));
             } else {
-                checkVolume((long) (x2 - x1 + 1) * (y2 - y1 + 1) * (z2 - z1 + 1));
+                checkVolume(cc.wujm.ashlar.engine.PlanGeometry.checkedVolume(new cc.wujm.ashlar.engine.Region(x1,y1,z1,x2,y2,z2)));
             }
             checkSliceRequired(resolvedView, a.slice());
 
@@ -139,9 +144,8 @@ public final class McRender implements Tool {
             boolean useFootprint = resolvedView.equals("heightmap") || footprintOnly;
             params.add("from", useFootprint ? intArray(x1, z1) : intArray(x1, y1, z1));
             params.add("to", useFootprint ? intArray(x2, z2) : intArray(x2, y2, z2));
-            if (a.view() != null) {
-                params.addProperty("view", a.view());
-            }
+            if (a.view() != null) params.addProperty("view", a.view());
+            if (a.camera() != null) params.add("camera",a.camera());
             if (a.slice() != null) {
                 JsonObject sliceJson = new JsonObject();
                 sliceJson.addProperty("axis", a.slice().axis());
@@ -177,7 +181,12 @@ public final class McRender implements Tool {
                 String view = r.get("view").getAsString();
 
                 String text;
-                if (view.equals("heightmap")) {
+                if (cc.wujm.ashlar.render.RenderCamera.angled(view)) {
+                    JsonObject summary = new JsonObject(); summary.addProperty("view",view);summary.add("bounds",bounds);
+                    summary.addProperty("width",width);summary.addProperty("height",height);summary.addProperty("scale",scaleOut);
+                    summary.add("geometry",r.get("geometry"));
+                    text = summary.toString();
+                } else if (view.equals("heightmap")) {
                     HeightmapText.HeightmapRenderFields fields = HeightmapJson.renderFields(r);
                     text = ToolText.renderText(view, boundsFrom, boundsTo, width, height, scaleOut,
                             axes.get("right").getAsString(), axes.get("down").getAsString(),
