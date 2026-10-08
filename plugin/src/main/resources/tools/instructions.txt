@@ -8,7 +8,7 @@ mc_build    - place blocks in bulk (cuboid fills with modes replace/keep/outline
 mc_plan - validate and preview a build without placing blocks; report site collisions, overlaps, door/bed pairing and support problems
 mc_verify - opt-in exact verification: prepare BEFORE building, then check frozen eligible cells; not part of routine builds
 mc_repair - repair only mismatches from a fresh comparison, guard stale edits/block entities, then recheck the whole expectation
-mc_blueprint - save/get/list/delete reusable blueprints with named components, palettes and repeated instances; no world writes
+mc_blueprint - optionally generate roofs/arches/towers/stairs; save/get/list/delete reusable blueprints with named components, palettes and repeated instances; no world writes
 mc_inspect  - exact block contents of a region (statistics, per-column runs, ASCII slice, sign text)
 mc_snapshot - save a region before changing it (or list saved snapshots)
 mc_restore  - roll a region back to a snapshot

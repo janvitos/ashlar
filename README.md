@@ -45,7 +45,7 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | `mc_survey` | Terrain survey of an x/z area: heightmap image plus exact numbers (min/max/median height, surface mix, largest flat zone); `format:"text"` for an ASCII map. |
 | `mc_render` | One visual PNG check: shape-aware isometric/perspective depth, or flat top/facade/slice/heightmap views. Angled views need tight 3D bounds; top/heightmap stay area-priced. |
 | `mc_build` | Places blocks in bulk (cuboid fills with modes replace/keep/outline/hollow/walls, individual blocks and sign text, plus lettering rendered by the plugin via `text`). |
-| `mc_blueprint` | Save/get/list/delete persistent reusable designs with named components, palettes and repeated instances; no world writes. |
+| `mc_blueprint` | Optionally generate roofs/arches/towers/stairs, or save/get/list/delete reusable components, palettes and repeated instances; no world writes. |
 | `mc_plan` | Read-only preflight and virtual-scene previews for direct builds or saved blueprints; collision/support/pairing diagnostics without placement. |
 | `mc_verify` | Freeze expected cells before building; compare actual states/sign values afterward with exact coordinate/property differences. |
 | `mc_repair` | Guarded repairs of mismatches from a fresh comparison, followed by full verification; no matching-cell or neighbor refresh writes. |
@@ -97,7 +97,7 @@ Run this **only on an isolated disposable Paper server** with no connected playe
 
 ## Reusable blueprints and components (fork enhancement)
 
-Use `mc_blueprint` to **save**, **get**, **list** or **delete** persistent project documents. These operations do not place blocks. Documents are shared in the plugin's `blueprints/` directory and survive plugin reloads and server restarts. Replacing an existing ID requires `overwrite:true`; deletion never removes existing world structures.
+Use `mc_blueprint` to optionally **generate** architectural parts, or **save**, **get**, **list** or **delete** persistent project documents. These operations do not place blocks. Documents are shared in the plugin's `blueprints/` directory and survive plugin reloads and server restarts. Replacing an existing ID requires `overwrite:true`; deletion never removes existing world structures.
 
 Example arguments to `mc_blueprint`:
 
@@ -150,6 +150,46 @@ Then build with `mc_build`, choosing a surveyed world origin:
 - Limits: 256 saved documents, 2 MiB per document, 128 components, 10,000 raw operations, 4,096 expanded instances and 100,000 expanded operations, plus existing server block/chunk/liquid limits. IDs and component/role names use a lowercase letter followed by letters, digits, `_` or `-`, at most 64 characters.
 
 The opt-in `mcp-server/tools/e2e-blueprints.mjs` acceptance test uses the same disposable-server environment variables as the transformation test. It reserves regions around `[128,100,0]` and `[256,100,0]`, restores them in cleanup, and removes its generated document by default. `ASHLAR_TEST_KEEP_BLUEPRINT=1` retains that document for a separate reload-persistence check. It never starts, stops or reloads the server.
+
+## Architectural generators (fork enhancement)
+
+Optional generators save ordinary reusable version-1 blueprints. They do **not** place blocks, read terrain or clear interiors. For example:
+
+```json
+{
+  "action": "generate",
+  "id": "stone_hip_roof",
+  "generator": {
+    "kind": "roof", "style": "hip", "width": 13, "depth": 17,
+    "materials": {
+      "full": "minecraft:stone_bricks",
+      "stairs": "minecraft:stone_brick_stairs",
+      "slab": "minecraft:stone_brick_slab"
+    }
+  }
+}
+```
+
+Then use the existing placement path:
+
+```json
+{
+  "blueprint": { "id": "stone_hip_roof" },
+  "transform": { "origin": [100, 70, 200], "rotation": 90 },
+  "connect": false,
+  "snapshot": true
+}
+```
+
+- **Roofs:** `gable` (default), `hip`, `shed`; width/depth 3-64, defaults 9/11. Slope 1:1; footprint includes desired eaves. Gable ridge along Z, shed uphill east. Optional `gableInfill:true` fills gable-end triangles only. Odd ridges use bottom slabs; hip corners use explicit outer stairs. `connect:false` preserves requested corner shapes.
+- **Arches:** `round` / `pointed`, odd width 3-63 (default 9), pier/spring-line `height` 1-32 (3), `depth` 1-16 (1), `thickness` 1-8 and <= (width-1)/2. Pointed-only `rise` 2..(width+1)/2, default maximum. Arch spans XY and extrudes Z. Full-block stepped curves with bridges for face connectivity; opening is omitted, not erased.
+- **Towers:** circular shell, `diameter` 5-64 (13), wall `height` 3-64 (12), nominal radial `thickness` 1-8 and <= (diameter-3)/2. Thin corner bridges keep walls face-connected. `floor` / `battlements` default true; `merlons` 4-32 (8) selects alternating angular sectors with voxel approximations. Height excludes the merlon layer. No entrance, roof or implicit interior clearing.
+- **Stairs:** `straight` / `switchback`, per-flight `width` 1-16 (3), `steps` 1-64 (8), `landing` depth 1-16 (2), switchback-only `gap` 1-8 (1). First flight south; return flight north on the east side, with turn/exit landings. One-block rise/run, lower-half stairs. `supports:true` adds solid plinths; false omits them. No railings or terrain adaptation.
+- Optional `materials:{full,stairs,slab}` overrides defaults (dark oak roofs, stone-brick arches/towers, oak staircases). Concrete native states and role types are checked **before saving**. Generated orientation/half/corner properties override material defaults. Normal build palette precedence and project transforms still apply.
+- Generation caps 200,000 requested cells and 10,000 raw operations; adjacent identical runs are compressed. Invalid/inapplicable parameters, budgets and native states reject without replacing existing documents. Existing IDs require `overwrite:true`; regular persistence quotas apply. Response contains saved metadata, bounds, counts, palettes and assumptions, not a giant geometry dump; `get` retrieves the document. `mc_build` still validates live world/write/snapshot limits before placement.
+- Compose generated components through existing version-1 blueprints. Explicitly clear an opening/interior only when appropriate, with rollback protection for existing terrain/structures. Planning and exact verification remain optional/opt-in; generator calls are not mandatory for ordinary builds.
+
+Disposable `mcp-server/tools/e2e-generators.mjs` reserves `[896,99,-40]` through `[976,125,40]`, restores it and deletes generated documents by default. It checks native states, all 12 hip-roof frames, rejection atomicity and virtual/live gallery parity; saves PNGs under `/tmp/ashlar-step6-previews` (`ASHLAR_GENERATOR_OUTPUT` override). Diagnostic `ASHLAR_TEST_KEEP_BLUEPRINT=1` retains documents; `ASHLAR_TEST_KEEP_SCENE=1` retains the world fixture for a read-only probe and must be explicitly restored afterward. No lifecycle management. These acceptance tests are not per-build agent steps.
 
 ## Verification policy: lightweight by default
 
