@@ -193,6 +193,12 @@ public final class ToolText {
         return lines;
     }
 
+    /** Compact phase totals; unchanged and filter/keep skips cannot be separated by the RPC. */
+    public static List<String> compactSection(String phase, long changed, long requested, long elapsedMs) {
+        return List.of(phase + ": " + changed + "/" + requested + " changed; "
+                + (requested - changed) + " unchanged/skipped in " + elapsedMs + "ms");
+    }
+
     public static String blocksLine(long changed, long requested, long elapsedMs) {
         return "Blocks: " + changed + "/" + requested + " changed in " + elapsedMs + "ms";
     }
