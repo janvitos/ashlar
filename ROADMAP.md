@@ -8,8 +8,8 @@ Each step requires user approval before work begins. Pause after each step and r
 2. **Reusable blueprints and components** - complete; approved implementation, unit/native tests and reload-persistence checks passed.
 3. **Preflight validation and dry-run previews** - complete; approved implementation, unit/native tests and image parity checks passed. Steps 1-3 merged into main via PR #1.
 4. **Exact verification and targeted repairs** - complete; approved implementation, exact state/sign checks and guarded sparse native repairs passed. Merged via PR #2; lightweight policy merged via PR #3.
-5. **Shape-aware isometric and perspective rendering** - approved implementation complete on feature branch; paused for review before Step 6.
-6. **Architectural generators** - not started, approval required.
+5. **Shape-aware isometric and perspective rendering** - complete and merged via PR #4.
+6. **Architectural generators** - approved implementation complete on feature branch; paused for review before Step 7.
 7. **Terrain-aware site planning** - not started, approval required.
 8. **Design constraints and alternative concepts** - not started, approval required.
 9. **Photo-reference reconstruction workflow** - not started, approval required.
@@ -126,7 +126,22 @@ Branch: `feat/shape-aware-rendering`, based on merged main `95e542c`.
 - Previous native regressions: Step 1 **116,844**, Step 2 **5,553**, Step 3 **202**, Step 4 **233** checks/assertions, zero failures. All fixture regions restored, documents/receipts/items/forced chunk cleaned up. No unexpected new runtime errors.
 - Default workflow remains one relevant survey -> build -> one appearance render. An angled image can replace that one render; planning and exact verification stay optional/opt-in. Production untouched; same isolated process retained, no restart/shutdown.
 
-Next: explicit approval required for Step 6 (architectural generators); no Step 6 work has begun.
+Step 6 was subsequently approved and completed; see below.
+
+## Step 6 implementation and verification
+
+Branch: `feat/architectural-generators`, based on merged main `9a6b048`.
+
+- Optional `mc_blueprint action:generate` saves ordinary flat version-1 components, preserving existing transforms/palettes/repetition, planning and build validation. No new tool or mandatory workflow stage. Explicit overwrite required; rejection happens before replacing a document.
+- Deterministic pure-Java gable/hip/shed roofs (1:1 slopes, slab ridges, explicit hip corners, optional gable infill), rounded/pointed arches, hollow circular towers with optional floor/merlons, straight/switchback stairs with turn/exit landings and optional solid plinths. Bounds/counts/palettes/assumptions returned without dumping geometry.
+- Checked kind-specific parameters, native concrete materials/expanded states before persistence, 200,000 requested-cell / 10,000-operation caps and ordinary storage quotas. Adjacent identical fills compress without overlaps. Thin arches and circular-wall corner bridges are face-connected. No implicit clearing, terrain adaptation, railings, spiral stairs, arbitrary roof slopes or revision/undo additions.
+- **26 new unit/schema tests; 680 filtered plugin tests and 8 adapter tests pass.** Unfiltered run: 681 tests, sole failure is the known upstream host-font assumption at `AwtGlyphsTest.java:46`; no tracked exclusion/dependency changes.
+- Native generator acceptance: **9,933 checks, zero failures**, covering every variant, canonical states, role-property overrides, all 12 hip-roof frames, invalid/duplicate/overwrite atomicity, generation without world mutation and byte-for-byte virtual/live gallery PNG parity. Gallery and targeted hip close-up visually reviewed.
+- Temporary read-only native probe: **45 staircase surface samples, zero failures**, validating half-step progression and both switchback landings against actual server collision boxes. **9 document persistence comparisons** after reload matched exactly. Probe, generated documents and world fixture removed/restored.
+- Previous native regressions: transforms **116,844**, blueprints **5,553**, preflight **202**, exact verification **233**, shapes **71**; zero failures. No unexpected new runtime errors. Same isolated PID **35309** retained; production untouched, no restart/shutdown.
+- Routine agent verification stays lightweight. Generators are optional authoring helpers, not extra site/verification loops. Existing `mc_build` performs mandatory safety validation and snapshot checks; appearance remains one relevant render.
+
+Next: explicit approval required for Step 7 (terrain-aware foundations/entrances); no Step 7 work has begun.
 
 ### Separate upstream dependency finding
 

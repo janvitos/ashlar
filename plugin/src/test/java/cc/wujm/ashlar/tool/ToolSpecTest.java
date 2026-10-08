@@ -89,6 +89,16 @@ class ToolSpecTest {
     }
 
     @Test
+    void generatorsRemainAnOptionalBlueprintAction() {
+        var spec=ToolSpec.load("mc_blueprint");
+        assertTrue(spec.inputSchema().getAsJsonObject("properties").getAsJsonObject("action").get("enum").toString().contains("generate"));
+        assertEquals(4,spec.inputSchema().getAsJsonObject("properties").getAsJsonObject("generator").getAsJsonArray("oneOf").size());
+        assertTrue(spec.description().contains("never clears"));
+        assertTrue(spec.description().contains("before saving"));
+        assertTrue(new ToolRegistry(List.of()).instructions().contains("Default lightweight workflow:"));
+    }
+
+    @Test
     void toJsonRoundTripsTheSameFields() {
         ToolSpec spec = ToolSpec.load("mc_status");
         var json = spec.toJson();
