@@ -182,6 +182,31 @@ Branch: `feat/region-diff`.
 - `mc_inspect` canonical output by default.
 - Verification: one plugin build, 732 tests passed (27 new), zero failures; MCP build and 8 tests passed. Isolated-server smoke test `e2e-diff.mjs`: 18 checks (8 exact differences incl. one floating and one stacked snow layer, ignore/material compare, diffId repair to zero, blueprint diff zero after clean build, ~620k-cell box in 4 reads); test region restored to pristine air. No production changes.
 
+Merged via PR #9.
+
+## Step 12 implementation and verification
+
+Branch: `feat/build-journal` (supersedes Step 10's revision/undo item).
+
+- Capture: an `InvocationContext` carries a `JournalCapture`. The executor attaches it to every task, and each write site (fill, sparse, restore, repair, chest pairing, connection pass incl. face neighbours) records the prior state before `setBlockData`. Final states are read in the same tick budget before the task completes.
+- Pure core in `cc.wujm.ashlar.journal`:
+  - `JournalRecorder`: packed positions in an open-addressing map;
+  - `JournalCodec`: gzip binary;
+  - `JournalStore`: JSON metadata + cells, eviction, owner visibility, exact `touches`;
+  - `UndoRules`.
+- Undo: `JournalRestoreTask` writes original states with `setBlockData(old,false)`, without a connection pass, honouring safe/force and block-entity guards. The undo is journalled and the original is marked `undoneBy`.
+- Ownership: PLAYER contexts (embedded agent) see their own entries; MCP token, console and system see all.
+- Verification:
+  - one plugin build: 746 tests passed (14 new), zero failures; MCP build and 8 tests passed;
+  - isolated-server smoke test `e2e-journal.mjs`, 21 checks, run twice:
+    - build A, overlapping build B, 3 untracked edits;
+    - safe undo of A restored 42/75 cells and kept 33 conflicts;
+    - dry run changed nothing;
+    - undo of the undo restored 42/42;
+    - fence neighbour shape journalled (2 cells) and restored;
+    - touches/label listing and delete worked;
+  - test region restored to pristine air, all test entries deleted. No production changes.
+
 ## Fork activation
 
 User-approved deployment uses Paper 26.1.2 build 74, without a Paper upgrade. The fork now compiles against that exact API and declares minimum API 26.1. One build passed; an approved restart used a verified full 30-second in-game countdown before a graceful stop/install/start. Original artifact retained for rollback; plugin configuration/credentials unchanged. Pi points at the locally built fork adapter through the existing Docker network arrangement. Basic read-only deployment check confirmed plugin 0.4.9-dev, authenticated MCP, 13 tools and photo-reference instructions. No construction/terrain test writes or exhaustive regressions were performed on production. Pi needs `/reload` to refresh an existing session's connection and catalog.

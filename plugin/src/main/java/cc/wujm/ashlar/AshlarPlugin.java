@@ -58,6 +58,8 @@ import cc.wujm.ashlar.tool.mc.McRepair;
 import cc.wujm.ashlar.tool.mc.McDiff;
 import cc.wujm.ashlar.tool.mc.DiffService;
 import cc.wujm.ashlar.tool.mc.DiffStore;
+import cc.wujm.ashlar.tool.mc.JournalService;
+import cc.wujm.ashlar.journal.JournalStore;
 import cc.wujm.ashlar.tool.mc.VerificationService;
 import cc.wujm.ashlar.tool.mc.VerificationStore;
 import cc.wujm.ashlar.tool.mc.BuildPreflight;
@@ -101,6 +103,7 @@ public final class AshlarPlugin extends JavaPlugin {
     private RpcDispatcher dispatcher;
     private TickBudgetExecutor executor;
     private SnapshotStore snapshotStore;
+    private JournalStore journalStore;
     private ExecutorService renderExecutor;
     private AgentService agentService;
     private ConfigHolder configHolder;
@@ -144,6 +147,11 @@ public final class AshlarPlugin extends JavaPlugin {
 
         this.snapshotStore = new SnapshotStore(dataFolder, config.snapshot().maxSnapshots(), getLogger());
         snapshotStore.loadFromDisk();
+        this.journalStore = new JournalStore(dataFolder.resolve("journal"), () -> {
+            var j = configHolder.get().journal();
+            return new JournalStore.Limits(j.maxEntries(), j.maxTotalCells(), j.maxAgeDays());
+        }, java.time.Clock.systemUTC(), getLogger());
+        journalStore.loadFromDisk();
 
         // Dedicated single thread for render's image work (ImageRenderer + PNG
         // encoding, step4e-prompt.md): never the main thread, and kept separate
@@ -209,11 +217,12 @@ public final class AshlarPlugin extends JavaPlugin {
         // Plugin-owned tools are reused by MCP clients and the embedded agent.
         BlueprintStore blueprintStore = new BlueprintStore(dataFolder.resolve("blueprints"));
         BuildPreflight preflight = new BuildPreflight(configHolder, executor);
+        JournalService journalService = new JournalService(configHolder, executor, journalStore);
         McBuild buildTool = new McBuild(snapshotCreateHandler, fillBatchHandler, setBlocksHandler, blueprintStore, () -> {
             var limits = configHolder.get().limits();
             return new BlueprintCompiler.Limits(limits.maxBlocksPerOperation(), limits.maxChunksPerOperation(),
                     limits.maxFlowingLiquidsPerOperation());
-        }).withPreflight(preflight);
+        }).withPreflight(preflight).withJournal(journalService);
         VerificationService verification = new VerificationService(buildTool, preflight, executor, configHolder,
                 new VerificationStore(), snapshotCreateHandler);
         DiffService diffService = new DiffService(buildTool, preflight, executor, configHolder, new DiffStore(),
@@ -226,12 +235,12 @@ public final class AshlarPlugin extends JavaPlugin {
                 new McBlueprint(blueprintStore, new cc.wujm.ashlar.tool.mc.TerrainFitService(configHolder, executor, preflight)),
                 new McPlan(buildTool, preflight, renderExecutor),
                 new McVerify(buildTool, verification),
-                new McRepair(verification, diffService),
+                new McRepair(verification, diffService).withJournal(journalService),
                 new McInspect(readRegionHandler),
                 new McDiff(diffService),
                 new McRender(renderHandler),
-                new McSnapshot(snapshotCreateHandler, listSnapshotsHandler),
-                new McRestore(restoreHandler),
+                new McSnapshot(snapshotCreateHandler, listSnapshotsHandler, journalService),
+                new McRestore(restoreHandler, journalService),
                 new McCommand(runCommandHandler)));
         dispatcher.register("tool_catalog", new ToolCatalogHandler(toolRegistry));
         dispatcher.register("tool_call", new ToolCallHandler(toolRegistry));
@@ -331,6 +340,9 @@ public final class AshlarPlugin extends JavaPlugin {
         }
         if (operationLog != null) {
             operationLog.close();
+        }
+        if (journalStore != null) {
+            journalStore.shutdown();
         }
         if (snapshotStore != null) {
             snapshotStore.shutdown();

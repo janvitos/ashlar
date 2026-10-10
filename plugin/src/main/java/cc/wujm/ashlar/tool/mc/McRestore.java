@@ -12,6 +12,7 @@ import cc.wujm.ashlar.tool.ToolArgError;
 import cc.wujm.ashlar.tool.ToolResult;
 import cc.wujm.ashlar.tool.ToolRunner;
 import cc.wujm.ashlar.tool.ToolSpec;
+import cc.wujm.ashlar.journal.UndoRules;
 import cc.wujm.ashlar.tool.text.WarningText;
 
 import java.util.ArrayList;
@@ -23,9 +24,15 @@ public final class McRestore implements Tool {
 
     private final ToolSpec spec = ToolSpec.load("mc_restore");
     private final RpcHandler restoreHandler;
+    private final JournalService journals;
 
     public McRestore(RpcHandler restoreHandler) {
+        this(restoreHandler, null);
+    }
+
+    public McRestore(RpcHandler restoreHandler, JournalService journals) {
         this.restoreHandler = restoreHandler;
+        this.journals = journals;
     }
 
     @Override
@@ -35,6 +42,9 @@ public final class McRestore implements Tool {
 
     record Args(String id) {
         static Args parse(JsonObject o) {
+            for (String k : List.of("mode", "dryRun", "allowBlockEntityReplacement", "samples")) {
+                if (ArgParse.has(o, k)) throw new ToolArgError(k + " only applies to a journal undo");
+            }
             String id = ArgParse.requireString(o, "id");
             if (id.isEmpty()) {
                 throw new ToolArgError("id: must contain at least 1 character(s)");
@@ -43,28 +53,54 @@ public final class McRestore implements Tool {
         }
     }
 
+    /** {@code mc_restore {journal, mode, dryRun, allowBlockEntityReplacement, samples}}. */
+    static JournalService.UndoArgs parseUndo(JsonObject o) {
+        if (ArgParse.has(o, "id")) throw new ToolArgError("pass either id (a snapshot) or journal (a journal entry), not both");
+        String journal = ArgParse.requireString(o, "journal");
+        if (!journal.matches("jrn-\\d{8}-\\d{6}-[0-9a-f]{4}")) {
+            throw new ToolArgError("journal must be an id like \"jrn-20261010-120239-aa42\"");
+        }
+        UndoRules.Mode mode = ArgParse.optEnum(o, "mode", List.of("safe", "force"), "safe").equals("force")
+                ? UndoRules.Mode.FORCE : UndoRules.Mode.SAFE;
+        return new JournalService.UndoArgs(journal, mode, ArgParse.optBoolean(o, "dryRun", false),
+                ArgParse.optBoolean(o, "allowBlockEntityReplacement", false), McVerify.bounded(o, "samples", 20, 0, 200));
+    }
+
     @Override
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
+        if (ArgParse.has(args, "journal")) {
+            return ToolRunner.runText("mc_restore", () -> {
+                JournalService.UndoArgs undo = parseUndo(args);
+                if (journals == null) throw new ToolArgError("the build journal is unavailable");
+                return journals.undo(ctx, undo);
+            });
+        }
         return ToolRunner.runText("mc_restore", () -> {
             Args a = Args.parse(args);
             JsonObject params = new JsonObject();
             params.addProperty("id", a.id());
-            return restoreHandler.handle(ctx, params).thenApply(el -> {
-                JsonObject r = el.getAsJsonObject();
-                List<String> lines = new ArrayList<>();
-                lines.add("Restored snapshot " + r.get("id").getAsString() + ": " + r.get("restored").getAsLong() + "/"
-                        + r.get("volume").getAsLong() + " blocks changed in " + r.get("elapsedMs").getAsLong() + "ms.");
-                List<WarningText.SupportWarning> warnings = new ArrayList<>();
-                for (JsonElement we : r.getAsJsonArray("warnings")) {
-                    JsonObject w = we.getAsJsonObject();
-                    JsonArray pos = w.getAsJsonArray("pos");
-                    warnings.add(new WarningText.SupportWarning(pos.get(0).getAsInt(), pos.get(1).getAsInt(), pos.get(2).getAsInt(),
-                            w.get("block").getAsString(), w.get("reason").getAsString()));
-                }
-                boolean truncated = r.has("warningsTruncated") && r.get("warningsTruncated").getAsBoolean();
-                lines.addAll(WarningText.formatWarnings(warnings, truncated));
-                return String.join("\n", lines);
-            });
+            if (journals == null) return restoreText(restoreHandler.handle(ctx, params));
+            return journals.journalled(ctx, true, "mc_restore", "restore of " + a.id(), c -> restoreText(restoreHandler.handle(c, params)),
+                    (text, commit) -> commit.lines().isEmpty() ? text : text + "\n" + String.join("\n", commit.lines()));
+        });
+    }
+
+    private static CompletableFuture<String> restoreText(CompletableFuture<JsonElement> restore) {
+        return restore.thenApply(el -> {
+            JsonObject r = el.getAsJsonObject();
+            List<String> lines = new ArrayList<>();
+            lines.add("Restored snapshot " + r.get("id").getAsString() + ": " + r.get("restored").getAsLong() + "/"
+                    + r.get("volume").getAsLong() + " blocks changed in " + r.get("elapsedMs").getAsLong() + "ms.");
+            List<WarningText.SupportWarning> warnings = new ArrayList<>();
+            for (JsonElement we : r.getAsJsonArray("warnings")) {
+                JsonObject w = we.getAsJsonObject();
+                JsonArray pos = w.getAsJsonArray("pos");
+                warnings.add(new WarningText.SupportWarning(pos.get(0).getAsInt(), pos.get(1).getAsInt(), pos.get(2).getAsInt(),
+                        w.get("block").getAsString(), w.get("reason").getAsString()));
+            }
+            boolean truncated = r.has("warningsTruncated") && r.get("warningsTruncated").getAsBoolean();
+            lines.addAll(WarningText.formatWarnings(warnings, truncated));
+            return String.join("\n", lines);
         });
     }
 }

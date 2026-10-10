@@ -39,6 +39,7 @@ class RequestValidatorTest {
                 new PluginConfig.WorldConfig("world", List.of("world"),
                         new PluginConfig.WorldConfig.BuildRegion(false, -1000, -1000, 1000, 1000)),
                 new PluginConfig.SnapshotConfig(true, 20, 200_000),
+                PluginConfig.JournalConfig.DEFAULT,
                 new PluginConfig.LoggingConfig(true),
                 new PluginConfig.RunCommandConfig(true),
                 new PluginConfig.EngineConfig(true, true, ""),

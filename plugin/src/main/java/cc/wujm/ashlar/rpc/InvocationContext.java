@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package cc.wujm.ashlar.rpc;
 
+import cc.wujm.ashlar.engine.JournalCapture;
+
 import java.time.Instant;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -42,13 +44,34 @@ public final class InvocationContext {
     private final String operationId;
     private final ProgressSink progress;
     private final Instant deadline;
-    private final AtomicBoolean cancelled = new AtomicBoolean(false);
+    private final AtomicBoolean cancelled;
+    private final JournalCapture journal;
 
     private InvocationContext(Principal principal, String operationId, ProgressSink progress, Instant deadline) {
+        this(principal, operationId, progress, deadline, new AtomicBoolean(false), null);
+    }
+
+    private InvocationContext(Principal principal, String operationId, ProgressSink progress, Instant deadline,
+            AtomicBoolean cancelled, JournalCapture journal) {
         this.principal = principal;
         this.operationId = operationId;
         this.progress = progress != null ? progress : NOOP;
         this.deadline = deadline;
+        this.cancelled = cancelled;
+        this.journal = journal;
+    }
+
+    /**
+     * The same context (principal, progress sink, deadline and cancel flag are shared) with every
+     * world write recorded into {@code capture}; {@code null} disables recording.
+     */
+    public InvocationContext withJournal(JournalCapture capture) {
+        return new InvocationContext(principal, operationId, progress, deadline, cancelled, capture);
+    }
+
+    /** The journal writes made under this context report to; {@code null} when none. */
+    public JournalCapture journal() {
+        return journal;
     }
 
     public Principal principal() {

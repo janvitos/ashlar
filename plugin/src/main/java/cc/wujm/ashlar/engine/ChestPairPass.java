@@ -9,6 +9,7 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.type.Chest;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Post-pass (step8e-prompt.md) that pairs two freshly-written adjacent single chests into a
@@ -33,14 +34,16 @@ final class ChestPairPass {
     private final World world;
     private final List<int[]> positions;
     private final boolean enabled;
+    private final Supplier<JournalCapture> journal;
 
     private int index = 0;
     private int pairsMade = 0;
 
-    ChestPairPass(World world, List<int[]> positions, boolean enabled) {
+    ChestPairPass(World world, List<int[]> positions, boolean enabled, Supplier<JournalCapture> journal) {
         this.world = world;
         this.positions = positions;
         this.enabled = enabled;
+        this.journal = journal;
     }
 
     /** Whether {@code data} is a block this pass ever looks at (chest or trapped_chest). */
@@ -98,6 +101,11 @@ final class ChestPairPass {
             return;
         }
         Block neighbor = block.getRelative(ChestPairing.dx(decision.side()), 0, ChestPairing.dz(decision.side()));
+        JournalCapture j = journal.get();
+        if (j != null) {
+            j.before(block, block.getBlockData());
+            j.before(neighbor, neighbor.getBlockData());
+        }
         chest.setType(toBukkitType(decision.selfHalf()));
         block.setBlockData(chest, false);
         Chest neighborChest = (Chest) neighbor.getBlockData();

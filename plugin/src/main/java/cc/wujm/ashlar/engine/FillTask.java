@@ -61,8 +61,8 @@ public final class FillTask extends BuildTask {
         this.ops = ops;
         this.world = world;
         this.opChanged = new long[ops.size()];
-        this.connectionPass = new ConnectionPass(world, connectablePositions, connect);
-        this.chestPairPass = new ChestPairPass(world, chestPositions, connect);
+        this.connectionPass = new ConnectionPass(world, connectablePositions, connect, this::journal);
+        this.chestPairPass = new ChestPairPass(world, chestPositions, connect, this::journal);
         this.supportCheck = new SupportCheck(world, supportPositions, neighbourPositions.positions(), supportWarnings);
         this.liquidsFlow = liquidsFlow;
     }
@@ -164,6 +164,10 @@ public final class FillTask extends BuildTask {
                     // liquid target under liquids:"flow" (step8d-prompt.md); everything else, and
                     // every liquid when liquidsFlow is false, is written with physics=false.
                     boolean physics = liquidsFlow && LiquidBlocks.isFlowable(target.getMaterial());
+                    JournalCapture j = journal();
+                    if (j != null) {
+                        j.before(block, current);
+                    }
                     block.setBlockData(target, physics);
                     if (physics) {
                         addPhysicsWrite();

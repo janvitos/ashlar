@@ -130,6 +130,25 @@ snapshot:
   max-volume: 200000
 
 # Reload: /ashlar reload applies it (every key in this section).
+journal:
+  # Build journal: every writing mc_build, mc_repair and mc_restore records the original block
+  # state of each cell it changed, so that one call can later be undone selectively with
+  # mc_restore {journal}. Block states only: sign text, inventories and entities are not kept.
+  enabled: true
+
+  # Maximum number of journal entries kept on disk; the oldest idle entry is evicted first.
+  max-entries: 200
+
+  # Maximum total changed cells across all entries (about 13 bytes each before compression).
+  max-total-cells: 20000000
+
+  # Entries older than this are evicted.
+  max-age-days: 30
+
+  # A call that changes more cells than this keeps no journal (the result says so).
+  max-cells-per-entry: 1000000
+
+# Reload: /ashlar reload applies it (every key in this section).
 logging:
   # Whether every executed operation is appended to operations.log.
   log-operations: true

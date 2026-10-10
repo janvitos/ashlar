@@ -100,6 +100,7 @@ public final class TickBudgetExecutor {
         MainThread.assertNotPrimary("TickBudgetExecutor.submit");
         CompletableFuture<JsonElement> future = new CompletableFuture<>();
         task.setProgressListener(ctx.progress()::progress);
+        task.attachJournal(ctx.journal());
         synchronized (queueLock) {
             int max = config.limits().maxQueuedOperations();
             if (queue.size() >= max) {
@@ -122,7 +123,7 @@ public final class TickBudgetExecutor {
             }
             boolean finished;
             try {
-                finished = current.task().step(deadline);
+                finished = current.task().runStep(deadline);
             } catch (Throwable t) {
                 logger.log(Level.SEVERE, "Build task threw during execution; aborting it", t);
                 failCurrent(t);

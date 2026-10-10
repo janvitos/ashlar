@@ -27,6 +27,8 @@ public abstract class BuildTask {
     private long done = 0;
     private long lastReportedDone = 0;
     private ProgressListener progressListener = (d, t) -> { };
+    private JournalCapture journal;
+    private boolean mainDone;
 
     protected BuildTask(Region region) {
         this.region = region;
@@ -55,6 +57,30 @@ public abstract class BuildTask {
 
     public final void setProgressListener(ProgressListener listener) {
         this.progressListener = listener == null ? (d, t) -> { } : listener;
+    }
+
+    /** Attaches the calling tool's journal (or {@code null}); done by {@link TickBudgetExecutor#submit}. */
+    public final void attachJournal(JournalCapture capture) {
+        this.journal = capture;
+    }
+
+    /** The journal every write of this task must report to via {@link JournalCapture#before}; may be {@code null}. */
+    protected final JournalCapture journal() {
+        return journal;
+    }
+
+    /**
+     * What the executor calls each tick: {@link #step} until it is done, then the journal's
+     * final-state read for the cells this task touched, under the same deadline.
+     */
+    public final boolean runStep(long deadlineNanos) {
+        if (!mainDone) {
+            if (!step(deadlineNanos)) {
+                return false;
+            }
+            mainDone = true;
+        }
+        return journal == null || journal.finish(deadlineNanos);
     }
 
     /**

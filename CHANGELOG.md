@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- Build journal: every writing `mc_build`, `mc_repair` and `mc_restore` records the original state of each cell it changed, including neighbour shapes changed by the connection pass and chest pairing, and returns a journal id. `mc_build` takes `label` and `journal:false`. Entries live under `plugins/Ashlar/journal/` (config section `journal`, all keys hot: 200 entries, 20M total cells, 30 days, 1M cells per entry).
+- `mc_restore {journal}` undoes one call cell by cell. Safe mode (default) skips cells changed since and reports them with bounds and samples; `mode:"force"`, `dryRun` and `allowBlockEntityReplacement` are optional. The undo is itself journalled, so it can be undone.
+- `mc_snapshot` gains `journal-list` (filters `since`, `label`, `world`, exact `touches`, `limit`) and `journal-delete`. Journals store block states only: sign text, inventories, entities and liquid flow are not undone.
+- Added 14 focused unit tests and disposable `e2e-journal.mjs` (21 checks).
+
 - New read-only `mc_diff` compares a live box against a snapshot, inline expected cells, a server-side expected file (`plugins/Ashlar/expected/<name>.json[.gz]`) or a saved blueprint. Canonical comparison (default-valued properties dropped, air variants equal), optional material-only compare, ignore globs, declared/box scopes and a baseline snapshot for undeclared cells. Summary/cells/columns reports with exact counts, transitions, bbox and samples. Boxes up to `limits.max-diff-volume` (default 2,000,000, hot-reloadable) are split into tick-budgeted reads of at most `limits.max-read-volume`.
 - Optional `mc_diff` anomaly checks: floating (snow, carpet, plates, rails, torches, lanterns, plants), stacked partial snow, unsupported (existing support rules) and enclosed air pockets.
 - `mc_diff` issues an owner-scoped, expiring `diffId` receipt; `mc_repair {diffId}` writes reference states back to those cells only, behind the same stale-value and block-entity guards, with an optional delta snapshot.

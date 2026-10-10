@@ -46,6 +46,9 @@ public final class McBuild implements Tool {
     private BuildPreflight preflight;
 
     public McBuild withPreflight(BuildPreflight service) { this.preflight = service; return this; }
+    private JournalService journals;
+
+    public McBuild withJournal(JournalService service) { this.journals = service; return this; }
 
     public McBuild(RpcHandler snapshotHandler, RpcHandler fillBatchHandler, RpcHandler setBlocksHandler) {
         this(snapshotHandler, fillBatchHandler, setBlocksHandler, null, () -> BlueprintCompiler.Limits.DEFAULT);
@@ -251,6 +254,17 @@ public final class McBuild implements Tool {
                 : BuildStateTransform.apply(a, BuildTransform.parse(args));
     }
 
+    /** {@code label} (optional, at most 100 characters) and {@code journal} (default true) of a writing call. */
+    record JournalArgs(String label, boolean journal) {
+        static JournalArgs parse(JsonObject o) {
+            String label = ArgParse.optString(o, "label");
+            if (label != null && (label.isBlank() || label.length() > 100)) {
+                throw new ToolArgError("label: must be 1-100 characters");
+            }
+            return new JournalArgs(label == null ? null : label.trim(), ArgParse.optBoolean(o, "journal", true));
+        }
+    }
+
     @Override
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
         return ToolRunner.runText("mc_build", () -> prepare(args, preflight != null).thenCompose(a -> {
@@ -258,7 +272,7 @@ public final class McBuild implements Tool {
             boolean siteCheck = ArgParse.optBoolean(args, "preflight", false);
             if (preflight == null) {
                 if (dryRun || siteCheck) throw new ToolArgError("preflight service is unavailable");
-                return execute(ctx,a,ArgParse.optBoolean(args, "detailed", false));
+                return execute(ctx,a,ArgParse.optBoolean(args, "detailed", false),args);
             }
             return preflight.validate(a).thenCompose(validated -> {
                 if (dryRun || siteCheck) return preflight.analyze(ctx,validated,null).thenCompose(result -> {
@@ -266,11 +280,18 @@ public final class McBuild implements Tool {
                     if (dryRun) return CompletableFuture.completedFuture(report.toString());
                     if (!report.get("strictSitePass").getAsBoolean())
                         throw new ToolArgError("site preflight failed; no snapshot or blocks written: " + report);
-                    return execute(ctx,a,ArgParse.optBoolean(args, "detailed", false));
+                    return execute(ctx,a,ArgParse.optBoolean(args, "detailed", false),args);
                 });
-                return execute(ctx,a,ArgParse.optBoolean(args, "detailed", false));
+                return execute(ctx,a,ArgParse.optBoolean(args, "detailed", false),args);
             });
         }));
+    }
+
+    private CompletableFuture<String> execute(InvocationContext outer, Args a, boolean detailed, JsonObject rawArgs) {
+        if (journals == null) return execute(outer, a, detailed);
+        JournalArgs j = JournalArgs.parse(rawArgs);
+        return journals.journalled(outer, j.journal(), "mc_build", j.label(), ctx -> execute(ctx, a, detailed),
+                (text, commit) -> commit.lines().isEmpty() ? text : text + "\n" + String.join("\n", commit.lines()));
     }
 
     private CompletableFuture<String> execute(InvocationContext ctx, Args a, boolean detailed) {

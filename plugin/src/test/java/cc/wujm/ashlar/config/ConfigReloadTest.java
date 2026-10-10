@@ -24,6 +24,7 @@ class ConfigReloadTest {
                 new PluginConfig.WorldConfig("world", List.of("world"),
                         new PluginConfig.WorldConfig.BuildRegion(false, -1000, -1000, 1000, 1000)),
                 new PluginConfig.SnapshotConfig(true, 20, 200_000),
+                PluginConfig.JournalConfig.DEFAULT,
                 new PluginConfig.LoggingConfig(true),
                 new PluginConfig.RunCommandConfig(true),
                 new PluginConfig.EngineConfig(true, true, ""),
@@ -68,7 +69,7 @@ class ConfigReloadTest {
         PluginConfig newConfig = new PluginConfig(
                 new PluginConfig.ServerConfig(true, "127.0.0.1", 8766, "fedcba9876543210", List.of("1.2.3.4")),
                 new PluginConfig.LimitsConfig(500_000, 200_000, 50, 32, 1024, 2000, 2_000_000),
-                oldConfig.world(), oldConfig.snapshot(), oldConfig.logging(), oldConfig.runCommand(),
+                oldConfig.world(), oldConfig.snapshot(), oldConfig.journal(), oldConfig.logging(), oldConfig.runCommand(),
                 oldConfig.engine(), oldConfig.agent(), oldConfig.language());
 
         List<String> changed = ConfigReload.coldChanges(oldConfig, newConfig);
@@ -87,6 +88,7 @@ class ConfigReloadTest {
                 new PluginConfig.WorldConfig("nether", List.of("nether"),
                         new PluginConfig.WorldConfig.BuildRegion(true, -1, -1, 1, 1)),
                 new PluginConfig.SnapshotConfig(false, 5, 5),
+                PluginConfig.JournalConfig.DEFAULT,
                 new PluginConfig.LoggingConfig(false),
                 new PluginConfig.RunCommandConfig(false),
                 new PluginConfig.EngineConfig(false, false, ""),
@@ -123,7 +125,7 @@ class ConfigReloadTest {
         PluginConfig newConfig = new PluginConfig(
                 new PluginConfig.ServerConfig(false, "127.0.0.1", 9999, "zzzzzzzzzzzzzzzz", List.of()),
                 new PluginConfig.LimitsConfig(500_000, 200_000, 999, 999, 1024, 2000, 2_000_000),
-                oldConfig.world(), oldConfig.snapshot(), oldConfig.logging(), oldConfig.runCommand(),
+                oldConfig.world(), oldConfig.snapshot(), oldConfig.journal(), oldConfig.logging(), oldConfig.runCommand(),
                 oldConfig.engine(), withAgentMode(oldConfig, PluginConfig.AgentConfig.Mode.OFF).agent(),
                 oldConfig.language());
 
@@ -173,21 +175,21 @@ class ConfigReloadTest {
     // ---- helpers ------------------------------------------------------------------------------
 
     private static PluginConfig withLanguage(PluginConfig c, String language) {
-        return new PluginConfig(c.server(), c.limits(), c.world(), c.snapshot(), c.logging(), c.runCommand(),
+        return new PluginConfig(c.server(), c.limits(), c.world(), c.snapshot(), c.journal(), c.logging(), c.runCommand(),
                 c.engine(), c.agent(), language);
     }
 
     private static PluginConfig withServerEnabled(PluginConfig c, boolean enabled) {
         PluginConfig.ServerConfig s = c.server();
         return new PluginConfig(new PluginConfig.ServerConfig(enabled, s.host(), s.port(), s.token(), s.allowedIps()),
-                c.limits(), c.world(), c.snapshot(), c.logging(), c.runCommand(), c.engine(), c.agent(), c.language());
+                c.limits(), c.world(), c.snapshot(), c.journal(), c.logging(), c.runCommand(), c.engine(), c.agent(), c.language());
     }
 
     private static PluginConfig withAgentMode(PluginConfig c, PluginConfig.AgentConfig.Mode mode) {
         PluginConfig.AgentConfig a = c.agent();
         PluginConfig.AgentConfig newAgent = new PluginConfig.AgentConfig(mode, a.cooldownSeconds(), a.maxMessageLength(),
                 a.echoToMonitors(), a.everyoneCanUse(), a.model(), a.limits(), a.pricing());
-        return new PluginConfig(c.server(), c.limits(), c.world(), c.snapshot(), c.logging(), c.runCommand(),
+        return new PluginConfig(c.server(), c.limits(), c.world(), c.snapshot(), c.journal(), c.logging(), c.runCommand(),
                 c.engine(), newAgent, c.language());
     }
 }
