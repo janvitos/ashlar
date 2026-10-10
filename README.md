@@ -35,6 +35,7 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 - All block edits run on the server's main thread, spread across ticks under a per-tick time budget, so a large build does not freeze the server or lag players.
 - Physics is off while writing (sand does not fall, water does not flow); a connection pass afterward lets fences/panes/walls/stairs connect to their neighbours, and any block left without support is reported back as a warning instead of silently popping off.
 - Every writing `mc_build`, `mc_repair` and `mc_restore` is journalled: `mc_restore {journal}` undoes just that call cell by cell, keeping anything changed since (reported as conflicts). `mc_build` can also snapshot the affected region before writing, so a whole region can be rolled back with `mc_restore`.
+- First-person views and sightlines: `mc_render view:"first-person"` shows what an eye position or a live player sees (up to 256 blocks), and `mc_sightline` answers whether given blocks are visible from there, using real block shapes (slabs, stairs, snow layers, panes). Only already-loaded chunks are read, copied a few per tick and traced off the main thread; unloaded chunks answer unknown, never air.
 - Protected regions (`mc_protect`): named boxes that `mc_build`, `mc_repair` and `mc_restore` refuse to write into (`deny`) or warn about (`warn`) unless the call names the region in `override`. The check runs before any snapshot or write; `mc_plan` and `dryRun` report overlaps. Regions are stored in `plugins/Ashlar/protected.json` and re-read by `/ashlar reload`; overrides are logged. Players, other plugins and `mc_command` are not checked.
 
 ## The tools
@@ -42,9 +43,10 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | Tool | What it does |
 |---|---|
 | `mc_status` | Server/plugin health and queue length. |
-| `mc_players` | Online players with position and facing ("here", "in front of me", "at my feet"). |
+| `mc_players` | Online players with position, eye, facing and exact look direction ("here", "in front of me", "at my feet"); optional `lookRange` up to 256 for `lookingAt`. |
 | `mc_survey` | Terrain survey of an x/z area: heightmap image plus exact numbers (min/max/median height, surface mix, largest flat zone); `format:"text"` for an ASCII map. |
-| `mc_render` | One visual PNG check: shape-aware isometric/perspective depth, or flat top/facade/slice/heightmap views. Angled views need tight 3D bounds; top/heightmap stay area-priced. |
+| `mc_render` | One visual PNG check: shape-aware isometric/perspective depth, flat top/facade/slice/heightmap views, or `first-person` from an eye or a player. Angled views need tight 3D bounds; top/heightmap stay area-priced. |
+| `mc_sightline` | Read-only line of sight from an eye or player: each target visible, blocked (with the first blocking block) or unknown, or a coarse cone of what fills the view. |
 | `mc_build` | Places blocks in bulk (cuboid fills with modes replace/keep/outline/hollow/walls, individual blocks and sign text, plus lettering rendered by the plugin via `text`). |
 | `mc_blueprint` | Optionally generate architectural parts or fit foundations/entrances to terrain; save/get/list/delete reusable designs. No world writes. |
 | `mc_plan` | Read-only preflight and virtual-scene previews for direct builds or saved blueprints; collision/support/pairing diagnostics without placement. |

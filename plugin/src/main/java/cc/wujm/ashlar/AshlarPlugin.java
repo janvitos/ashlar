@@ -29,6 +29,7 @@ import cc.wujm.ashlar.engine.RenderService;
 import cc.wujm.ashlar.engine.SnapshotService;
 import cc.wujm.ashlar.engine.SparseService;
 import cc.wujm.ashlar.engine.TickBudgetExecutor;
+import cc.wujm.ashlar.engine.ViewService;
 import cc.wujm.ashlar.engine.text.FontSource;
 import cc.wujm.ashlar.handler.FillBatchHandler;
 import cc.wujm.ashlar.handler.HealthHandler;
@@ -69,6 +70,7 @@ import cc.wujm.ashlar.tool.mc.McCommand;
 import cc.wujm.ashlar.tool.mc.McInspect;
 import cc.wujm.ashlar.tool.mc.McPlayers;
 import cc.wujm.ashlar.tool.mc.McRender;
+import cc.wujm.ashlar.tool.mc.McSightline;
 import cc.wujm.ashlar.tool.mc.McRestore;
 import cc.wujm.ashlar.tool.mc.McProtect;
 import cc.wujm.ashlar.tool.mc.ProtectionGuard;
@@ -233,6 +235,7 @@ public final class AshlarPlugin extends JavaPlugin {
                 new VerificationStore(), snapshotCreateHandler);
         DiffService diffService = new DiffService(buildTool, preflight, executor, configHolder, new DiffStore(),
                 snapshotStore, snapshotCreateHandler, dataFolder.resolve("expected"));
+        ViewService viewService = new ViewService(configHolder, executor, renderExecutor);
         ToolRegistry toolRegistry = new ToolRegistry(List.of(
                 new McStatus(healthHandler),
                 new McPlayers(playersHandler),
@@ -244,7 +247,8 @@ public final class AshlarPlugin extends JavaPlugin {
                 new McRepair(verification, diffService).withJournal(journalService).withProtection(protection),
                 new McInspect(readRegionHandler),
                 new McDiff(diffService),
-                new McRender(renderHandler),
+                new McRender(renderHandler).withFirstPerson(viewService, configHolder),
+                new McSightline(viewService, configHolder),
                 new McSnapshot(snapshotCreateHandler, listSnapshotsHandler, journalService),
                 new McRestore(restoreHandler, journalService).withProtection(protection, snapshotStore::get),
                 new McProtect(protectedRegions, configHolder),

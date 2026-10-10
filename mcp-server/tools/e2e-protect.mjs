@@ -27,7 +27,7 @@ try{
     await client.connect(transport);const health=await plugin.request("health",{});assert.equal(health.onlinePlayers,0);assert.equal(health.queuedOperations,0);
     const base=await plugin.request("read_region",{from,to});assert.ok(base.palette.every(s=>s==="minecraft:air"),"Region must be pristine air");
     snapshot=(await plugin.request("snapshot",{from,to,label:"protect acceptance pristine region"})).id;
-    const catalog=await client.listTools();check(()=>assert.equal(catalog.tools.length,15));
+    const catalog=await client.listTools();check(()=>assert.equal(catalog.tools.length,16));
     check(()=>assert.equal(catalog.tools.find(t=>t.name==="mc_protect").annotations.destructiveHint,false));
     // A deny region (3x3x3 core) and a warn region.
     let t=await tool("mc_protect",{action:"add",name:"e2e-core",from:at(2,0,2),to:at(4,2,4),note:"e2e approved module"});regions.add("e2e-core");

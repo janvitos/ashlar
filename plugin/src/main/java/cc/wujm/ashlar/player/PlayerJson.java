@@ -23,7 +23,15 @@ public final class PlayerJson {
     private PlayerJson() {
     }
 
+    public static final int DEFAULT_LOOK_RANGE = 16;
+    public static final int MAX_LOOK_RANGE = 256;
+
     public static JsonObject describe(Player player) {
+        return describe(player, DEFAULT_LOOK_RANGE);
+    }
+
+    /** {@code lookRange} (16-256) bounds {@code lookingAt}; Paper's ray trace does not load chunks. */
+    public static JsonObject describe(Player player, int lookRange) {
         Location loc = player.getLocation();
         int blockX = loc.getBlockX();
         int blockY = loc.getBlockY();
@@ -38,11 +46,13 @@ public final class PlayerJson {
         json.addProperty("world", loc.getWorld().getName());
         json.add("pos", intArray(blockX, blockY, blockZ));
         json.add("exact", doubleArray(round2(loc.getX()), round2(loc.getY()), round2(loc.getZ())));
+        Location eye = player.getEyeLocation();
+        json.add("eye", doubleArray(round2(eye.getX()), round2(eye.getY()), round2(eye.getZ())));
         json.addProperty("yaw", yaw);
         json.addProperty("pitch", loc.getPitch());
         json.addProperty("facing", facing);
         json.add("inFront", intArray(blockX + offset[0], blockY + offset[1], blockZ + offset[2]));
-        json.add("lookingAt", lookingAt(player));
+        json.add("lookingAt", lookingAt(player, lookRange));
         json.addProperty("gameMode", player.getGameMode().name());
         json.addProperty("flying", player.isFlying());
         json.addProperty("health", player.getHealth());
@@ -55,7 +65,11 @@ public final class PlayerJson {
      * mean, so the assistant gets it with every request instead of searching with inspect slices.
      */
     public static JsonElement lookingAt(Player player) {
-        RayTraceResult hit = player.rayTraceBlocks(16.0);
+        return lookingAt(player, DEFAULT_LOOK_RANGE);
+    }
+
+    public static JsonElement lookingAt(Player player, int range) {
+        RayTraceResult hit = player.rayTraceBlocks(range);
         if (hit == null || hit.getHitBlock() == null) {
             return JsonNull.INSTANCE;
         }

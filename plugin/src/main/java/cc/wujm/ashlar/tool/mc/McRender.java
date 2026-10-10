@@ -28,15 +28,89 @@ public final class McRender implements Tool {
 
     private static final long MAX_VOLUME = 200_000;
     private static final long MAX_HEIGHTMAP_AREA = 200_000;
-    private static final List<String> VIEWS = List.of("top", "north", "south", "east", "west", "slice", "heightmap", "isometric", "perspective");
+    private static final List<String> VIEWS = List.of("top", "north", "south", "east", "west", "slice", "heightmap", "isometric", "perspective", "first-person");
     private static final List<String> HEIGHTMAP_TYPES = List.of("SOLID", "SOLID_OR_LIQUID", "SOLID_OR_LIQUID_NO_LEAVES", "ANY");
     private static final List<String> SLICE_AXES = List.of("x", "y", "z");
 
     private final ToolSpec spec = ToolSpec.load("mc_render");
+    private static final java.util.Set<String> FIRST_PERSON_KEYS =
+            java.util.Set.of("view", "eye", "player", "world", "yaw", "pitch", "fov", "distance", "width", "height");
+
     private final RpcHandler renderHandler;
+    private cc.wujm.ashlar.engine.ViewService views;
+    private cc.wujm.ashlar.config.ConfigHolder config;
 
     public McRender(RpcHandler renderHandler) {
         this.renderHandler = renderHandler;
+    }
+
+    /** Enables {@code view:"first-person"} (Step 14). */
+    public McRender withFirstPerson(cc.wujm.ashlar.engine.ViewService views, cc.wujm.ashlar.config.ConfigHolder config) {
+        this.views = views;
+        this.config = config;
+        return this;
+    }
+
+    record FirstPersonArgs(EyeArgs eye, double fov, int distance, int width, int height) {
+        static FirstPersonArgs parse(JsonObject o) {
+            for (String k : o.keySet()) {
+                if (!FIRST_PERSON_KEYS.contains(k)) throw new ToolArgError(k + " does not apply to view \"first-person\"");
+            }
+            EyeArgs eye = EyeArgs.parse(o, true);
+            double fov = ArgParse.has(o, "fov") ? EyeArgs.number(o.get("fov"), "fov") : 70;
+            int distance = ArgParse.has(o, "distance") ? BuildTransform.strictInt(o.get("distance"), "distance") : 128;
+            int width = ArgParse.has(o, "width") ? BuildTransform.strictInt(o.get("width"), "width") : 960;
+            int height = ArgParse.has(o, "height") ? BuildTransform.strictInt(o.get("height"), "height") : 540;
+            try {
+                new cc.wujm.ashlar.render.FirstPersonCamera(0, 64, 0, 0, 0, fov, distance, width, height);
+            } catch (IllegalArgumentException e) {
+                throw new ToolArgError(e.getMessage());
+            }
+            return new FirstPersonArgs(eye, fov, distance, width, height);
+        }
+    }
+
+    private CompletableFuture<List<ContentBlock>> firstPerson(InvocationContext ctx, JsonObject args) {
+        if (views == null) throw new ToolArgError("view \"first-person\" is not available");
+        FirstPersonArgs a = FirstPersonArgs.parse(args);
+        return a.eye().resolve(views, config).thenCompose(eye -> {
+            cc.wujm.ashlar.render.FirstPersonCamera cam;
+            try {
+                cam = new cc.wujm.ashlar.render.FirstPersonCamera(eye.x(), eye.y(), eye.z(), eye.yaw(), eye.pitch(),
+                        a.fov(), a.distance(), a.width(), a.height());
+            } catch (IllegalArgumentException e) {
+                throw new ToolArgError(e.getMessage());
+            }
+            return views.render(ctx, eye.world(), cam).thenApply(r -> {
+                JsonObject summary = new JsonObject();
+                summary.addProperty("view", "first-person");
+                summary.addProperty("world", eye.world().getName());
+                if (eye.player() != null) summary.addProperty("player", eye.player());
+                summary.add("eye", EyeArgs.json(eye));
+                summary.addProperty("yaw", Math.round(eye.yaw() * 10) / 10.0);
+                summary.addProperty("pitch", Math.round(eye.pitch() * 10) / 10.0);
+                summary.addProperty("fov", a.fov());
+                summary.addProperty("distance", a.distance());
+                summary.addProperty("width", a.width());
+                summary.addProperty("height", a.height());
+                JsonObject chunks = new JsonObject();
+                chunks.addProperty("inView", r.snapshot().requested());
+                chunks.addProperty("loaded", r.snapshot().loaded());
+                summary.add("chunks", chunks);
+                summary.add("geometry", r.output().details());
+                JsonArray legend = new JsonArray();
+                for (var e : r.output().image().legend().stream().limit(20).toList()) {
+                    JsonObject l = new JsonObject();
+                    l.addProperty("block", e.block());
+                    l.addProperty("pixels", e.pixels());
+                    legend.add(l);
+                }
+                summary.add("legend", legend);
+                summary.addProperty("legendTruncated", r.output().image().legend().size() > 20);
+                return List.of(ContentBlock.image(java.util.Base64.getEncoder().encodeToString(r.png()), "image/png"),
+                        ContentBlock.text(summary.toString()));
+            });
+        });
     }
 
     @Override
@@ -119,6 +193,9 @@ public final class McRender implements Tool {
     @Override
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
         return ToolRunner.runContent("mc_render", () -> {
+            if (args.has("view") && args.get("view").isJsonPrimitive() && "first-person".equals(args.get("view").getAsString())) {
+                return firstPerson(ctx, args);
+            }
             Args a = Args.parse(args);
             String resolvedView = a.view() != null ? a.view() : "top";
             boolean footprintOnly = a.from().length == 2 || a.to().length == 2;

@@ -1,0 +1,97 @@
+{
+  "name": "mc_sightline",
+  "title": "Line of sight",
+  "description": "Tests lines of sight from an eye position: whether specific blocks are visible from there, and what blocks the view if not. Ray tracing uses each block's real shape, so a bottom slab, snow layer, fence or pane only blocks where it has shape; glass, panes, iron bars' gaps and water do not block, leaves do. Read-only.\n\nWHEN TO USE: to answer \"can a player see X from here?\" (a landmark from spawn, a sign from a path, the funnels from the dock), or to find what is in the way of a view. Mode targets: up to 256 block positions, each answered visible/blocked/unknown with the first blocking block and distances. Mode cone: a coarse grid of first hits over a field of view, to see roughly what fills the view without an image. Pair it with one mc_render view \"first-person\" only when the user wants to see the view itself.\n\nWHEN NOT TO USE: to check whether a player can walk somewhere or reach a block (sight is not reachability). Not for entities, fog, lighting or render distance: only blocks are traced. Do not use cone mode to inspect exact blocks; use mc_inspect.\n\nPARAMETERS: exactly one of `eye` [x,y,z] (decimals allowed; a standing player's eye is feet y + 1.62) or `player` (their live eye; `world` then comes from the player). Exactly one of `targets` (block positions; each is aimed at its center and at the centers of its faces turned toward the eye, and counts as visible when any of those lines is clear; the target's own cell never blocks) or `cone` {yaw, pitch, fov, rays, distance}: yaw/pitch in Minecraft degrees as F3 shows them (yaw 0 south, 90 west, 180 north, -90 east; pitch -90 up, 90 down), defaulting to the player's direction; fov 10-110 (default 70); rays 4-48 per side (default 24); distance 8-256 (default 128). `ignore` lists blocks that should not block sight, as ids with an optional * wildcard and property conditions, e.g. [\"*_leaves\", \"snow[layers<=3]\", \"oak_fence\"]. Targets must be within 256 blocks of the eye.\n\nSIDE EFFECTS: none - read-only. The server copies only chunks that are already loaded, a few per tick; it never loads chunks, so a line through an unloaded chunk answers unknown (not visible) with the cell where it stopped. Cone output: one character per ray, rows top to bottom: digits 0-9 are the hit distance in tenths of the cone distance, '.' nothing within distance, '?' unknown, plus the most common blocking blocks.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "eye": {
+        "description": "Eye position [x, y, z]; decimals allowed. A standing player's eye is feet y + 1.62. Give exactly one of eye or player.",
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 3,
+        "maxItems": 3
+      },
+      "player": {
+        "description": "An online player's name: uses their live eye position and look direction in their own world.",
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_]{1,16}$"
+      },
+      "world": {
+        "description": "World name for eye. Omitted uses the plugin's configured default world. Not allowed with player.",
+        "type": "string",
+        "minLength": 1
+      },
+      "targets": {
+        "description": "Block positions to test, each [x, y, z], at most 256, within 256 blocks of the eye.",
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 256,
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        }
+      },
+      "cone": {
+        "description": "Coarse visibility grid instead of targets.",
+        "type": "object",
+        "properties": {
+          "yaw": {
+            "type": "number",
+            "minimum": -360,
+            "maximum": 360,
+            "description": "Default: the player's yaw (required with eye)."
+          },
+          "pitch": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90,
+            "description": "Default: the player's pitch (required with eye)."
+          },
+          "fov": {
+            "type": "number",
+            "minimum": 10,
+            "maximum": 110,
+            "description": "Square field of view in degrees, default 70."
+          },
+          "rays": {
+            "type": "integer",
+            "minimum": 4,
+            "maximum": 48,
+            "description": "Rays per side, default 24."
+          },
+          "distance": {
+            "type": "integer",
+            "minimum": 8,
+            "maximum": 256,
+            "description": "How far to look, default 128."
+          }
+        },
+        "additionalProperties": false
+      },
+      "ignore": {
+        "description": "Blocks that do not block sight: ids (namespace optional, * wildcard) with optional [prop=value] or numeric [prop<=n] conditions, e.g. \"*_leaves\", \"snow[layers<=3]\".",
+        "type": "array",
+        "maxItems": 32,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema"
+  },
+  "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false
+  }
+}

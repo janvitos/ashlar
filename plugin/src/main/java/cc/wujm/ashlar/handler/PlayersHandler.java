@@ -30,14 +30,28 @@ public final class PlayersHandler implements RpcHandler {
 
     @Override
     public CompletableFuture<JsonElement> handle(InvocationContext ctx, JsonObject params) {
-        return list(ctx);
+        int range = PlayerJson.DEFAULT_LOOK_RANGE;
+        if (params != null && params.has("lookRange")) {
+            var v = params.get("lookRange");
+            if (!v.isJsonPrimitive() || !v.getAsJsonPrimitive().isNumber() || v.getAsDouble() != Math.rint(v.getAsDouble())
+                    || v.getAsInt() < PlayerJson.DEFAULT_LOOK_RANGE || v.getAsInt() > PlayerJson.MAX_LOOK_RANGE) {
+                throw new cc.wujm.ashlar.rpc.RpcError(cc.wujm.ashlar.rpc.ErrorCode.BAD_REQUEST,
+                        "lookRange must be an integer " + PlayerJson.DEFAULT_LOOK_RANGE + "-" + PlayerJson.MAX_LOOK_RANGE);
+            }
+            range = v.getAsInt();
+        }
+        return list(ctx, range);
     }
 
     public static CompletableFuture<JsonElement> list(InvocationContext ctx) {
+        return list(ctx, PlayerJson.DEFAULT_LOOK_RANGE);
+    }
+
+    public static CompletableFuture<JsonElement> list(InvocationContext ctx, int lookRange) {
         return MainThread.call(() -> {
             JsonArray players = new JsonArray();
             for (Player player : Bukkit.getOnlinePlayers()) {
-                players.add(PlayerJson.describe(player));
+                players.add(PlayerJson.describe(player, lookRange));
             }
             JsonObject result = new JsonObject();
             result.addProperty("count", players.size());

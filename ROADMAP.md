@@ -230,6 +230,33 @@ Branch: `feat/protected-regions`.
     - a journal undo and a snapshot restore over the region were rejected without an override and succeeded with one;
   - test region restored to pristine air, regions removed, journal entries deleted. No production changes.
 
+Merged via PR #11.
+
+## Step 14 implementation and verification
+
+Branch: `feat/first-person-view`.
+
+- Pure core in `cc.wujm.ashlar.render`:
+  - `VoxelRay`: Amanatides-Woo traversal against `BlockShapes` cuboids; unloaded cells stop the ray as unknown;
+  - `FirstPersonCamera`: pinhole camera with Minecraft yaw/pitch, plus the chunk columns its rays can reach (x/z hull of a 65x65 ray grid, or the full circle when the view includes straight up or down);
+  - `FirstPersonRenderer`: per-pixel trace with the angled views' shading and light haze; unknown cells drawn flat and counted;
+  - `Sightline`: target lines (center plus the faces turned toward the eye), cone grids and ignore patterns.
+- Engine: `ViewSnapshotTask` copies already-loaded chunk columns into `ChunkSnapshot`s under the tick budget, with no chunk loads or tickets (`BuildTask#needsChunkTickets`); `SnapshotVoxels` converts 16x16x16 sections to ids lazily off-main; `ViewService` resolves player eyes on the main thread and runs all tracing and PNG encoding on the render executor.
+- Tools: `mc_render view:"first-person"`, new `mc_sightline`, `mc_players` `eye` and `lookRange`.
+- Deviations from the plan:
+  - reads use chunk snapshots instead of tick-budgeted per-block reads, to keep main-thread cost low; the cap is `limits.max-chunks-per-operation` chunk columns instead of a new `limits.max-view-read` cell count;
+  - sightline targets are also tested at the centers of their faces turned toward the eye, because a ground block's center is usually hidden by its neighbours;
+- Not covered: entities, fog, lighting, textures and the client's render distance; chunks that are not loaded answer unknown.
+- Verification:
+  - one plugin build: 780 tests passed (18 new), zero failures;
+  - isolated-server smoke test `e2e-view.mjs`, 20 checks:
+    - through a one-block gap visible, beside it blocked by the wall block, over a bottom slab visible, a ground block visible by its top face;
+    - an ignore pattern let a line through the wall; a target in an unloaded chunk answered unknown;
+    - a cone grid showed the gap in its center ray; argument errors were rejected;
+    - one 640x360 first-person render showed the wall, gap, slab row and floor as expected;
+  - test region restored to pristine air, forceload removed, journal entries deleted. No production changes.
+  - The plan's acceptance case (the Titanic spawn vantage) needs the production world and was not run.
+
 ## Fork activation
 
 User-approved deployment uses Paper 26.1.2 build 74, without a Paper upgrade. The fork now compiles against that exact API and declares minimum API 26.1. One build passed; an approved restart used a verified full 30-second in-game countdown before a graceful stop/install/start. Original artifact retained for rollback; plugin configuration/credentials unchanged. Pi points at the locally built fork adapter through the existing Docker network arrangement. Basic read-only deployment check confirmed plugin 0.4.9-dev, authenticated MCP, 13 tools and photo-reference instructions. No construction/terrain test writes or exhaustive regressions were performed on production. Pi needs `/reload` to refresh an existing session's connection and catalog.

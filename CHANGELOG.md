@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- First-person views and sightlines: `mc_render` gains `view:"first-person"` (`eye`+`yaw`/`pitch` or `player`, `fov` 10-110, `distance` 8-256, up to 1,000,000 pixels). New read-only `mc_sightline`: up to 256 targets (visible/blocked/unknown with the first blocking block and distance; a target counts as visible when its center or a face turned toward the eye is in view), or a cone grid of first hits; `ignore` patterns such as `*_leaves` or `snow[layers<=3]`. Voxel traversal against the schematic block shapes; glass, panes and water do not block, leaves do. The main thread only copies already-loaded chunks (`ChunkSnapshot`, tick-budgeted, no loads or tickets, at most `limits.max-chunks-per-operation`); all tracing runs off-main. `mc_players` adds `eye` and optional `lookRange` 16-256.
+- Added 18 focused unit tests and disposable `e2e-view.mjs` (20 checks).
+
 - Load-aware build budget: the executor subtracts its own work from Paper's average tick time and gives itself the full `limits.tick-budget-ms` only while the rest of the server needs at most 30 ms per tick, scaling down linearly to 1 ms at 45 ms and pausing beyond that apart from one 1 ms slice per second. The default `tick-budget-ms` drops from 20 to 5 (existing configs keep their value; the key still needs a restart). `mc_status` and `health` report the current budget and the load without Ashlar.
 - Added 5 focused unit tests.
 

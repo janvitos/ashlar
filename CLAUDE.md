@@ -19,7 +19,7 @@ node tools/e2e.mjs        # end-to-end against the running test server
 
 - English only in code, comments, tool descriptions, logs and errors; sources are pure ASCII (`grep -rnP "[^\x00-\x7F]" src/ --exclude-dir=lang` must be empty; language files under `plugin/src/main/resources/lang/` may contain any script, but Java sources stay pure ASCII - never put a translated string in Java). The public tree (everything tracked by git) is English only, except `README.zh-CN.md` and `lang/*.yml`; private notes go in `docs/private/`.
 - Every source file starts with `// SPDX-License-Identifier: AGPL-3.0-or-later`.
-- Bukkit/Paper API only on the main thread, and only inside the tick-budgeted executor or `MainThread.call`. Exceptions: `Bukkit.createBlockData`, `Bukkit.getWorld`, loggers.
+- Bukkit/Paper API only on the main thread, and only inside the tick-budgeted executor or `MainThread.call`. Exceptions: `Bukkit.createBlockData`, `Bukkit.getWorld`, loggers, and reading `ChunkSnapshot` copies (plus `getAsString`/`getMapColor`/`getMaterial` on the block data they return) off-main.
 - Block writes only via `setBlockData(data, <flag>)`; never `setType` or single-argument `setBlockData`. The `true` flag is allowed ONLY for a liquid target (water/lava) under `fill_batch`/`set_blocks`'s `liquids: "flow"`; every other write, and every liquid write when `liquids` is left at its default `"static"`, stays `false`. Connectable blocks get their shape from `ConnectionPass` (air-then-back refresh), which skips gravity blocks, liquids and block entities.
 - Validate a request fully on the network thread before enqueueing; use `long` for volumes.
 - No NMS, no reflection, no `paper-plugin.yml`, no shading; third-party libs go in `plugin.yml` `libraries:`.

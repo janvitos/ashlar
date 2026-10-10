@@ -1,7 +1,7 @@
 {
   "name": "mc_render",
   "title": "Render view",
-  "description": "Renders a region as a PNG image from a chosen viewpoint, so an AI can see terrain layout and building results instead of reading block-state text. Views include existing maps/facades/slices/heightmaps and shape-aware isometric/perspective schematics.\n\nWHEN TO USE: isometric/perspective for one finished-build appearance check showing stairs, slabs, doors, windows and depth. \"top\" to check terrain shape, a build's footprint, or how a structure sits on the land. \"north\"/\"south\"/\"east\"/\"west\" to inspect a facade - windows, doors, symmetry, roof lines. \"slice\" (axis + coordinate) for a floor plan (axis \"y\") or a vertical cut, e.g. to confirm a room is hollow. \"heightmap\" for terrain relief; prefer mc_survey, which adds the exact numbers.\n\nWHEN NOT TO USE: to get exact block states, orientations or counts - use mc_inspect. Colors are lossy, not textures. Angled views list approximate/cube-fallback models; not an exhaustive vanilla renderer.\n\nPARAMETERS: `from`/`to` are inclusive corners in any order: [x,y,z], or [x,z] for \"top\"/\"heightmap\" (preferred - the surface is found automatically; pass a y range to a top view only to look under a roof or underground, since it shows the highest block within that range). \"top\"/\"heightmap\" are area-priced (x/z footprint <= 200,000 cells); side/angled views/\"slice\" are volume-priced (<= 200,000 blocks) - for a facade, limit y to the building's height. `view` (default \"top\") is one of top/north/south/east/west/slice/heightmap/isometric/perspective; `slice` is required for `view: \"slice\"`. `scale` is pixels per block, 0-16 (default 0 = auto). `grid` is grid spacing, 0-64 (default 10; 0 disables it). `camera` for angled views: compass azimuth 0-360, elevation 5-85, perspective fov 20-90. Angled grids must be 0. `heightmapType`/`contour` are heightmap-only.\n\nSIDE EFFECTS: none - read-only. Returns an image plus text: view, axes, top-left coordinate, grid interval and a legend (blocks as hex color, name, pixel count; for \"heightmap\", height bands plus min/max/median height, surface materials and the largest flat zone). PNGs are capped at 3MB (scale halves automatically).",
+  "description": "Renders a region as a PNG image from a chosen viewpoint, so an AI can see terrain layout and building results instead of reading block-state text. Views include existing maps/facades/slices/heightmaps, shape-aware isometric/perspective schematics, and a first-person view from an eye position.\n\nWHEN TO USE: isometric/perspective for one finished-build appearance check showing stairs, slabs, doors, windows and depth. \"top\" to check terrain shape, a build's footprint, or how a structure sits on the land. \"north\"/\"south\"/\"east\"/\"west\" to inspect a facade - windows, doors, symmetry, roof lines. \"slice\" (axis + coordinate) for a floor plan (axis \"y\") or a vertical cut, e.g. to confirm a room is hollow. \"heightmap\" for terrain relief; prefer mc_survey, which adds the exact numbers. \"first-person\" to see what a player sees from a spot (a vantage point, a spawn, a window), up to 256 blocks away.\n\nWHEN NOT TO USE: to get exact block states, orientations or counts - use mc_inspect. Colors are lossy, not textures. Angled views list approximate/cube-fallback models; not an exhaustive vanilla renderer. To answer whether specific blocks are visible from a spot, use mc_sightline; render first-person only to show the view.\n\nPARAMETERS: `from`/`to` are inclusive corners in any order: [x,y,z], or [x,z] for \"top\"/\"heightmap\" (preferred - the surface is found automatically; pass a y range to a top view only to look under a roof or underground, since it shows the highest block within that range). \"top\"/\"heightmap\" are area-priced (x/z footprint <= 200,000 cells); side/angled views/\"slice\" are volume-priced (<= 200,000 blocks) - for a facade, limit y to the building's height. `view` (default \"top\") is one of top/north/south/east/west/slice/heightmap/isometric/perspective; `slice` is required for `view: \"slice\"`. `scale` is pixels per block, 0-16 (default 0 = auto). `grid` is grid spacing, 0-64 (default 10; 0 disables it). `camera` for angled views: compass azimuth 0-360, elevation 5-85, perspective fov 20-90. Angled grids must be 0. `heightmapType`/`contour` are heightmap-only. \"first-person\" takes no from/to: give `eye` [x,y,z] (feet + 1.62 for a standing player) with `yaw`/`pitch`, or `player` (their live eye and direction; yaw/pitch override), plus optional `fov` 10-110 (default 70, vertical), `distance` 8-256 (default 128), `width`/`height` (default 960x540, at most 1,000,000 pixels).\n\nSIDE EFFECTS: none - read-only. Returns an image plus text: view, axes, top-left coordinate, grid interval and a legend (blocks as hex color, name, pixel count; for \"heightmap\", height bands plus min/max/median height, surface materials and the largest flat zone). PNGs are capped at 3MB (scale halves automatically). First-person only reads chunks that are already loaded; unloaded ones are drawn flat purple and counted as unknownPixels, never as air. Larger distances read more chunks (limit: limits.max-chunks-per-operation).",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -54,7 +54,7 @@
             "maxItems": 2
           }
         ],
-        "description": "Inclusive corner of the region: [x, y, z], or just [x, z] for view \"top\"/\"heightmap\" (the surface is then found automatically over the whole world height). Give a y range to a top view only when you want to look under a roof or underground."
+        "description": "Inclusive corner of the region: [x, y, z], or just [x, z] for view \"top\"/\"heightmap\" (the surface is then found automatically over the whole world height). Give a y range to a top view only when you want to look under a roof or underground. Required for every view except \"first-person\"."
       },
       "to": {
         "anyOf": [
@@ -103,7 +103,7 @@
         "description": "Inclusive corner opposite `from`, same shape as `from`. Order does not matter."
       },
       "view": {
-        "description": "\"top\" (default): top-down layout, shaded like a vanilla in-game map. \"north\"/\"south\"/\"east\"/\"west\": the facade seen from that compass direction, shaded by depth. \"slice\": an exact-color 2D cross-section (requires the `slice` parameter). \"heightmap\": color-banded terrain. \"isometric\" (orthographic) / \"perspective\": shape-aware schematic depth with optional camera; require 3D bounds and are volume-priced.",
+        "description": "\"top\" (default): top-down layout, shaded like a vanilla in-game map. \"north\"/\"south\"/\"east\"/\"west\": the facade seen from that compass direction, shaded by depth. \"slice\": an exact-color 2D cross-section (requires the `slice` parameter). \"heightmap\": color-banded terrain. \"isometric\" (orthographic) / \"perspective\": shape-aware schematic depth with optional camera; require 3D bounds and are volume-priced. \"first-person\": what an eye at `eye` (or `player`) sees, looking along yaw/pitch; takes no from/to.",
         "type": "string",
         "enum": [
           "top",
@@ -114,7 +114,8 @@
           "slice",
           "heightmap",
           "isometric",
-          "perspective"
+          "perspective",
+          "first-person"
         ]
       },
       "slice": {
@@ -158,11 +159,73 @@
         "description": "Angled views only. Compass azimuth (north=0, east=90), default 135. Elevation defaults 35.26438968 for isometric and 30 for perspective. Perspective fov defaults 50, invalid on isometric. Work budgets can reduce resolution, reported explicitly.",
         "type": "object",
         "properties": {
-          "azimuth": {"type":"number","minimum":0,"exclusiveMaximum":360},
-          "elevation": {"type":"number","minimum":5,"maximum":85},
-          "fov": {"type":"number","minimum":20,"maximum":90}
+          "azimuth": {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMaximum": 360
+          },
+          "elevation": {
+            "type": "number",
+            "minimum": 5,
+            "maximum": 85
+          },
+          "fov": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 90
+          }
         },
         "additionalProperties": false
+      },
+      "eye": {
+        "description": "first-person only: the eye position [x, y, z] (decimals allowed). A standing player's eye is feet y + 1.62. Give exactly one of eye or player.",
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 3,
+        "maxItems": 3
+      },
+      "player": {
+        "description": "first-person only: an online player's name; uses their live eye position and look direction (yaw/pitch override it) in their own world.",
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_]{1,16}$"
+      },
+      "yaw": {
+        "description": "first-person: look direction in Minecraft degrees as F3 shows it: 0 south, 90 west, 180 north, -90 east. Required with eye.",
+        "type": "number",
+        "minimum": -360,
+        "maximum": 360
+      },
+      "pitch": {
+        "description": "first-person: -90 straight up, 0 level, 90 straight down. Required with eye.",
+        "type": "number",
+        "minimum": -90,
+        "maximum": 90
+      },
+      "fov": {
+        "description": "first-person: vertical field of view in degrees, default 70 (the game's default).",
+        "type": "number",
+        "minimum": 10,
+        "maximum": 110
+      },
+      "distance": {
+        "description": "first-person: how far to look, in blocks, default 128.",
+        "type": "integer",
+        "minimum": 8,
+        "maximum": 256
+      },
+      "width": {
+        "description": "first-person: image width in pixels, default 960.",
+        "type": "integer",
+        "minimum": 64,
+        "maximum": 1920
+      },
+      "height": {
+        "description": "first-person: image height in pixels, default 540; width*height at most 1,000,000.",
+        "type": "integer",
+        "minimum": 64,
+        "maximum": 1080
       },
       "heightmapType": {
         "description": "Only used when `view` is \"heightmap\": which surface to measure (same meaning as mc_survey's `type`). Default SOLID_OR_LIQUID_NO_LEAVES.",
@@ -181,10 +244,6 @@
         "maximum": 4096
       }
     },
-    "required": [
-      "from",
-      "to"
-    ],
     "$schema": "https://json-schema.org/draft/2020-12/schema"
   },
   "annotations": {
