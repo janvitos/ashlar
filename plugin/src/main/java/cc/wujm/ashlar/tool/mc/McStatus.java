@@ -44,6 +44,8 @@ public final class McStatus implements Tool {
                     "Server: " + r.get("server").getAsString() + " (Minecraft " + r.get("minecraft").getAsString() + ")",
                     "Online players: " + r.get("onlinePlayers").getAsInt(),
                     "Queued build operations: " + r.get("queuedOperations").getAsInt(),
+                    "Build budget: " + r.get("tickBudgetMs").getAsDouble() + " ms per tick (server load without Ashlar: "
+                            + r.get("otherLoadMs").getAsDouble() + " ms per tick)",
                     "Plugin uptime: " + r.get("uptimeSeconds").getAsLong() + "s",
                     "Tool layer: in-process."));
         }));

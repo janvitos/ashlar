@@ -20,7 +20,8 @@ import java.util.logging.Logger;
  * Single scheduler for {@link BuildTask}s, running on a
  * {@code runTaskTimer(plugin, this::tick, 1L, 1L)} main-thread tick.
  * Each tick works through the queue for at most {@code limits.tick-budget-ms}
- * of wall-clock time, resuming a partially-completed task on the next tick.
+ * of wall-clock time, less when the server is busy (see {@link TickThrottle}),
+ * resuming a partially-completed task on the next tick.
  * See plan.md &sect;2.1/&sect;2.3.
  *
  * <p>{@link #submit} may be called from any thread (in practice, a WebSocket
@@ -50,11 +51,23 @@ public final class TickBudgetExecutor {
 
     private ChunkTicketGuard currentGuard;
     private long currentStartedAtNanos;
+    private final TickThrottle throttle;
 
     public TickBudgetExecutor(JavaPlugin plugin, PluginConfig config, Logger logger) {
         this.plugin = plugin;
         this.config = config;
         this.logger = logger;
+        this.throttle = new TickThrottle(config.limits().tickBudgetMs());
+    }
+
+    /** Main thread only: the budget handed out for the latest tick, in ms. */
+    public double currentBudgetMs() {
+        return throttle.lastBudgetMs();
+    }
+
+    /** Main thread only: the server's average tick time without Ashlar's own work, in ms. */
+    public double otherLoadMs() {
+        return throttle.lastOtherMs();
     }
 
     public void start() {
@@ -112,7 +125,15 @@ public final class TickBudgetExecutor {
     }
 
     private void tick() {
-        long deadline = System.nanoTime() + config.limits().tickBudgetMs() * 1_000_000L;
+        long started = System.nanoTime();
+        long budget = throttle.budgetNanos(Bukkit.getAverageTickTime());
+        if (budget > 0) {
+            work(started + budget);
+        }
+        throttle.record(System.nanoTime() - started);
+    }
+
+    private void work(long deadline) {
         while (System.nanoTime() < deadline) {
             if (current == null && !startNext()) {
                 return; // queue empty, nothing to do this tick
