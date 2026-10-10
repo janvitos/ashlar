@@ -90,6 +90,11 @@
           "axis",
           "at"
         ]
+      },
+      "canonical": {
+        "description": "Default true: show block states in canonical form, dropping properties that have their default value (light[level=11,waterlogged=false] shows as light[level=11]). false shows the full server state strings.",
+        "type": "boolean",
+        "default": true
       }
     },
     "required": [

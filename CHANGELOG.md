@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- New read-only `mc_diff` compares a live box against a snapshot, inline expected cells, a server-side expected file (`plugins/Ashlar/expected/<name>.json[.gz]`) or a saved blueprint. Canonical comparison (default-valued properties dropped, air variants equal), optional material-only compare, ignore globs, declared/box scopes and a baseline snapshot for undeclared cells. Summary/cells/columns reports with exact counts, transitions, bbox and samples. Boxes up to `limits.max-diff-volume` (default 2,000,000, hot-reloadable) are split into tick-budgeted reads of at most `limits.max-read-volume`.
+- Optional `mc_diff` anomaly checks: floating (snow, carpet, plates, rails, torches, lanterns, plants), stacked partial snow, unsupported (existing support rules) and enclosed air pockets.
+- `mc_diff` issues an owner-scoped, expiring `diffId` receipt; `mc_repair {diffId}` writes reference states back to those cells only, behind the same stale-value and block-entity guards, with an optional delta snapshot.
+- `mc_inspect` reports canonical block states by default (`canonical:false` returns raw full states).
+- Added 27 focused unit tests and disposable `e2e-diff.mjs` (18 checks).
+
 - `mc_build` defaults to compact phase totals (changed and unchanged/skipped), retaining snapshot IDs, chest pairing and support warnings. `detailed:true` restores per-fill/per-text-entry results; placement, errors and safety checks are unchanged.
 - Clarified global fills -> text -> blocks ordering and final-air opening corrections. Agent guidance reserves strict preflight for concrete risks, discourages redundant checks/backups, and explicitly warns that snapshots cannot restore sign text or inventories before deletion. No new audit or overlap-warning system.
 

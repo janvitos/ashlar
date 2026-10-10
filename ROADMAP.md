@@ -171,6 +171,17 @@ Branch: `feat/photo-reference-workflow`.
 
 Merged via PR #7. Step 10 was subsequently deferred by user decision; implementation work is complete for now.
 
+## Step 11 implementation and verification
+
+Branch: `feat/region-diff`.
+
+- New `mc_diff` tool (read-only) with snapshot, inline expected, expected-file and blueprint references; canonical state comparison via `StateCanon` (server defaults from `Bukkit.createBlockData`), ignore globs, material compare, declared/box scopes and baseline snapshot.
+- Large boxes are split into y-slabs (or single-layer z-bands) whose reads respect `limits.max-read-volume`; new hot key `limits.max-diff-volume` (default 2,000,000).
+- Anomalies: floating, stacked, unsupported (reuses `SupportCheck`) and enclosedAir (box-boundary flood fill).
+- `diffId` receipts (32 receipts / 1M cells / 2h, owner-scoped) feed `mc_repair {diffId}`, which reuses `RepairTask` guards with live block-entity detection.
+- `mc_inspect` canonical output by default.
+- Verification: one plugin build, 732 tests passed (27 new), zero failures; MCP build and 8 tests passed. Isolated-server smoke test `e2e-diff.mjs`: 18 checks (8 exact differences incl. one floating and one stacked snow layer, ignore/material compare, diffId repair to zero, blueprint diff zero after clean build, ~620k-cell box in 4 reads); test region restored to pristine air. No production changes.
+
 ## Fork activation
 
 User-approved deployment uses Paper 26.1.2 build 74, without a Paper upgrade. The fork now compiles against that exact API and declares minimum API 26.1. One build passed; an approved restart used a verified full 30-second in-game countdown before a graceful stop/install/start. Original artifact retained for rollback; plugin configuration/credentials unchanged. Pi points at the locally built fork adapter through the existing Docker network arrangement. Basic read-only deployment check confirmed plugin 0.4.9-dev, authenticated MCP, 13 tools and photo-reference instructions. No construction/terrain test writes or exhaustive regressions were performed on production. Pi needs `/reload` to refresh an existing session's connection and catalog.

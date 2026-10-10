@@ -96,6 +96,11 @@ limits:
   # updates that spread on their own, so keep this small.
   max-flowing-liquids-per-operation: 2000
 
+  # Reload: /ashlar reload applies it.
+  # Maximum box volume mc_diff may compare in one call. The live box is read in sub-boxes of at
+  # most max-read-volume cells each, so this caps total work, not the size of any single read.
+  max-diff-volume: 2000000
+
 # Reload: /ashlar reload applies it (every key in this section).
 world:
   # Default world name used when a request omits "world".

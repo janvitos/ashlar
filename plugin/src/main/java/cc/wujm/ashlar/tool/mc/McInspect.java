@@ -4,6 +4,7 @@ package cc.wujm.ashlar.tool.mc;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import cc.wujm.ashlar.engine.BukkitStateDefaults;
 import cc.wujm.ashlar.engine.RegionData;
 import cc.wujm.ashlar.rpc.InvocationContext;
 import cc.wujm.ashlar.rpc.RpcHandler;
@@ -20,6 +21,7 @@ import cc.wujm.ashlar.tool.text.ToolText;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.UnaryOperator;
 
 import static cc.wujm.ashlar.tool.mc.JsonUtil.intArray;
 
@@ -32,9 +34,24 @@ public final class McInspect implements Tool {
 
     private final ToolSpec spec = ToolSpec.load("mc_inspect");
     private final RpcHandler readRegionHandler;
+    private final UnaryOperator<String> canon;
 
     public McInspect(RpcHandler readRegionHandler) {
+        this(readRegionHandler, s -> BukkitStateDefaults.CANON.canon(s));
+    }
+
+    McInspect(RpcHandler readRegionHandler, UnaryOperator<String> canon) {
         this.readRegionHandler = readRegionHandler;
+        this.canon = canon;
+    }
+
+    /** {@code minecraft:} + canonical form (default-valued properties dropped); the raw state if it cannot be canonicalized. */
+    private String canonical(String state) {
+        try {
+            return "minecraft:" + canon.apply(state);
+        } catch (IllegalArgumentException e) {
+            return state;
+        }
     }
 
     @Override
@@ -61,7 +78,7 @@ public final class McInspect implements Tool {
     record SliceArg(String axis, int at) {
     }
 
-    record Args(String world, int[] from, int[] to, SliceArg slice, String format) {
+    record Args(String world, int[] from, int[] to, SliceArg slice, String format, boolean canonical) {
         static Args parse(JsonObject o) {
             String world = ArgParse.optString(o, "world");
             int[] from = ArgParse.requireCoords3(o, "from");
@@ -77,7 +94,7 @@ public final class McInspect implements Tool {
             if (format.equals("columns") && slice != null) {
                 throw new ToolArgError("`slice` and `format: \"columns\"` are exclusive");
             }
-            return new Args(world, from, to, slice, format);
+            return new Args(world, from, to, slice, format, ArgParse.optBoolean(o, "canonical", true));
         }
     }
 
@@ -104,6 +121,10 @@ public final class McInspect implements Tool {
             return readRegionHandler.handle(ctx, params).thenApply(el -> {
                 JsonObject r = el.getAsJsonObject();
                 RegionData regionData = RegionData.fromJson(r);
+                if (a.canonical()) {
+                    regionData = new RegionData(regionData.region(), regionData.palette().stream().map(this::canonical).toList(),
+                            regionData.runIndex(), regionData.runLength());
+                }
                 BlockGrid decoded = BlockGrid.fromRegionData(regionData);
 
                 List<ToolText.SignEntry> signs = new ArrayList<>();
@@ -112,7 +133,7 @@ public final class McInspect implements Tool {
                     JsonArray pos = s.getAsJsonArray("pos");
                     signs.add(new ToolText.SignEntry(
                             new int[]{pos.get(0).getAsInt(), pos.get(1).getAsInt(), pos.get(2).getAsInt()},
-                            s.get("block").getAsString(),
+                            a.canonical() ? canonical(s.get("block").getAsString()) : s.get("block").getAsString(),
                             JsonUtil.toStringList(s.getAsJsonArray("front")),
                             JsonUtil.toStringList(s.getAsJsonArray("back")),
                             s.get("waxed").getAsBoolean()));

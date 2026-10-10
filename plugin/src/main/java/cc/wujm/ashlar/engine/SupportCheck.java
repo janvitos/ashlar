@@ -221,6 +221,15 @@ final class SupportCheck {
         }
     }
 
+    /**
+     * Uncapped single-cell evaluation for read-only scans ({@link DiffScanTask}); bypasses the
+     * warning cap and the {@link #seen} set. {@code null} when the cell is fine or never checked.
+     */
+    Warning check(int x, int y, int z) {
+        BlockData data = lookup.get(x, y, z);
+        return needsCheck(data, flagGravity) ? evaluate(x, y, z, data) : null;
+    }
+
     private Warning evaluate(int x, int y, int z, BlockData data) {
         if (data instanceof Switch sw) {
             return switch (sw.getAttachedFace()) {
@@ -364,7 +373,7 @@ final class SupportCheck {
         return isDecorativePlant(m);
     }
 
-    private static boolean isDecorativePlant(Material m) {
+    static boolean isDecorativePlant(Material m) {
         if (m.isSolid()) {
             return false;
         }

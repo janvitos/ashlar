@@ -55,6 +55,9 @@ import cc.wujm.ashlar.tool.mc.McBlueprint;
 import cc.wujm.ashlar.tool.mc.McPlan;
 import cc.wujm.ashlar.tool.mc.McVerify;
 import cc.wujm.ashlar.tool.mc.McRepair;
+import cc.wujm.ashlar.tool.mc.McDiff;
+import cc.wujm.ashlar.tool.mc.DiffService;
+import cc.wujm.ashlar.tool.mc.DiffStore;
 import cc.wujm.ashlar.tool.mc.VerificationService;
 import cc.wujm.ashlar.tool.mc.VerificationStore;
 import cc.wujm.ashlar.tool.mc.BuildPreflight;
@@ -213,6 +216,8 @@ public final class AshlarPlugin extends JavaPlugin {
         }).withPreflight(preflight);
         VerificationService verification = new VerificationService(buildTool, preflight, executor, configHolder,
                 new VerificationStore(), snapshotCreateHandler);
+        DiffService diffService = new DiffService(buildTool, preflight, executor, configHolder, new DiffStore(),
+                snapshotStore, snapshotCreateHandler, dataFolder.resolve("expected"));
         ToolRegistry toolRegistry = new ToolRegistry(List.of(
                 new McStatus(healthHandler),
                 new McPlayers(playersHandler),
@@ -221,8 +226,9 @@ public final class AshlarPlugin extends JavaPlugin {
                 new McBlueprint(blueprintStore, new cc.wujm.ashlar.tool.mc.TerrainFitService(configHolder, executor, preflight)),
                 new McPlan(buildTool, preflight, renderExecutor),
                 new McVerify(buildTool, verification),
-                new McRepair(verification),
+                new McRepair(verification, diffService),
                 new McInspect(readRegionHandler),
+                new McDiff(diffService),
                 new McRender(renderHandler),
                 new McSnapshot(snapshotCreateHandler, listSnapshotsHandler),
                 new McRestore(restoreHandler),
