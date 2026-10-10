@@ -20,7 +20,7 @@ class ConfigReloadTest {
     private static PluginConfig baseConfig() {
         return new PluginConfig(
                 new PluginConfig.ServerConfig(true, "0.0.0.0", 8765, "0123456789abcdef", List.of()),
-                new PluginConfig.LimitsConfig(500_000, 200_000, 20, 16, 1024, 2000),
+                new PluginConfig.LimitsConfig(500_000, 200_000, 20, 16, 1024, 2000, 2_000_000),
                 new PluginConfig.WorldConfig("world", List.of("world"),
                         new PluginConfig.WorldConfig.BuildRegion(false, -1000, -1000, 1000, 1000)),
                 new PluginConfig.SnapshotConfig(true, 20, 200_000),
@@ -67,7 +67,7 @@ class ConfigReloadTest {
         PluginConfig oldConfig = baseConfig();
         PluginConfig newConfig = new PluginConfig(
                 new PluginConfig.ServerConfig(true, "127.0.0.1", 8766, "fedcba9876543210", List.of("1.2.3.4")),
-                new PluginConfig.LimitsConfig(500_000, 200_000, 50, 32, 1024, 2000),
+                new PluginConfig.LimitsConfig(500_000, 200_000, 50, 32, 1024, 2000, 2_000_000),
                 oldConfig.world(), oldConfig.snapshot(), oldConfig.logging(), oldConfig.runCommand(),
                 oldConfig.engine(), oldConfig.agent(), oldConfig.language());
 
@@ -83,7 +83,7 @@ class ConfigReloadTest {
         PluginConfig oldConfig = baseConfig();
         PluginConfig newConfig = new PluginConfig(
                 new PluginConfig.ServerConfig(true, "0.0.0.0", 8765, "0123456789abcdef", List.of("9.9.9.9")),
-                new PluginConfig.LimitsConfig(999, 999, 20, 16, 999, 999),
+                new PluginConfig.LimitsConfig(999, 999, 20, 16, 999, 999, 999),
                 new PluginConfig.WorldConfig("nether", List.of("nether"),
                         new PluginConfig.WorldConfig.BuildRegion(true, -1, -1, 1, 1)),
                 new PluginConfig.SnapshotConfig(false, 5, 5),
@@ -104,6 +104,7 @@ class ConfigReloadTest {
         assertEquals(999, applied.limits().maxReadVolume());
         assertEquals(999, applied.limits().maxChunksPerOperation());
         assertEquals(999, applied.limits().maxFlowingLiquidsPerOperation());
+        assertEquals(999, applied.limits().maxDiffVolume());
         assertEquals(newConfig.world(), applied.world());
         assertEquals(newConfig.snapshot(), applied.snapshot());
         assertEquals(newConfig.logging(), applied.logging());
@@ -121,7 +122,7 @@ class ConfigReloadTest {
         PluginConfig oldConfig = baseConfig();
         PluginConfig newConfig = new PluginConfig(
                 new PluginConfig.ServerConfig(false, "127.0.0.1", 9999, "zzzzzzzzzzzzzzzz", List.of()),
-                new PluginConfig.LimitsConfig(500_000, 200_000, 999, 999, 1024, 2000),
+                new PluginConfig.LimitsConfig(500_000, 200_000, 999, 999, 1024, 2000, 2_000_000),
                 oldConfig.world(), oldConfig.snapshot(), oldConfig.logging(), oldConfig.runCommand(),
                 oldConfig.engine(), withAgentMode(oldConfig, PluginConfig.AgentConfig.Mode.OFF).agent(),
                 oldConfig.language());

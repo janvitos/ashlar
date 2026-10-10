@@ -10,7 +10,7 @@ AI building tools for Minecraft Paper servers - no SSH, no LAN world: one jar pl
 
 *Built by Claude through this MCP.*
 
-Ashlar is a Paper plugin plus a Node MCP server. Point an AI client - Claude Desktop, Claude Code, OpenCode, Cursor, or anything else that speaks MCP - at the MCP server, and it gets thirteen tools to survey terrain, render images of the world, build in bulk, inspect exact block data, snapshot/restore regions, and run console commands. No mods, no SSH access to the host, no need to run the world on your own machine: the plugin runs inside your existing Paper server (a panel-hosted one works fine) and talks to the MCP server over a WebSocket. Players who have no MCP client at all can instead just type `/ashlar <request>` in chat and get an answer from the plugin's own built-in assistant - no Node process or inbound port needed for that path; see [In-game assistant](#in-game-assistant-no-ai-client-needed) below.
+Ashlar is a Paper plugin plus a Node MCP server. Point an AI client - Claude Desktop, Claude Code, OpenCode, Cursor, or anything else that speaks MCP - at the MCP server, and it gets fourteen tools to survey terrain, render images of the world, build in bulk, inspect exact block data, snapshot/restore regions, and run console commands. No mods, no SSH access to the host, no need to run the world on your own machine: the plugin runs inside your existing Paper server (a panel-hosted one works fine) and talks to the MCP server over a WebSocket. Players who have no MCP client at all can instead just type `/ashlar <request>` in chat and get an answer from the plugin's own built-in assistant - no Node process or inbound port needed for that path; see [In-game assistant](#in-game-assistant-no-ai-client-needed) below.
 
 ## How it works
 
@@ -50,6 +50,7 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | `mc_verify` | Freeze expected cells before building; compare actual states/sign values afterward with exact coordinate/property differences. |
 | `mc_repair` | Guarded repairs of mismatches from a fresh comparison, followed by full verification; no matching-cell or neighbor refresh writes. |
 | `mc_inspect` | Exact block contents of a region (statistics, ASCII slice, sign text). |
+| `mc_diff` | Read-only comparison of a live box against a snapshot, expected cells or a blueprint, with anomaly checks and a repairable diffId. |
 | `mc_snapshot` | Save a region before changing it (or list saved snapshots). |
 | `mc_restore` | Roll a region back to a snapshot. |
 | `mc_command` | Run a server console command and return its output (escape hatch). |
@@ -430,7 +431,7 @@ The model is expected to read this and fix the flagged blocks (or explain the tr
 
 ## In-game assistant (no AI client needed)
 
-Everything above needs an AI client on the player's own machine. `/ashlar <request>` is the alternative: the plugin runs the assistant itself, inside the same process as everything else, through the same thirteen tools - without anyone needing Claude Desktop, Claude Code, Cursor, any other MCP client, or a separate Node process. This is for the players and friends on your server who do not run an AI client at all - the server owner sets one API key and pays for the model API; everyone else just types in chat.
+Everything above needs an AI client on the player's own machine. `/ashlar <request>` is the alternative: the plugin runs the assistant itself, inside the same process as everything else, through the same fourteen tools - without anyone needing Claude Desktop, Claude Code, Cursor, any other MCP client, or a separate Node process. This is for the players and friends on your server who do not run an AI client at all - the server owner sets one API key and pays for the model API; everyone else just types in chat.
 
 ### Setup
 
@@ -648,7 +649,7 @@ The in-game assistant has no environment variables of its own any more - see the
 **Cause:** some hosting providers filter plain HTTP by the `Host` header and reject anything that is not a recognized domain, including a raw WebSocket upgrade request sent to an IP.
 **Fix:** set `MC_PLUGIN_URL` to the server's raw IP address, not a domain name.
 
-**Symptom:** Claude only sees one or two `mc_*` tools instead of thirteen.
+**Symptom:** Claude only sees one or two `mc_*` tools instead of fourteen.
 **Cause:** Claude Desktop's "Load tools when needed" setting loads tool definitions lazily and unreliably.
 **Fix:** switch the connector's tool access setting to "Tools already loaded", or start a new chat.
 

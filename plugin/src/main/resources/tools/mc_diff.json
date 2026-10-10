@@ -1,0 +1,204 @@
+{
+  "name": "mc_diff",
+  "title": "Compare a region",
+  "description": "Compares a live box with a reference and reports exactly which cells differ: counts by class (missing, unexpected, wrong-material, wrong-properties), \"expected -> found\" transitions, the bounding box of the differences and the first sample cells in y,z,x order. Optional anomaly checks find floating or stacked snow/carpets/plates/rails/torches/plants, unsupported attached blocks and enclosed air pockets. States compare in canonical form: no minecraft: prefix and no default-valued properties, so light[level=11,waterlogged=false] equals light[level=11]; air, cave_air and void_air are equal. When cells differ, returns a diffId receipt for mc_repair.\n\nWHEN TO USE: to check a finished build or edit against what it should be in one call instead of several mc_inspect slices; to see what changed since a snapshot; to audit a blueprint placement; to find stray snow, floating decorations or sealed air pockets in an area.\n\nWHEN NOT TO USE: for a plain block inventory (mc_inspect); for appearance (mc_render); for exact checks that must freeze keep/filter eligibility and sign text BEFORE building (mc_verify). Entities, sign text and other NBT are not compared.\n\nPARAMETERS/COORDINATES: X grows east, Z grows south, Y grows up. from/to are inclusive corners in any order; volume is capped by limits.max-diff-volume (default 2,000,000) and read in sub-boxes of at most limits.max-read-volume. against takes exactly one reference: {snapshot:id} (its region must contain the box), {expected:[[x,y,z,\"state\"],...]} (at most 50,000 cells), {expectedFile:name} (server file plugins/Ashlar/expected/<name>.json or .json.gz with the same array or {\"cells\":[...]}), or {blueprint:{id,palette?}, transform?} (compiled like mc_build; frozen eligible final cells). Reference cells outside the box are counted and skipped. scope \"box\" (default) also compares undeclared cells against baselineSnapshot when given, else skips them; scope \"declared\" compares declared cells only. ignore: up to 32 globs such as \"*_leaves\", \"snow[layers=1]\" or \"oak_*[*]\"; a cell is skipped when the reference or the live state matches. compare \"material\" ignores properties. anomalies: any of floating, stacked, unsupported, enclosedAir. samples 1-1000 (default 50). format: summary (default), cells (all samples) or columns (per x,z column counts and y ranges).\n\nSIDE EFFECTS: none on the world. Stores an owner-scoped diff receipt (at most 100,000 differing cells; expires after two hours or on plugin reload/restart).",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "world": {
+        "description": "World name. Omitted uses the plugin's configured default world.",
+        "type": "string",
+        "minLength": 1
+      },
+      "from": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        ],
+        "items": false,
+        "minItems": 3,
+        "maxItems": 3,
+        "description": "Inclusive [x, y, z] corner of the box to compare."
+      },
+      "to": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        ],
+        "items": false,
+        "minItems": 3,
+        "maxItems": 3,
+        "description": "Inclusive [x, y, z] corner opposite `from`. Order does not matter."
+      },
+      "against": {
+        "description": "Exactly one reference: snapshot, expected, expectedFile or blueprint (transform only with blueprint).",
+        "type": "object",
+        "properties": {
+          "snapshot": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Snapshot id whose region contains the box."
+          },
+          "expected": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50000,
+            "description": "Absolute [x, y, z, \"block_state\"] cells.",
+            "items": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ],
+              "items": false,
+              "minItems": 4,
+              "maxItems": 4
+            }
+          },
+          "expectedFile": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "Name of plugins/Ashlar/expected/<name>.json(.gz) without extension."
+          },
+          "blueprint": {
+            "type": "object",
+            "description": "Saved blueprint selector, as in mc_build.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "palette": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "id"
+            ]
+          },
+          "transform": {
+            "type": "object",
+            "description": "Optional local transform for the blueprint, as in mc_build."
+          }
+        },
+        "additionalProperties": false
+      },
+      "scope": {
+        "type": "string",
+        "enum": [
+          "box",
+          "declared"
+        ],
+        "default": "box",
+        "description": "\"box\": undeclared cells compare against baselineSnapshot when given, else are skipped. \"declared\": declared reference cells only."
+      },
+      "baselineSnapshot": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Snapshot id for undeclared cells (expected/expectedFile/blueprint references with scope box)."
+      },
+      "ignore": {
+        "type": "array",
+        "maxItems": 32,
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": "Block-state globs to skip, e.g. \"*_leaves\", \"snow[layers=1]\", \"oak_*[*]\"."
+      },
+      "compare": {
+        "type": "string",
+        "enum": [
+          "exact",
+          "material"
+        ],
+        "default": "exact",
+        "description": "\"exact\" compares canonical states; \"material\" ignores properties."
+      },
+      "anomalies": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "enum": [
+            "floating",
+            "stacked",
+            "unsupported",
+            "enclosedAir"
+          ]
+        },
+        "description": "Placement checks on the live box. floating: snow layer, carpet, pressure plate, rail, standing torch, floor lantern or plant without suitable support below. stacked: snow layer on a partial snow layer. unsupported: attached blocks (ladders, wall torches, signs, doors, banners, hanging blocks) without support. enclosedAir: air not connected to the box boundary."
+      },
+      "samples": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1000,
+        "default": 50,
+        "description": "Sample cells kept per list (differences and each anomaly kind)."
+      },
+      "format": {
+        "type": "string",
+        "enum": [
+          "summary",
+          "cells",
+          "columns"
+        ],
+        "default": "summary",
+        "description": "summary: counts, transitions, bbox and 5 samples. cells: every kept sample. columns: per x,z column difference counts and y ranges."
+      }
+    },
+    "required": [
+      "from",
+      "to",
+      "against"
+    ],
+    "additionalProperties": false,
+    "$schema": "https://json-schema.org/draft/2020-12/schema"
+  },
+  "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false
+  }
+}

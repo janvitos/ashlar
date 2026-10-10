@@ -126,7 +126,7 @@ async function runHttpChecks() {
         } catch {
             // reported as a failed check below
         }
-        check(`/mcp/<token> tools/list response lists 13 tools (got ${toolCount})`, toolCount === 13);
+        check(`/mcp/<token> tools/list response lists 14 tools (got ${toolCount})`, toolCount === 14);
 
         const wrongToken = await fetch(`${base}/mcp/wrong-token`, { method: "POST", headers: jsonHeaders, body });
         await wrongToken.text();
@@ -154,7 +154,7 @@ async function main() {
     // --- tools/list -------------------------------------------------------
     section("tools/list");
     const { tools } = await client.listTools();
-    check("exactly 13 tools", tools.length === 13);
+    check("exactly 14 tools", tools.length === 14);
     const expectedNames = [
         "mc_status",
         "mc_players",
