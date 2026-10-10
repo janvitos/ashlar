@@ -13,6 +13,7 @@ import org.bukkit.block.data.type.Tripwire;
 import org.bukkit.block.data.type.Wall;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Post-pass that gives freshly-written connectable blocks (glass panes,
@@ -85,16 +86,18 @@ final class ConnectionPass {
     private final World world;
     private final List<int[]> positions;
     private final boolean enabled;
+    private final Supplier<JournalCapture> journal;
 
     private boolean selfPhaseDone;
     private int selfIndex = 0;
     private int neighborIndex = 0;
     private int neighborSide = 0;
 
-    ConnectionPass(World world, List<int[]> positions, boolean enabled) {
+    ConnectionPass(World world, List<int[]> positions, boolean enabled, Supplier<JournalCapture> journal) {
         this.world = world;
         this.positions = positions;
         this.enabled = enabled;
+        this.journal = journal;
         // Callers construct this before their write loop fills `positions`, so
         // the list is always empty here; decide emptiness in step(), not now.
         this.selfPhaseDone = false;
@@ -167,6 +170,10 @@ final class ConnectionPass {
     private void refresh(int x, int y, int z) {
         if (!neighboursStayPut(x, y, z)) {
             return;
+        }
+        JournalCapture j = journal.get();
+        if (j != null) {
+            j.beforeNeighbourhood(world, x, y, z);
         }
         Block block = world.getBlockAt(x, y, z);
         BlockData target = block.getBlockData();

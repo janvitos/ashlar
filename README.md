@@ -34,7 +34,7 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 - Coarse-grained tools: one `mc_build` call places up to 500,000 blocks, instead of the AI placing blocks one at a time.
 - All block edits run on the server's main thread, spread across ticks under a per-tick time budget, so a large build does not freeze the server or lag players.
 - Physics is off while writing (sand does not fall, water does not flow); a connection pass afterward lets fences/panes/walls/stairs connect to their neighbours, and any block left without support is reported back as a warning instead of silently popping off.
-- `mc_build` can snapshot the affected region before writing, so any build can be rolled back with `mc_restore`.
+- Every writing `mc_build`, `mc_repair` and `mc_restore` is journalled: `mc_restore {journal}` undoes just that call cell by cell, keeping anything changed since (reported as conflicts). `mc_build` can also snapshot the affected region before writing, so a whole region can be rolled back with `mc_restore`.
 
 ## The tools
 
@@ -51,8 +51,8 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | `mc_repair` | Guarded repairs of mismatches from a fresh comparison, followed by full verification; no matching-cell or neighbor refresh writes. |
 | `mc_inspect` | Exact block contents of a region (statistics, ASCII slice, sign text). |
 | `mc_diff` | Read-only comparison of a live box against a snapshot, expected cells or a blueprint, with anomaly checks and a repairable diffId. |
-| `mc_snapshot` | Save a region before changing it (or list saved snapshots). |
-| `mc_restore` | Roll a region back to a snapshot. |
+| `mc_snapshot` | Save a region before changing it, list snapshots, or list/delete build journal entries (`touches` finds the calls that changed an area). |
+| `mc_restore` | Roll a region back to a snapshot, or undo one journalled call selectively (safe/force, dry run). |
 | `mc_command` | Run a server console command and return its output (escape hatch). |
 
 Default lightweight flow for substantial builds: `mc_players` only for player context/safety -> one `mc_survey` (reuse a recent relevant survey) -> `mc_build` -> one `mc_render` for appearance. Tiny edits can rely on build feedback. If a concrete issue appears, inspect/correct only that area and recheck it if needed; no repeated whole-build verification loops. Keep rollback protection when editing existing terrain/structures, preferably `mc_build snapshot:true` rather than a redundant separate call; snapshots do not cover NBT. Coordinates: X grows east, Z grows south, Y grows up; `from`/`to` corners are inclusive.
@@ -587,6 +587,7 @@ A small hut (survey, snapshot, build, a couple of renders, a final reply - about
 | `server.allowed-ips` | `[]` | Allow-list of exact client IPs (IPv4/IPv6, no CIDR/hostnames in v1). Empty = allow any IP. |
 | `limits.max-blocks-per-operation` | `500000` | Max blocks a single `fill_batch`/`set_blocks` request may touch. |
 | `limits.max-read-volume` | `200000` | Max region volume `read_region`/`heightmap` may return in one call. |
+| `limits.max-diff-volume` | `2000000` | Max box volume of one `mc_diff` call (read in parts of at most `max-read-volume`). |
 | `limits.tick-budget-ms` | `20` | Max milliseconds of work per server tick for build tasks. |
 | `limits.max-queued-operations` | `16` | Max operations that may be queued at once before new ones are rejected. |
 | `limits.max-chunks-per-operation` | `1024` | Max 16x16 chunk columns a single operation's bounding box may force-load (a 1024-chunk cap covers a 512x512 block footprint). |
@@ -597,6 +598,11 @@ A small hut (survey, snapshot, build, a couple of renders, a final reply - about
 | `snapshot.enabled` | `true` | Whether `mc_snapshot`/`mc_restore` are available. |
 | `snapshot.max-snapshots` | `20` | Snapshots kept on disk; oldest is evicted first. |
 | `snapshot.max-volume` | `200000` | Max region volume a single snapshot may capture. |
+| `journal.enabled` | `true` | Journal every writing `mc_build`/`mc_repair`/`mc_restore` for selective undo (block states only). |
+| `journal.max-entries` | `200` | Journal entries kept on disk (`plugins/Ashlar/journal/`); oldest idle entry is evicted first. |
+| `journal.max-total-cells` | `20000000` | Total changed cells across all entries. |
+| `journal.max-age-days` | `30` | Older entries are evicted. |
+| `journal.max-cells-per-entry` | `1000000` | A call changing more cells keeps no journal (the result says so). |
 | `logging.log-operations` | `true` | Whether executed operations are appended to `operations.log`. |
 | `run-command.enabled` | `true` | Whether the `run_command`/`mc_command` escape hatch is available at all. |
 | `engine.connect-blocks` | `true` | Whether writes get a shape-only connection pass (panes/fences/walls/bars/stairs connect to neighbours). Overridable per-request via `mc_build`'s `connect` field. |

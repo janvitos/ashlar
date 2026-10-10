@@ -25,15 +25,41 @@ import static cc.wujm.ashlar.tool.mc.JsonUtil.padEnd;
 public final class McSnapshot implements Tool {
 
     private static final long MAX_VOLUME = 200_000;
-    private static final List<String> ACTIONS = List.of("create", "list");
+    private static final List<String> ACTIONS = List.of("create", "list", "journal-list", "journal-delete");
 
     private final ToolSpec spec = ToolSpec.load("mc_snapshot");
     private final RpcHandler snapshotHandler;
     private final RpcHandler listSnapshotsHandler;
+    private final JournalService journals;
 
     public McSnapshot(RpcHandler snapshotHandler, RpcHandler listSnapshotsHandler) {
+        this(snapshotHandler, listSnapshotsHandler, null);
+    }
+
+    public McSnapshot(RpcHandler snapshotHandler, RpcHandler listSnapshotsHandler, JournalService journals) {
         this.snapshotHandler = snapshotHandler;
         this.listSnapshotsHandler = listSnapshotsHandler;
+        this.journals = journals;
+    }
+
+    /** {@code journal-list} filters: {@code since} (ISO-8601 instant), {@code label}, {@code world}, {@code touches}, {@code limit}. */
+    static JournalService.ListArgs parseJournalList(JsonObject o) {
+        java.time.Instant since = null;
+        String s = ArgParse.optString(o, "since");
+        if (s != null) {
+            try {
+                since = java.time.Instant.parse(s);
+            } catch (java.time.format.DateTimeParseException e) {
+                throw new ToolArgError("since must be an ISO-8601 UTC instant, e.g. \"2026-10-10T12:00:00Z\"");
+            }
+        }
+        cc.wujm.ashlar.engine.Region touches = null;
+        if (ArgParse.has(o, "touches")) {
+            JsonObject t = ArgParse.requireObject(o.get("touches"), "touches");
+            touches = cc.wujm.ashlar.engine.Region.of(ArgParse.requireCoords3(t, "from"), ArgParse.requireCoords3(t, "to"));
+        }
+        return new JournalService.ListArgs(since, ArgParse.optString(o, "label"), ArgParse.optString(o, "world"), touches,
+                McVerify.bounded(o, "limit", 50, 1, 500));
     }
 
     @Override
@@ -67,6 +93,15 @@ public final class McSnapshot implements Tool {
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
         return ToolRunner.runText("mc_snapshot", () -> {
             Args a = Args.parse(args);
+
+            if (a.action().startsWith("journal-")) {
+                if (journals == null) throw new ToolArgError("the build journal is unavailable");
+                if (a.action().equals("journal-delete")) {
+                    String id = ArgParse.requireString(args, "id");
+                    return journals.delete(ctx, id);
+                }
+                return journals.list(ctx, parseJournalList(args));
+            }
 
             if (a.action().equals("list")) {
                 return listSnapshotsHandler.handle(ctx, new JsonObject()).thenApply(el -> {

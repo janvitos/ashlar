@@ -89,6 +89,7 @@ public final class ConfigReload {
                 mergedLimits,
                 newConfig.world(),
                 newConfig.snapshot(),
+                newConfig.journal(),
                 newConfig.logging(),
                 newConfig.runCommand(),
                 newConfig.engine(),

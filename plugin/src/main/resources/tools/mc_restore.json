@@ -1,19 +1,47 @@
 {
   "name": "mc_restore",
-  "title": "Restore snapshot",
-  "description": "Restores a region to exactly the state a snapshot captured it in, undoing everything built on top of it since. This is the undo mechanism for this whole toolset: neither mc_build nor any other tool can partially undo itself any other way.\n\nWHEN TO USE: whenever a build went wrong and you have a snapshot id from mc_build's response (when it was called with snapshot:true) or from mc_snapshot; when a user asks to undo, revert, or roll back a recent change; before trying a second, different approach to the same area after an experimental one did not work out. Restoring does not delete the snapshot, so the same id can be restored more than once if needed (for example, to reset an area repeatedly while iterating).\n\nWHEN NOT TO USE: to see what a snapshot or region currently contains before deciding whether to restore it (use mc_inspect on the same coordinates - mc_restore only writes, it does not report contents). To list available snapshot ids when you do not already have one (use mc_snapshot with action:\"list\").\n\nPARAMETERS: `id` is the snapshot id string, required. There is no coordinate input - the region and world to restore are entirely determined by the snapshot itself, exactly as it was when captured. An id that does not exist (typo, or already evicted because the server's snapshot count limit was exceeded by newer snapshots) is rejected with an error rather than silently doing nothing.\n\nSIDE EFFECTS: permanently overwrites the current contents of the snapshot's region with the captured contents - anything placed there since the snapshot was taken, inside that region, is lost and cannot itself be undone unless another snapshot was taken in between. Blocks are restored without physics updates, same as mc_build. Cost is comparable to an mc_build call over the same volume (typically a second or two for tens of thousands of blocks). If the snapshot's world no longer exists on this server, the restore fails without changing anything.",
+  "title": "Restore snapshot or undo a journalled call",
+  "description": "Undoes earlier changes in one of two ways: restores a snapshot's whole region, or undoes one journalled tool call (mc_build, mc_repair or mc_restore) cell by cell.\n\nWHEN TO USE: a build or repair went wrong; a user asks to undo, revert or roll back a change. Prefer `journal` when other work may have happened in the area since: safe mode restores only cells that still hold what that call wrote and reports the rest as conflicts, so later builds and hand edits survive. Use `id` (a snapshot) to reset a whole region to one moment, for example while iterating on an experiment. Find journal ids in the build response or with mc_snapshot {action:\"journal-list\", touches:{from,to}}.\n\nWHEN NOT TO USE: to look at a region's contents (use mc_inspect or mc_diff). To list snapshots (mc_snapshot action:\"list\") or journal entries (action:\"journal-list\").\n\nPARAMETERS: exactly one of `id` (snapshot id) or `journal` (journal id). Journal options: `mode` \"safe\" (default) or \"force\" (also overwrites cells changed since and reports how many); `dryRun:true` reports what would happen without writing; `allowBlockEntityReplacement:true` also replaces cells that now hold signs, chests or other block entities (skipped by default); `samples` limits listed conflicts (default 20). There are no coordinates: the snapshot or journal entry fixes the world and cells.\n\nSIDE EFFECTS: a snapshot restore overwrites its whole region with the captured states. A journal undo writes only the original states of that call's changed cells, without physics or a connection pass (neighbour shapes the call changed are journalled too). Both are journalled themselves, so an undo can be undone. Snapshots and journals store block states only: sign text, inventories and entities are not restored. Unknown or evicted ids are rejected without changes; journal entries expire (journal.max-age-days) and are evicted oldest first.",
   "inputSchema": {
     "type": "object",
     "properties": {
       "id": {
         "type": "string",
         "minLength": 1,
-        "description": "Snapshot id, e.g. \"snap-20260913-220102-a3f9\", as returned by mc_snapshot or mc_build with snapshot:true."
+        "description": "Snapshot id, e.g. \"snap-20260913-220102-a3f9\", as returned by mc_snapshot or mc_build with snapshot:true. Not with `journal`."
+      },
+      "journal": {
+        "type": "string",
+        "pattern": "^jrn-\\d{8}-\\d{6}-[0-9a-f]{4}$",
+        "description": "Journal id, e.g. \"jrn-20261010-120239-aa42\", from a build/repair/restore response or mc_snapshot journal-list. Undoes only that call."
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "safe",
+          "force"
+        ],
+        "default": "safe",
+        "description": "Journal undo only. safe: restore cells still holding what the call wrote; force: restore every cell, overwriting later changes."
+      },
+      "dryRun": {
+        "type": "boolean",
+        "default": false,
+        "description": "Journal undo only. Report restorable cells and conflicts without writing."
+      },
+      "allowBlockEntityReplacement": {
+        "type": "boolean",
+        "default": false,
+        "description": "Journal undo only. Also replace cells that now hold a block entity (sign text, inventory), which is lost."
+      },
+      "samples": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 200,
+        "default": 20,
+        "description": "Journal undo only. Maximum conflict samples listed."
       }
     },
-    "required": [
-      "id"
-    ],
     "$schema": "https://json-schema.org/draft/2020-12/schema"
   },
   "annotations": {

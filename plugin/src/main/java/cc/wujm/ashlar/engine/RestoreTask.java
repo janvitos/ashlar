@@ -53,7 +53,7 @@ public final class RestoreTask extends BuildTask {
         this.world = world;
         this.data = data;
         this.paletteBlocks = paletteBlocks;
-        this.connectionPass = new ConnectionPass(world, connectablePositions, connect);
+        this.connectionPass = new ConnectionPass(world, connectablePositions, connect, this::journal);
         this.supportCheck = new SupportCheck(world, supportPositions, neighbourPositions.positions(), supportWarnings, false);
     }
 
@@ -95,6 +95,10 @@ public final class RestoreTask extends BuildTask {
                 BlockData current = block.getBlockData();
                 if (!current.equals(target)) {
                     // The only block-writing call allowed anywhere: never triggers physics.
+                    JournalCapture j = journal();
+                    if (j != null) {
+                        j.before(block, current);
+                    }
                     block.setBlockData(target, false);
                     addChanged(1);
                     if (ConnectionPass.isConnectable(target)) {

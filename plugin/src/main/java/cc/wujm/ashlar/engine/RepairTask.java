@@ -54,10 +54,10 @@ public final class RepairTask extends BuildTask {
             // An edit after the guard pass/snapshot is never blindly overwritten.
             if(!unchanged(b,o)){stale++;issue(o,"late edit skipped; compare again");}
             else {
-                boolean blockChanged=!b.getBlockData().equals(target);
-                if(blockChanged)b.setBlockData(target,false);
+                BlockData live=b.getBlockData();boolean blockChanged=!live.equals(target);
+                if(blockChanged){if(journal()!=null)journal().before(b,live);b.setBlockData(target,false);}
                 boolean signChanged=o.expected().sign()!=null && !o.expected().sign().equals(SignAccess.read(b));
-                if(signChanged){SignAccess.apply(b,o.expected().sign());signWrites++;}
+                if(signChanged){SignAccess.apply(b,o.expected().sign());signWrites++;if(journal()!=null)journal().noteBlockEntityWrite();}
                 if(blockChanged || signChanged){written++;addChanged(1);}
             }
             write++;advance(1);if(write%64==0 && System.nanoTime()>=deadline)return false;
