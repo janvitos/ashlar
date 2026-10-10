@@ -39,6 +39,14 @@ public abstract class BuildTask {
         return region;
     }
 
+    /**
+     * Whether the executor force-loads {@link #region()}'s chunks while this task runs. Tasks that
+     * must not load anything (they only look at chunks that are already loaded) return false.
+     */
+    public boolean needsChunkTickets() {
+        return true;
+    }
+
     /** The world this task writes to; also used to acquire chunk tickets. */
     public abstract World world();
 

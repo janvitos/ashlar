@@ -20,7 +20,7 @@ class ToolSpecTest {
 
     /** Same order as mcp-server/src/tools/index.ts's registerAllTools and ToolRegistry's registration in AshlarPlugin. */
     private static final List<String> EXPECTED_ORDER = List.of(
-            "mc_status", "mc_players", "mc_survey", "mc_build", "mc_blueprint", "mc_plan", "mc_verify", "mc_repair", "mc_inspect", "mc_diff", "mc_render", "mc_snapshot", "mc_restore", "mc_protect", "mc_command");
+            "mc_status", "mc_players", "mc_survey", "mc_build", "mc_blueprint", "mc_plan", "mc_verify", "mc_repair", "mc_inspect", "mc_diff", "mc_render", "mc_sightline", "mc_snapshot", "mc_restore", "mc_protect", "mc_command");
 
     @Test
     void everyToolSpecLoadsWithMatchingName() {
@@ -63,7 +63,7 @@ class ToolSpecTest {
         assertTrue(instructions.contains("mandatory plugin-side structural safety validation"));
         assertTrue(instructions.contains("Preserve rollback protection"));
         assertFalse(instructions.contains("Before nontrivial builds, run mc_plan"));
-        assertTrue(instructions.contains("Fifteen tools"));
+        assertTrue(instructions.contains("Sixteen tools"));
     }
 
     @Test

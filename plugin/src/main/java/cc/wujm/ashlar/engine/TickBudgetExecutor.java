@@ -171,7 +171,7 @@ public final class TickBudgetExecutor {
         current = next;
         currentStartedAtNanos = System.nanoTime();
         try {
-            currentGuard = new ChunkTicketGuard(next.task().world(), next.task().region(), plugin);
+            currentGuard = next.task().needsChunkTickets() ? new ChunkTicketGuard(next.task().world(), next.task().region(), plugin) : null;
         } catch (Throwable t) {
             logger.log(Level.SEVERE, "Failed to acquire chunk tickets for a build task; aborting it", t);
             failCurrent(t);
