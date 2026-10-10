@@ -70,6 +70,8 @@ import cc.wujm.ashlar.tool.mc.McInspect;
 import cc.wujm.ashlar.tool.mc.McPlayers;
 import cc.wujm.ashlar.tool.mc.McRender;
 import cc.wujm.ashlar.tool.mc.McRestore;
+import cc.wujm.ashlar.tool.mc.McProtect;
+import cc.wujm.ashlar.tool.mc.ProtectionGuard;
 import cc.wujm.ashlar.tool.mc.McSnapshot;
 import cc.wujm.ashlar.tool.mc.McStatus;
 import cc.wujm.ashlar.tool.mc.McSurvey;
@@ -104,6 +106,7 @@ public final class AshlarPlugin extends JavaPlugin {
     private TickBudgetExecutor executor;
     private SnapshotStore snapshotStore;
     private JournalStore journalStore;
+    private cc.wujm.ashlar.protect.ProtectedRegions protectedRegions;
     private ExecutorService renderExecutor;
     private AgentService agentService;
     private ConfigHolder configHolder;
@@ -218,11 +221,14 @@ public final class AshlarPlugin extends JavaPlugin {
         BlueprintStore blueprintStore = new BlueprintStore(dataFolder.resolve("blueprints"));
         BuildPreflight preflight = new BuildPreflight(configHolder, executor);
         JournalService journalService = new JournalService(configHolder, executor, journalStore);
+        this.protectedRegions = new cc.wujm.ashlar.protect.ProtectedRegions(dataFolder.resolve("protected.json"));
+        loadProtectedRegions();
+        ProtectionGuard protection = new ProtectionGuard(protectedRegions, configHolder, operationLog, getLogger());
         McBuild buildTool = new McBuild(snapshotCreateHandler, fillBatchHandler, setBlocksHandler, blueprintStore, () -> {
             var limits = configHolder.get().limits();
             return new BlueprintCompiler.Limits(limits.maxBlocksPerOperation(), limits.maxChunksPerOperation(),
                     limits.maxFlowingLiquidsPerOperation());
-        }).withPreflight(preflight).withJournal(journalService);
+        }).withPreflight(preflight).withJournal(journalService).withProtection(protection);
         VerificationService verification = new VerificationService(buildTool, preflight, executor, configHolder,
                 new VerificationStore(), snapshotCreateHandler);
         DiffService diffService = new DiffService(buildTool, preflight, executor, configHolder, new DiffStore(),
@@ -232,15 +238,16 @@ public final class AshlarPlugin extends JavaPlugin {
                 new McPlayers(playersHandler),
                 new McSurvey(heightmapHandler, renderHandler),
                 buildTool,
-                new McBlueprint(blueprintStore, new cc.wujm.ashlar.tool.mc.TerrainFitService(configHolder, executor, preflight)),
+                new McBlueprint(blueprintStore, new cc.wujm.ashlar.tool.mc.TerrainFitService(configHolder, executor, preflight).withProtection(protection)),
                 new McPlan(buildTool, preflight, renderExecutor),
                 new McVerify(buildTool, verification),
-                new McRepair(verification, diffService).withJournal(journalService),
+                new McRepair(verification, diffService).withJournal(journalService).withProtection(protection),
                 new McInspect(readRegionHandler),
                 new McDiff(diffService),
                 new McRender(renderHandler),
                 new McSnapshot(snapshotCreateHandler, listSnapshotsHandler, journalService),
-                new McRestore(restoreHandler, journalService),
+                new McRestore(restoreHandler, journalService).withProtection(protection, snapshotStore::get),
+                new McProtect(protectedRegions, configHolder),
                 new McCommand(runCommandHandler)));
         dispatcher.register("tool_catalog", new ToolCatalogHandler(toolRegistry));
         dispatcher.register("tool_call", new ToolCallHandler(toolRegistry));
@@ -400,6 +407,7 @@ public final class AshlarPlugin extends JavaPlugin {
             operationLog.setEnabled(applied.logging().logOperations());
         }
         applyEveryoneCanUse(applied);
+        loadProtectedRegions();
         if (agentService != null) {
             agentService.applyConfig(applied.agent());
         }
@@ -408,6 +416,18 @@ public final class AshlarPlugin extends JavaPlugin {
                 ? "Config reloaded."
                 : "Config reloaded; these changes need a restart: " + String.join(", ", coldChanges));
         return ReloadOutcome.ok(coldChanges);
+    }
+
+    /** Reads protected.json at enable and on /ashlar reload; an invalid file keeps the regions already loaded. */
+    private void loadProtectedRegions() {
+        if (protectedRegions == null) return;
+        try {
+            protectedRegions.load();
+            int n = protectedRegions.all().size();
+            if (n > 0) getLogger().info("Loaded " + n + " protected region" + (n == 1 ? "" : "s") + ".");
+        } catch (java.io.IOException e) {
+            getLogger().warning("protected.json not loaded, keeping the previous protected regions: " + e.getMessage());
+        }
     }
 
     private void logFatal(String message) {

@@ -207,6 +207,29 @@ Branch: `feat/build-journal` (supersedes Step 10's revision/undo item).
     - touches/label listing and delete worked;
   - test region restored to pristine air, all test entries deleted. No production changes.
 
+Merged via PR #10.
+
+## Step 13 implementation and verification
+
+Branch: `feat/protected-regions`.
+
+- Pure core in `cc.wujm.ashlar.protect`:
+  - `ProtectedRegion`: name, world, box, mode (deny/warn), note, owner, creation time;
+  - `ProtectionCheck`: counts the write targets of one call per region; `outline`/`walls` fills are split into disjoint shell slabs; cells are prefiltered by the regions' envelope;
+  - `ProtectedRegions`: `protected.json` with atomic writes, swapped as an immutable view, reloaded at enable and by `/ashlar reload` (an invalid file keeps the loaded set).
+- `ProtectionGuard` (tool layer) runs after validation and before any snapshot or write: `mc_build`, both `mc_repair` paths (selected cells), snapshot restores (the snapshot box) and journal undos (every journalled cell). `mc_plan`, `dryRun`, journal dry runs and `mc_blueprint fit` only report. Overrides name each region and are logged. Deviation from the plan: sparse cells use an envelope prefilter plus a linear region scan instead of a chunk hash, which is cheap for the expected few dozen regions.
+- Not checked: `mc_command`, the raw `fill_batch`/`set_blocks`/`restore` RPCs (the MCP adapter only uses `tool_call`), `/ashlar undo`, players and other plugins. Connection-pass shape updates of protected neighbours just outside a write target are not counted.
+- Verification:
+  - one plugin build: 762 tests passed (16 new), zero failures; MCP build and 8 tests passed;
+  - isolated-server smoke test `e2e-protect.mjs`, 30 checks:
+    - a fill crossing a deny region was rejected before any snapshot or write;
+    - `dryRun` and `mc_plan` reported the overlap (with override status);
+    - walls around the region passed untouched;
+    - an unknown override name and a wildcard were rejected;
+    - the override build wrote and was logged; a warn region wrote with a warning;
+    - a journal undo and a snapshot restore over the region were rejected without an override and succeeded with one;
+  - test region restored to pristine air, regions removed, journal entries deleted. No production changes.
+
 ## Fork activation
 
 User-approved deployment uses Paper 26.1.2 build 74, without a Paper upgrade. The fork now compiles against that exact API and declares minimum API 26.1. One build passed; an approved restart used a verified full 30-second in-game countdown before a graceful stop/install/start. Original artifact retained for rollback; plugin configuration/credentials unchanged. Pi points at the locally built fork adapter through the existing Docker network arrangement. Basic read-only deployment check confirmed plugin 0.4.9-dev, authenticated MCP, 13 tools and photo-reference instructions. No construction/terrain test writes or exhaustive regressions were performed on production. Pi needs `/reload` to refresh an existing session's connection and catalog.

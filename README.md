@@ -35,6 +35,7 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 - All block edits run on the server's main thread, spread across ticks under a per-tick time budget, so a large build does not freeze the server or lag players.
 - Physics is off while writing (sand does not fall, water does not flow); a connection pass afterward lets fences/panes/walls/stairs connect to their neighbours, and any block left without support is reported back as a warning instead of silently popping off.
 - Every writing `mc_build`, `mc_repair` and `mc_restore` is journalled: `mc_restore {journal}` undoes just that call cell by cell, keeping anything changed since (reported as conflicts). `mc_build` can also snapshot the affected region before writing, so a whole region can be rolled back with `mc_restore`.
+- Protected regions (`mc_protect`): named boxes that `mc_build`, `mc_repair` and `mc_restore` refuse to write into (`deny`) or warn about (`warn`) unless the call names the region in `override`. The check runs before any snapshot or write; `mc_plan` and `dryRun` report overlaps. Regions are stored in `plugins/Ashlar/protected.json` and re-read by `/ashlar reload`; overrides are logged. Players, other plugins and `mc_command` are not checked.
 
 ## The tools
 
@@ -53,7 +54,8 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | `mc_diff` | Read-only comparison of a live box against a snapshot, expected cells or a blueprint, with anomaly checks and a repairable diffId. |
 | `mc_snapshot` | Save a region before changing it, list snapshots, or list/delete build journal entries (`touches` finds the calls that changed an area). |
 | `mc_restore` | Roll a region back to a snapshot, or undo one journalled call selectively (safe/force, dry run). |
-| `mc_command` | Run a server console command and return its output (escape hatch). |
+| `mc_protect` | Add, list or remove protected regions that writing tools refuse to touch (or warn about) without an explicit per-call `override`. |
+| `mc_command` | Run a server console command and return its output (escape hatch; not checked against protected regions). |
 
 Default lightweight flow for substantial builds: `mc_players` only for player context/safety -> one `mc_survey` (reuse a recent relevant survey) -> `mc_build` -> one `mc_render` for appearance. Tiny edits can rely on build feedback. If a concrete issue appears, inspect/correct only that area and recheck it if needed; no repeated whole-build verification loops. Keep rollback protection when editing existing terrain/structures, preferably `mc_build snapshot:true` rather than a redundant separate call; snapshots do not cover NBT. Coordinates: X grows east, Z grows south, Y grows up; `from`/`to` corners are inclusive.
 

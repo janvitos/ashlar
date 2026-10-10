@@ -35,6 +35,17 @@ public final class McRestore implements Tool {
         this.journals = journals;
     }
 
+    private ProtectionGuard protection;
+    private java.util.function.Function<String, java.util.Optional<cc.wujm.ashlar.snapshot.Snapshot>> snapshots;
+
+    /** Applies protected regions to snapshot restores (the snapshot's whole box) and journal undos (every journalled cell). */
+    public McRestore withProtection(ProtectionGuard guard,
+            java.util.function.Function<String, java.util.Optional<cc.wujm.ashlar.snapshot.Snapshot>> snapshotLookup) {
+        this.protection = guard;
+        this.snapshots = snapshotLookup;
+        return this;
+    }
+
     @Override
     public ToolSpec spec() {
         return spec;
@@ -71,18 +82,32 @@ public final class McRestore implements Tool {
         if (ArgParse.has(args, "journal")) {
             return ToolRunner.runText("mc_restore", () -> {
                 JournalService.UndoArgs undo = parseUndo(args);
+                List<String> override = ProtectionGuard.parseOverride(args);
                 if (journals == null) throw new ToolArgError("the build journal is unavailable");
-                return journals.undo(ctx, undo);
+                return journals.undo(ctx, undo, protection == null ? null : protection.gate(ctx, "mc_restore", override));
             });
         }
         return ToolRunner.runText("mc_restore", () -> {
             Args a = Args.parse(args);
+            List<String> override = ProtectionGuard.parseOverride(args);
             JsonObject params = new JsonObject();
             params.addProperty("id", a.id());
-            if (journals == null) return restoreText(restoreHandler.handle(ctx, params));
+            List<String> guardLines = List.of();
+            var snapshot = protection == null || snapshots == null ? java.util.Optional.<cc.wujm.ashlar.snapshot.Snapshot>empty() : snapshots.apply(a.id());
+            if (snapshot.isPresent()) {
+                // A restore may write any cell of the snapshot box. An unknown id is left to the restore handler's error.
+                guardLines = protection.enforce(ctx, "mc_restore", snapshot.get().world(), override,
+                        check -> check.box(snapshot.get().region(), cc.wujm.ashlar.protect.ProtectionCheck.Shape.SOLID));
+            }
+            List<String> extra = guardLines;
+            if (journals == null) return restoreText(restoreHandler.handle(ctx, params)).thenApply(text -> append(text, extra));
             return journals.journalled(ctx, true, "mc_restore", "restore of " + a.id(), c -> restoreText(restoreHandler.handle(c, params)),
-                    (text, commit) -> commit.lines().isEmpty() ? text : text + "\n" + String.join("\n", commit.lines()));
+                    (text, commit) -> append(commit.lines().isEmpty() ? text : text + "\n" + String.join("\n", commit.lines()), extra));
         });
+    }
+
+    private static String append(String text, List<String> lines) {
+        return lines.isEmpty() ? text : text + "\n" + String.join("\n", lines);
     }
 
     private static CompletableFuture<String> restoreText(CompletableFuture<JsonElement> restore) {

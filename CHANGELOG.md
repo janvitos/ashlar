@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- Protected regions: new `mc_protect` (`add`/`list`/`remove`) keeps named boxes in `plugins/Ashlar/protected.json` (atomic writes, re-read by `/ashlar reload`). `mc_build`, `mc_repair` (plan and diff), `mc_restore` (snapshot box and journal cells) check every write target before any snapshot or write: `deny` rejects with the region, cell count and bounds; `warn` adds a warning line. `override:["name",...]` names each region explicitly (no wildcards) and is logged to `operations.log` and the server log. `mc_plan`, `dryRun`, journal dry runs and `mc_blueprint fit` report overlaps without enforcing. `outline`/`walls` fills only target their shell. Only the creator, an operator or the console/MCP token may remove a region. `mc_command`, players and other plugins are not checked.
+- Added 16 focused unit tests and disposable `e2e-protect.mjs` (30 checks).
+
 - Build journal: every writing `mc_build`, `mc_repair` and `mc_restore` records the original state of each cell it changed, including neighbour shapes changed by the connection pass and chest pairing, and returns a journal id. `mc_build` takes `label` and `journal:false`. Entries live under `plugins/Ashlar/journal/` (config section `journal`, all keys hot: 200 entries, 20M total cells, 30 days, 1M cells per entry).
 - `mc_restore {journal}` undoes one call cell by cell. Safe mode (default) skips cells changed since and reports them with bounds and samples; `mode:"force"`, `dryRun` and `allowBlockEntityReplacement` are optional. The undo is itself journalled, so it can be undone.
 - `mc_snapshot` gains `journal-list` (filters `since`, `label`, `world`, exact `touches`, `limit`) and `journal-delete`. Journals store block states only: sign text, inventories, entities and liquid flow are not undone.

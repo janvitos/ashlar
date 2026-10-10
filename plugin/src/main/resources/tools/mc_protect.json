@@ -1,0 +1,30 @@
+{
+  "name": "mc_protect",
+  "title": "Protected regions",
+  "description": "Adds, lists and removes protected regions: named, persistent boxes that mc_build, mc_repair and mc_restore refuse to write into (mode \"deny\") or only warn about (mode \"warn\") unless a call names the region in `override`.\n\nWHEN TO USE: the user wants a finished or hand-built area kept safe from later agent edits (\"don't touch the dock\", \"this module is approved\"); before working near such an area, list regions with `touches` to see what is protected.\n\nWHEN NOT TO USE: as server-wide griefing protection - players, other plugins and mc_command are not checked. To undo changes (mc_restore). Do not remove a region or pass `override` only to get a rejected build through; ask the user first.\n\nPARAMETERS: action \"add\": name (1-64 lowercase letters, digits, '-', '_'), from/to inclusive corners [x,y,z], optional world (default world), note (at most 200 characters) and mode \"deny\" (default) or \"warn\". Names are unique; remove a region before redefining it. action \"list\": optional world and touches:{from,to} (default world when touches is given). action \"remove\": name; only its creator, an operator or the console/MCP token may remove it.\n\nSIDE EFFECTS: add/remove rewrite plugins/Ashlar/protected.json atomically; no world changes. A deny overlap rejects the writing call before any snapshot or write and names the region, overlapping target-cell count and bounds; mc_plan and dryRun report overlaps without rejecting. Overrides are logged. Checks cover each call's write targets, not physics or connection updates outside them.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "action": { "type": "string", "enum": ["add", "list", "remove"] },
+      "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$", "description": "Region name; required for add and remove." },
+      "world": { "type": "string", "minLength": 1, "description": "add/list: world name; defaults to the server's default world." },
+      "from": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "integer" }, "description": "add: one inclusive corner [x,y,z]." },
+      "to": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "integer" }, "description": "add: the opposite inclusive corner [x,y,z]." },
+      "mode": { "type": "string", "enum": ["deny", "warn"], "default": "deny", "description": "add: deny rejects writing calls; warn lets them write with a warning." },
+      "note": { "type": "string", "minLength": 1, "maxLength": 200, "description": "add: why the area is protected; shown in rejections and warnings." },
+      "touches": {
+        "type": "object",
+        "properties": {
+          "from": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "integer" } },
+          "to": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "integer" } }
+        },
+        "required": ["from", "to"],
+        "additionalProperties": false,
+        "description": "list: only regions intersecting this box."
+      }
+    },
+    "required": ["action"],
+    "additionalProperties": false
+  },
+  "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false }
+}

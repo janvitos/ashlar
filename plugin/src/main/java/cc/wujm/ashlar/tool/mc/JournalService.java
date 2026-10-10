@@ -141,6 +141,14 @@ public final class JournalService {
 
     /** Undoes one entry cell by cell; the undo itself is journalled unless it is a dry run. */
     public CompletableFuture<String> undo(InvocationContext ctx, UndoArgs a) {
+        return undo(ctx, a, null);
+    }
+
+    /**
+     * {@code gate} (nullable) applies protected regions to every journalled cell before the undo
+     * writes; a dry run only reports what the guard would do.
+     */
+    public CompletableFuture<String> undo(InvocationContext ctx, UndoArgs a, ProtectionGuard.Gate gate) {
         JournalStore.Viewer viewer = viewer(ctx);
         return CompletableFuture.supplyAsync(() -> {
             JournalStore.Entry e = io(() -> store.get(a.id(), viewer));
@@ -159,7 +167,9 @@ public final class JournalService {
                 });
                 BlockData[] palette = new BlockData[cells.palette().size()];
                 for (int i = 0; i < palette.length; i++) palette[i] = BlockDataParser.parse(cells.palette().get(i));
-                return new Object[]{e, world, cells, palette};
+                List<String> protection = gate == null ? List.of()
+                        : a.dryRun() ? gate.preview(e.world(), ProtectionGuard.cells(cells)) : gate.enforce(e.world(), ProtectionGuard.cells(cells));
+                return new Object[]{e, world, cells, palette, protection};
             } catch (RuntimeException ex) {
                 store.release(e);
                 throw ex;
@@ -169,6 +179,7 @@ public final class JournalService {
             World world = (World) prep[1];
             JournalCells cells = (JournalCells) prep[2];
             BlockData[] palette = (BlockData[]) prep[3];
+            @SuppressWarnings("unchecked") List<String> protection = (List<String>) prep[4];
             JournalCapture capture = a.dryRun() ? null : open(true);
             InvocationContext jctx = capture == null ? ctx : ctx.withJournal(capture);
             JournalRestoreTask task = new JournalRestoreTask(e.bounds(), world, cells, palette, a.mode(),
@@ -192,7 +203,8 @@ public final class JournalService {
                             Throwable t = (Throwable) pair[1];
                             throw t instanceof CompletionException ce ? ce : new CompletionException(t);
                         }
-                        return undoText(e, a, ((JsonElement) pair[0]).getAsJsonObject(), commit);
+                        String text = undoText(e, a, ((JsonElement) pair[0]).getAsJsonObject(), commit);
+                        return protection.isEmpty() ? text : text + "\n" + String.join("\n", protection);
                     }, store.io()), store.io());
         });
     }

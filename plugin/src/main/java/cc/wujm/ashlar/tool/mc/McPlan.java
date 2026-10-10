@@ -39,8 +39,13 @@ public final class McPlan implements Tool {
                     if (ArgParse.has(slice, "at")) BuildTransform.strictInt(slice.get("at"), "preview.slice.at");
                 }
             }
-            return build.prepare(request,true).thenCompose(preflight::validate)
-                    .thenCompose(v -> preflight.analyze(ctx,v,preview)).thenApplyAsync(this::content,images);
+            return build.prepare(request,true).thenCompose(a -> {
+                ProtectionGuard.Verdict verdict = build.protection(request,a);
+                return preflight.validate(a).thenCompose(v -> preflight.analyze(ctx,v,preview)).thenApply(result -> {
+                    if (verdict != null) verdict.addTo(result.report());
+                    return result;
+                });
+            }).thenApplyAsync(this::content,images);
         });
     }
     private List<ContentBlock> content(BuildPreflight.Result result) {
