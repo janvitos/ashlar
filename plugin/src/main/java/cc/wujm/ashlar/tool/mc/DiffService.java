@@ -211,10 +211,17 @@ public final class DiffService {
 
     public CompletableFuture<JsonObject> repair(InvocationContext ctx, String diffId, Set<BuildExpectation.Pos> positions, int max,
             boolean backup, boolean allowEntities) {
+        return repair(ctx, diffId, positions, max, backup, allowEntities, null);
+    }
+
+    /** {@code gate} (nullable) applies protected regions to the selected cells before any snapshot or write. */
+    public CompletableFuture<JsonObject> repair(InvocationContext ctx, String diffId, Set<BuildExpectation.Pos> positions, int max,
+            boolean backup, boolean allowEntities, ProtectionGuard.Gate gate) {
         DiffStore.Receipt r = store.get(diffId, VerificationService.owner(ctx));
         store.acquire(r);
         try {
             List<BuildExpectation.Observed> selected = select(r, positions, max);
+            List<String> protection = gate == null ? List.of() : gate.enforce(r.world, ProtectionGuard.cells(selected));
             List<McBuild.SparseOpArg> blocks = new ArrayList<>();
             for (var o : selected) {
                 var p = o.expected().pos();
@@ -242,6 +249,7 @@ public final class DiffService {
                                 out.addProperty("diffId", r.id);
                                 out.add("repair", repaired);
                                 if (s != null) out.add("snapshot", s);
+                                if (!protection.isEmpty()) out.add("protection", JsonUtil.stringArray(protection));
                                 if (selected.size() == r.cells.size()) store.consume(r);
                                 out.addProperty("note", "Run mc_diff again to confirm. Repaired cells are stale in this receipt"
                                         + (selected.size() == r.cells.size() ? "; the receipt was retired." : "; other stored cells stay repairable."));

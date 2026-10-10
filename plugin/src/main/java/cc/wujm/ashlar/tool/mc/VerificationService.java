@@ -68,6 +68,10 @@ public final class VerificationService {
         if(selected.size()>max)throw new ToolArgError("repair selection exceeds maxChanges; select explicit positions or compare again with a larger maxChanges (at most 10000)");return selected;
     }
     public CompletableFuture<JsonObject> repair(InvocationContext ctx,String id,String comparison,Set<BuildExpectation.Pos> positions,int max,boolean backup,boolean allowEntities,int samples) {
+        return repair(ctx,id,comparison,positions,max,backup,allowEntities,samples,null);
+    }
+    /** {@code gate} (nullable) applies protected regions to the selected cells before any snapshot or write. */
+    public CompletableFuture<JsonObject> repair(InvocationContext ctx,String id,String comparison,Set<BuildExpectation.Pos> positions,int max,boolean backup,boolean allowEntities,int samples,ProtectionGuard.Gate gate) {
         var p=store.get(id,owner(ctx));store.acquire(p);
         try {
             if(p.expectation.flowing())throw new ToolArgError("flowing-fluid expectations cannot be automatically repaired; use a static build");
@@ -76,6 +80,7 @@ public final class VerificationService {
                 JsonObject noOp=new JsonObject();noOp.addProperty("selectedCells",0);noOp.addProperty("writtenCells",0);noOp.addProperty("signWrites",0);noOp.addProperty("guardPassed",true);noOp.addProperty("staleCells",0);noOp.addProperty("protectedBlockEntities",0);noOp.add("issues",new JsonArray());r.add("repair",noOp);return r;
             }).whenComplete((r,t) -> store.release(p));
             var cells=selected.stream().map(BuildExpectation.Observed::expected).toList();
+            List<String> protection=gate==null?List.of():gate.enforce(p.expectation.world(),ProtectionGuard.cells(selected));
             return validate(p.expectation,cells,backup,c.placement(),selected).thenComposeAsync(v -> {
                 RepairTask guard=new RepairTask(v.bounds(),v.world(),selected,v.blocks(),true,allowEntities);
                 return executor.submit(guard,ctx).thenComposeAsync(g -> {
@@ -87,7 +92,7 @@ public final class VerificationService {
                     } else snap=CompletableFuture.completedFuture(null);
                     return snap.thenComposeAsync(s -> executor.submit(new RepairTask(v.bounds(),v.world(),selected,v.blocks(),false,allowEntities),ctx).thenComposeAsync(repaired ->
                             checkInternal(ctx,p,c.placement(),samples).thenApply(report -> {
-                                report.add("repair",repaired);if(s!=null)report.add("snapshot",s);
+                                report.add("repair",repaired);if(s!=null)report.add("snapshot",s);if(!protection.isEmpty())report.add("protection",JsonUtil.stringArray(protection));
                                 report.addProperty("snapshotLimitations","Snapshots store block states only, not sign text/colors, inventory or arbitrary NBT. No atomic world lock; late edits are skipped.");return report;
                             })));
                 });

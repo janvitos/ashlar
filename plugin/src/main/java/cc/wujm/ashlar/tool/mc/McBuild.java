@@ -49,6 +49,14 @@ public final class McBuild implements Tool {
     private JournalService journals;
 
     public McBuild withJournal(JournalService service) { this.journals = service; return this; }
+    private ProtectionGuard protection;
+
+    public McBuild withProtection(ProtectionGuard guard) { this.protection = guard; return this; }
+
+    /** Protected-region overlaps of a prepared request and its {@code override}; {@code null} without a guard. */
+    ProtectionGuard.Verdict protection(JsonObject raw, Args a) {
+        return protection == null ? null : protection.evaluate(a.world(), ProtectionGuard.parseOverride(raw), ProtectionGuard.targets(a));
+    }
 
     public McBuild(RpcHandler snapshotHandler, RpcHandler fillBatchHandler, RpcHandler setBlocksHandler) {
         this(snapshotHandler, fillBatchHandler, setBlocksHandler, null, () -> BlueprintCompiler.Limits.DEFAULT);
@@ -267,24 +275,40 @@ public final class McBuild implements Tool {
 
     @Override
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
-        return ToolRunner.runText("mc_build", () -> prepare(args, preflight != null).thenCompose(a -> {
-            boolean dryRun = ArgParse.optBoolean(args, "dryRun", false);
-            boolean siteCheck = ArgParse.optBoolean(args, "preflight", false);
-            if (preflight == null) {
-                if (dryRun || siteCheck) throw new ToolArgError("preflight service is unavailable");
-                return execute(ctx,a,ArgParse.optBoolean(args, "detailed", false),args);
-            }
-            return preflight.validate(a).thenCompose(validated -> {
-                if (dryRun || siteCheck) return preflight.analyze(ctx,validated,null).thenCompose(result -> {
-                    JsonObject report = result.report();
-                    if (dryRun) return CompletableFuture.completedFuture(report.toString());
-                    if (!report.get("strictSitePass").getAsBoolean())
-                        throw new ToolArgError("site preflight failed; no snapshot or blocks written: " + report);
-                    return execute(ctx,a,ArgParse.optBoolean(args, "detailed", false),args);
+        return ToolRunner.runText("mc_build", () -> {
+            List<String> override = ProtectionGuard.parseOverride(args);
+            return prepare(args, preflight != null).thenCompose(a -> {
+                boolean dryRun = ArgParse.optBoolean(args, "dryRun", false);
+                boolean siteCheck = ArgParse.optBoolean(args, "preflight", false);
+                boolean detailed = ArgParse.optBoolean(args, "detailed", false);
+                if (preflight == null) {
+                    if (dryRun || siteCheck) throw new ToolArgError("preflight service is unavailable");
+                    return guarded(ctx, a, override, detailed, args);
+                }
+                return preflight.validate(a).thenCompose(validated -> {
+                    if (dryRun || siteCheck) return preflight.analyze(ctx,validated,null).thenCompose(result -> {
+                        JsonObject report = result.report();
+                        if (dryRun) {
+                            ProtectionGuard.Verdict verdict = protection(args, a);
+                            if (verdict != null) verdict.addTo(report);
+                            return CompletableFuture.completedFuture(report.toString());
+                        }
+                        if (!report.get("strictSitePass").getAsBoolean())
+                            throw new ToolArgError("site preflight failed; no snapshot or blocks written: " + report);
+                        return guarded(ctx, a, override, detailed, args);
+                    });
+                    return guarded(ctx, a, override, detailed, args);
                 });
-                return execute(ctx,a,ArgParse.optBoolean(args, "detailed", false),args);
             });
-        }));
+        });
+    }
+
+    /** Applies protected regions, then builds; warning and override lines are appended to the result. */
+    private CompletableFuture<String> guarded(InvocationContext ctx, Args a, List<String> override, boolean detailed, JsonObject rawArgs) {
+        List<String> lines = protection == null ? List.of()
+                : protection.enforce(ctx, "mc_build", a.world(), override, ProtectionGuard.targets(a));
+        CompletableFuture<String> run = execute(ctx, a, detailed, rawArgs);
+        return lines.isEmpty() ? run : run.thenApply(text -> text + "\n" + String.join("\n", lines));
     }
 
     private CompletableFuture<String> execute(InvocationContext outer, Args a, boolean detailed, JsonObject rawArgs) {

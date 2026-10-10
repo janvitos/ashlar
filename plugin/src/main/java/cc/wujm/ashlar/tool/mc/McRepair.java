@@ -16,6 +16,9 @@ public final class McRepair implements Tool {
     public McRepair(VerificationService service,DiffService diffs){this.service=service;this.diffs=diffs;}
     private JournalService journals;
     public McRepair withJournal(JournalService service){this.journals=service;return this;}
+    private ProtectionGuard protection;
+    public McRepair withProtection(ProtectionGuard guard){this.protection=guard;return this;}
+    private ProtectionGuard.Gate gate(InvocationContext ctx,JsonObject args){var override=ProtectionGuard.parseOverride(args);return protection==null?null:protection.gate(ctx,"mc_repair",override);}
     /** Runs one repair with its writes journalled (when a journal service is wired) and reports the entry in the JSON. */
     private CompletableFuture<String> journalled(InvocationContext ctx,java.util.function.Function<InvocationContext,CompletableFuture<JsonObject>> body){
         if(journals==null)return body.apply(ctx).thenApply(Object::toString);
@@ -34,12 +37,14 @@ public final class McRepair implements Tool {
             if(ArgParse.has(args,"planId") || ArgParse.has(args,"comparisonId") || ArgParse.has(args,"limit"))throw new ToolArgError("diffId cannot be combined with planId, comparisonId or limit");
             if(diffs==null)throw new ToolArgError("mc_diff receipts are unavailable");
             String id=ArgParse.requireString(args,"diffId");var positions=positions(args);int max=McVerify.bounded(args,"maxChanges",1000,1,10000);
-            return journalled(ctx,c -> diffs.repair(c,id,positions,max,ArgParse.optBoolean(args,"snapshot",true),ArgParse.optBoolean(args,"allowBlockEntityReplacement",false)));
+            var gate=gate(ctx,args);
+            return journalled(ctx,c -> diffs.repair(c,id,positions,max,ArgParse.optBoolean(args,"snapshot",true),ArgParse.optBoolean(args,"allowBlockEntityReplacement",false),gate));
         });
         return ToolRunner.runText("mc_repair",() -> {
             String planId=ArgParse.requireString(args,"planId"),comparisonId=ArgParse.requireString(args,"comparisonId");var positions=positions(args);
             int max=McVerify.bounded(args,"maxChanges",1000,1,10000),limit=McVerify.bounded(args,"limit",100,1,1000);
-            return journalled(ctx,c -> service.repair(c,planId,comparisonId,positions,max,ArgParse.optBoolean(args,"snapshot",true),ArgParse.optBoolean(args,"allowBlockEntityReplacement",false),limit));
+            var gate=gate(ctx,args);
+            return journalled(ctx,c -> service.repair(c,planId,comparisonId,positions,max,ArgParse.optBoolean(args,"snapshot",true),ArgParse.optBoolean(args,"allowBlockEntityReplacement",false),limit,gate));
         });
     }
 }

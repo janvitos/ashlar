@@ -25,7 +25,7 @@ plugin.start();
 try{
     await client.connect(transport);const health=await plugin.request("health",{});assert.equal(health.onlinePlayers,0);assert.equal(health.queuedOperations,0);
     const base=await plugin.request("read_region",{from,to});assert.ok(base.palette.every(s=>s==="minecraft:air"),"Region must be pristine air");
-    const catalog=await client.listTools();check(()=>assert.equal(catalog.tools.length,14));check(()=>assert.equal(catalog.tools.find(t=>t.name==="mc_diff").annotations.readOnlyHint,true));
+    const catalog=await client.listTools();check(()=>assert.equal(catalog.tools.length,15));check(()=>assert.equal(catalog.tools.find(t=>t.name==="mc_diff").annotations.readOnlyHint,true));
     snapshot=(await plugin.request("snapshot",{from,to,label:"diff acceptance pristine region"})).id;
     await tool("mc_build",{fills:[{from:at(0,0,0),to:at(8,0,8),block:"minecraft:stone"}],blocks:[
         {pos:at(1,1,1),block:"minecraft:light[level=11]"},{pos:at(2,1,2),block:"minecraft:oak_stairs[facing=north]"},

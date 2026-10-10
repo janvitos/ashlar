@@ -27,6 +27,8 @@ public final class TerrainFitService {
     public TerrainFitService(ConfigHolder config,TickBudgetExecutor executor,BuildPreflight preflight) {
         this.config=config;this.executor=executor;this.preflight=preflight;
     }
+    private ProtectionGuard protection;
+    public TerrainFitService withProtection(ProtectionGuard guard){this.protection=guard;return this;}
     public CompletableFuture<String> fit(InvocationContext ctx,JsonObject args,BlueprintStore store) {
         String id=ArgParse.requireString(args,"id");BlueprintCompiler.name(id);
         boolean overwrite=ArgParse.optBoolean(args,"overwrite",false);
@@ -53,12 +55,16 @@ public final class TerrainFitService {
                 var live=config.get().limits();
                 var limits=new BlueprintCompiler.Limits(live.maxBlocksPerOperation(),live.maxChunksPerOperation(),live.maxFlowingLiquidsPerOperation());
                 var parts=BlueprintCompiler.compile(fitted.document(),build,limits);
-                return BuildStateTransform.applyParts(parts,true).thenCompose(preflight::validate).thenApplyAsync(validated->{
+                return BuildStateTransform.applyParts(parts,true).thenCompose(a->{
+                    // Fitting only plans: protected overlaps are reported, never enforced here.
+                    var verdict=protection==null?null:protection.evaluate(a.world(),java.util.List.of(),ProtectionGuard.targets(a));
+                    return preflight.validate(a).thenApply(v->verdict);
+                }).thenApplyAsync(verdict->{
                     JsonObject report=fitted.summary();report.addProperty("world",worldName);report.addProperty("observedAt",java.time.Instant.now().toString());
                     // Site metadata is advisory; later placement retains ordinary current build validation.
                     JsonObject constraints=new JsonObject();constraints.add("fittedSite",report.deepCopy());fitted.document().add("constraints",constraints);
                     JsonObject saved=store.save(id,fitted.document(),overwrite);
-                    build.addProperty("snapshot",true);report.add("build",build);saved.add("site",report);
+                    build.addProperty("snapshot",true);report.add("build",build);if(verdict!=null)verdict.addTo(report);saved.add("site",report);
                     return saved.toString();
                 });
             });
