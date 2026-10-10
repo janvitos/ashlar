@@ -74,8 +74,10 @@ limits:
   max-read-volume: 200000
 
   # Restart: changing this needs a server restart (read once by the tick scheduler).
-  # Maximum milliseconds of work performed per server tick by build tasks.
-  tick-budget-ms: 20
+  # Maximum milliseconds of work performed per server tick by build tasks (a tick is 50 ms).
+  # This is the ceiling: when the rest of the server needs more than 30 ms per tick, Ashlar
+  # takes less, and above 45 ms it pauses apart from one 1 ms slice per second.
+  tick-budget-ms: 5
 
   # Restart: changing this needs a server restart (read once by the tick scheduler).
   # Maximum number of operations that may be queued at once.

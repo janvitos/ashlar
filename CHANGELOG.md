@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- Load-aware build budget: the executor subtracts its own work from Paper's average tick time and gives itself the full `limits.tick-budget-ms` only while the rest of the server needs at most 30 ms per tick, scaling down linearly to 1 ms at 45 ms and pausing beyond that apart from one 1 ms slice per second. The default `tick-budget-ms` drops from 20 to 5 (existing configs keep their value; the key still needs a restart). `mc_status` and `health` report the current budget and the load without Ashlar.
+- Added 5 focused unit tests.
+
 - Protected regions: new `mc_protect` (`add`/`list`/`remove`) keeps named boxes in `plugins/Ashlar/protected.json` (atomic writes, re-read by `/ashlar reload`). `mc_build`, `mc_repair` (plan and diff), `mc_restore` (snapshot box and journal cells) check every write target before any snapshot or write: `deny` rejects with the region, cell count and bounds; `warn` adds a warning line. `override:["name",...]` names each region explicitly (no wildcards) and is logged to `operations.log` and the server log. `mc_plan`, `dryRun`, journal dry runs and `mc_blueprint fit` report overlaps without enforcing. `outline`/`walls` fills only target their shell. Only the creator, an operator or the console/MCP token may remove a region. `mc_command`, players and other plugins are not checked.
 - Added 16 focused unit tests and disposable `e2e-protect.mjs` (30 checks).
 

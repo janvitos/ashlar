@@ -327,7 +327,7 @@ ashlar simulate 100 64 -200 south build a small stone cottage
 | `server.allowed-ips` | `[]` | 客户端精确 IP 的白名单（IPv4/IPv6，v1 不支持 CIDR/主机名）。空列表 = 允许任意 IP。 |
 | `limits.max-blocks-per-operation` | `500000` | 单次 `fill_batch`/`set_blocks` 请求最多可触及的方块数。 |
 | `limits.max-read-volume` | `200000` | `read_region`/`heightmap` 单次调用最多可返回的区域体积。 |
-| `limits.tick-budget-ms` | `20` | 建造任务每个服务器 tick 允许消耗的最大毫秒数。 |
+| `limits.tick-budget-ms` | `5` | 建造任务每个服务器 tick 允许消耗的最大毫秒数（一个 tick 为 50 毫秒）。服务器其余部分每 tick 超过 30 毫秒时 Ashlar 会减少用量，超过 45 毫秒时暂停，仅每秒保留一次 1 毫秒的处理。`mc_status` 会显示当前预算。 |
 | `limits.max-queued-operations` | `16` | 同时最多可排队的操作数，超过后新的会被拒绝。 |
 | `limits.max-chunks-per-operation` | `1024` | 单次操作的包围盒最多可强制加载的 16x16 区块列数（1024 区块的上限覆盖 512x512 的方块footprint）。 |
 | `world.default` | `"world"` | 请求未指定 `world` 时使用的世界名。 |

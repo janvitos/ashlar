@@ -38,6 +38,8 @@ public final class HealthService {
             result.addProperty("minecraft", Bukkit.getBukkitVersion());
             result.addProperty("onlinePlayers", Bukkit.getOnlinePlayers().size());
             result.addProperty("queuedOperations", executor.queuedCount());
+            result.addProperty("tickBudgetMs", Math.round(executor.currentBudgetMs() * 10) / 10.0);
+            result.addProperty("otherLoadMs", Math.round(executor.otherLoadMs() * 10) / 10.0);
             result.addProperty("uptimeSeconds", Duration.between(startedAt, Instant.now()).getSeconds());
             return (JsonElement) result;
         });

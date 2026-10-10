@@ -590,7 +590,7 @@ A small hut (survey, snapshot, build, a couple of renders, a final reply - about
 | `limits.max-blocks-per-operation` | `500000` | Max blocks a single `fill_batch`/`set_blocks` request may touch. |
 | `limits.max-read-volume` | `200000` | Max region volume `read_region`/`heightmap` may return in one call. |
 | `limits.max-diff-volume` | `2000000` | Max box volume of one `mc_diff` call (read in parts of at most `max-read-volume`). |
-| `limits.tick-budget-ms` | `20` | Max milliseconds of work per server tick for build tasks. |
+| `limits.tick-budget-ms` | `5` | Max milliseconds of work per server tick for build tasks (a tick is 50 ms). Ashlar takes less when the rest of the server needs more than 30 ms per tick, and above 45 ms pauses apart from one 1 ms slice per second. `mc_status` shows the current budget. |
 | `limits.max-queued-operations` | `16` | Max operations that may be queued at once before new ones are rejected. |
 | `limits.max-chunks-per-operation` | `1024` | Max 16x16 chunk columns a single operation's bounding box may force-load (a 1024-chunk cap covers a 512x512 block footprint). |
 | `world.default` | `"world"` | World used when a request omits `world`. |

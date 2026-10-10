@@ -241,7 +241,7 @@ public record PluginConfig(
 
         long maxBlocksPerOperation = positiveOrDefault(fc, "limits.max-blocks-per-operation", 500_000, logger);
         long maxReadVolume = positiveOrDefault(fc, "limits.max-read-volume", 200_000, logger);
-        long tickBudgetMs = positiveOrDefault(fc, "limits.tick-budget-ms", 20, logger);
+        long tickBudgetMs = positiveOrDefault(fc, "limits.tick-budget-ms", 5, logger);
         int maxQueuedOperations = (int) positiveOrDefault(fc, "limits.max-queued-operations", 16, logger);
         int maxChunksPerOperation = (int) positiveOrDefault(fc, "limits.max-chunks-per-operation", 1024, logger);
         long maxFlowingLiquidsPerOperation = positiveOrDefault(fc, "limits.max-flowing-liquids-per-operation", 2000, logger);
