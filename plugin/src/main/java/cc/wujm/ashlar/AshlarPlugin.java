@@ -71,6 +71,7 @@ import cc.wujm.ashlar.tool.mc.McInspect;
 import cc.wujm.ashlar.tool.mc.McPlayers;
 import cc.wujm.ashlar.tool.mc.McRender;
 import cc.wujm.ashlar.tool.mc.McSightline;
+import cc.wujm.ashlar.tool.mc.McWalk;
 import cc.wujm.ashlar.tool.mc.McRestore;
 import cc.wujm.ashlar.tool.mc.McProtect;
 import cc.wujm.ashlar.tool.mc.ProtectionGuard;
@@ -249,6 +250,7 @@ public final class AshlarPlugin extends JavaPlugin {
                 new McDiff(diffService),
                 new McRender(renderHandler).withFirstPerson(viewService, configHolder),
                 new McSightline(viewService, configHolder),
+                new McWalk(readRegionHandler, configHolder, renderExecutor),
                 new McSnapshot(snapshotCreateHandler, listSnapshotsHandler, journalService),
                 new McRestore(restoreHandler, journalService).withProtection(protection, snapshotStore::get),
                 new McProtect(protectedRegions, configHolder),

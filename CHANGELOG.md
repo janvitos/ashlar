@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- New read-only `mc_walk`: player-movement reachability inside a box (at most 4 x `limits.max-read-volume`, read in tick-budgeted tiles; the search runs off the main thread). Mode `path` returns move count and waypoints; mode `reach` counts reachable standing places and checks `targets` (`doors` on both sides, `beds`, `stairs`, or up to 256 feet positions). Rules: `stepHeight` 0.6, `jump` (1.25), `maxDrop` 3, `allowLadders`, `allowWater`, `doors` open-only/any. Collision heights for snow, carpet, slabs, beds, fences, walls and gates; bottom stairs are a step only head-on. Failures name the nearest reachable place and the reason with the blocking cell.
+- Added 9 focused unit tests and disposable `e2e-walk.mjs` (20 checks, including armor-stand drops that confirm snow, carpet, slab, stair and open-door collision on the server).
+
 - First-person views and sightlines: `mc_render` gains `view:"first-person"` (`eye`+`yaw`/`pitch` or `player`, `fov` 10-110, `distance` 8-256, up to 1,000,000 pixels). New read-only `mc_sightline`: up to 256 targets (visible/blocked/unknown with the first blocking block and distance; a target counts as visible when its center or a face turned toward the eye is in view), or a cone grid of first hits; `ignore` patterns such as `*_leaves` or `snow[layers<=3]`. Voxel traversal against the schematic block shapes; glass, panes and water do not block, leaves do. The main thread only copies already-loaded chunks (`ChunkSnapshot`, tick-budgeted, no loads or tickets, at most `limits.max-chunks-per-operation`); all tracing runs off-main. `mc_players` adds `eye` and optional `lookRange` 16-256.
 - Added 18 focused unit tests and disposable `e2e-view.mjs` (20 checks).
 

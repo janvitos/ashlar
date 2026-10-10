@@ -1,0 +1,83 @@
+{
+  "name": "mc_walk",
+  "title": "Walk reachability",
+  "description": "Checks where a player can walk inside a box under real movement rules, and names the exact block and reason when they cannot. Read-only.\n\nWHEN TO USE: to answer \"can a player walk from A to B?\" (mode path: move count and waypoints) or \"can every door / bed / staircase in this building be reached from the entrance?\" (mode reach with targets). Use it after building stairs, decks, corridors, ledges or paths over snow, where a step that looks fine may be a 1.0 rise, a stair may only be reachable from the side, or a ceiling may be too low. Unreachable targets come back with the nearest reachable place and why the next move fails: step too high (with the rise), headroom (the block overhead), closed door, stair approached from the side or back, gap (drop over maxDrop or no floor), water, hazard, or the edge of the box.\n\nWHEN NOT TO USE: for line of sight (use mc_sightline) or to list blocks (use mc_inspect). It does not simulate entities, mobs, sprinting jumps over gaps, ice sliding, slime bounces, elytra or boats. Doors and gates are not opened or closed; their current state is used unless doors is \"any\".\n\nPARAMETERS: `from` and `to` are FEET positions [x,y,z] (the air cell the player stands in, not the floor block); a place counts when the player's feet height is within half a block of y, so standing on a slab or snow at y-1 still matches. `box` {from,to} must contain from, to and targets; give the walkable area plus at least 2 blocks above the highest floor (cells above the box count as air, columns outside it are never entered). Box volume is at most 4 x limits.max-read-volume (800,000 by default). `mode` defaults to path when `to` is given, else reach. `rules`: jump (default false; true allows rises up to 1.25), stepHeight (default 0.6: slabs, carpet, snow layers, head-on stairs), maxDrop (default 3, fall damage starts above that), allowLadders (default true: ladders, vines and scaffolding are climbable), allowWater (default false: water cells are avoided; true makes them swimmable), doors \"open-only\" (default; closed doors and fence gates block) or \"any\". Collision heights: snow (layers-1)/8, carpet 1/16, bottom slab 0.5, bed 9/16, fences, walls and closed gates 1.5; a bottom stair is a 0.5 step only when walked onto toward its facing. Moves are the four horizontal directions. `targets` (reach mode): \"doors\" (each lower door half; reachable when the cells on both sides are), \"beds\" (standing on or next to it), \"stairs\" (standing on top of each bottom stair) or a list of up to 256 feet positions. `samples` (1-200, default 50) caps waypoints and listed unreachable targets.\n\nSIDE EFFECTS: none - read-only. The box is read through the normal tick-budgeted region read (several reads for a large box), which can load the chunks it covers, like mc_inspect; the search itself runs off the main thread.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "description": "Start feet position [x, y, z]: the cell the player's feet are in.",
+        "type": "array",
+        "items": {"type": "integer"},
+        "minItems": 3,
+        "maxItems": 3
+      },
+      "to": {
+        "description": "Destination feet position [x, y, z] (path mode).",
+        "type": "array",
+        "items": {"type": "integer"},
+        "minItems": 3,
+        "maxItems": 3
+      },
+      "box": {
+        "description": "Inclusive area searched; include 2+ blocks above the highest floor.",
+        "type": "object",
+        "properties": {
+          "from": {"type": "array", "items": {"type": "integer"}, "minItems": 3, "maxItems": 3},
+          "to": {"type": "array", "items": {"type": "integer"}, "minItems": 3, "maxItems": 3}
+        },
+        "required": ["from", "to"],
+        "additionalProperties": false
+      },
+      "world": {
+        "description": "World name. Omitted uses the plugin's configured default world.",
+        "type": "string",
+        "minLength": 1
+      },
+      "mode": {
+        "description": "path (route from -> to) or reach (everything reachable from from). Default: path when to is given, else reach.",
+        "type": "string",
+        "enum": ["path", "reach"]
+      },
+      "rules": {
+        "description": "Movement rules.",
+        "type": "object",
+        "properties": {
+          "jump": {"type": "boolean", "description": "Allow jumping up to 1.25. Default false."},
+          "stepHeight": {"type": "number", "minimum": 0, "maximum": 1.5, "description": "Largest rise walked without jumping. Default 0.6."},
+          "maxDrop": {"type": "number", "minimum": 0, "maximum": 32, "description": "Largest drop allowed. Default 3."},
+          "allowLadders": {"type": "boolean", "description": "Ladders, vines and scaffolding are climbable. Default true."},
+          "allowWater": {"type": "boolean", "description": "Water is swimmable. Default false (avoided)."},
+          "doors": {"type": "string", "enum": ["open-only", "any"], "description": "open-only (default): closed doors and gates block; any: all pass."}
+        },
+        "additionalProperties": false
+      },
+      "targets": {
+        "description": "Reach mode: \"doors\", \"beds\", \"stairs\", or a list of up to 256 feet positions [x, y, z].",
+        "anyOf": [
+          {"type": "string", "enum": ["doors", "beds", "stairs"]},
+          {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 256,
+            "items": {"type": "array", "items": {"type": "integer"}, "minItems": 3, "maxItems": 3}
+          }
+        ]
+      },
+      "samples": {
+        "description": "Most waypoints / unreachable targets listed, 1-200. Default 50.",
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 200
+      }
+    },
+    "required": ["from", "box"],
+    "$schema": "https://json-schema.org/draft/2020-12/schema"
+  },
+  "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false
+  }
+}

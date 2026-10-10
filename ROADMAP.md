@@ -257,6 +257,29 @@ Branch: `feat/first-person-view`.
   - test region restored to pristine air, forceload removed, journal entries deleted. No production changes.
   - The plan's acceptance case (the Titanic spawn vantage) needs the production world and was not run.
 
+## Step 15 implementation and verification
+
+Branch: `feat/walk-check`.
+
+- Pure core in `cc.wujm.ashlar.engine`:
+  - `WalkShapes`: one collision interval per block state (snow `(layers-1)/8`, carpet 1/16, slabs, bottom stairs with facing, beds, fences/walls/closed gates 1.5, closed doors, trapdoors, low blocks), plus ladder, water and hazard kinds; unknown blocks count as full cubes;
+  - `Walker`: standing places per column with 1.8 headroom, four-direction moves with step/jump/drop limits, head-on-only stairs (also head-on descent as a half step), climbable ladders and optional swimming, breadth-first search, and a diagnosis of the first failing move from the nearest reached place.
+- Tool: new `mc_walk` (path / reach, rules, targets doors/beds/stairs/list, samples). The box is read through the existing `read_region` path in tiles of at most `limits.max-read-volume`; decoding and the search run on the render executor.
+- Deviations from the plan:
+  - added `rules.maxDrop` (default 3) so drops are bounded too; `maxDrop` 0.6 reproduces the "both directions, no jumps" checks;
+  - breadth-first search only (no A*): boxes are small enough and BFS gives shortest move counts;
+  - reads stay tick-budgeted per-block reads rather than chunk snapshots, because a walk box needs every cell even where no player is and may need to load chunks.
+- Not covered: sprint jumps over gaps, entities, ice, slime, soul-sand slowdown, diagonal squeezes (moves are four-directional).
+- Verification:
+  - one plugin build: 794 tests passed (9 new), zero failures; adapter 8 tests passed;
+  - isolated-server smoke test `e2e-walk.mjs`, 20 checks:
+    - a closed door blocks the route and is named; `doors:"any"` and then opening the door in the world both open it;
+    - the route onto a one-high ledge climbs the head-on stair; without it the ledge is "step too high (rise 1.00)" unless jumping;
+    - doors and stairs targets; argument errors;
+    - armor stands dropped onto snow (3 layers), carpet, a bottom slab, a stair's low half and an open door settled at 0.25, 0.0625, 0.5, 0.5 and 0, matching the model;
+  - test region restored to pristine air, forceload removed, probe entities killed, journal entries deleted. No production changes.
+  - The plan's acceptance case (Titanic Module 9 doors and the iceberg path) needs the production world and was not run.
+
 ## Fork activation
 
 User-approved deployment uses Paper 26.1.2 build 74, without a Paper upgrade. The fork now compiles against that exact API and declares minimum API 26.1. One build passed; an approved restart used a verified full 30-second in-game countdown before a graceful stop/install/start. Original artifact retained for rollback; plugin configuration/credentials unchanged. Pi points at the locally built fork adapter through the existing Docker network arrangement. Basic read-only deployment check confirmed plugin 0.4.9-dev, authenticated MCP, 13 tools and photo-reference instructions. No construction/terrain test writes or exhaustive regressions were performed on production. Pi needs `/reload` to refresh an existing session's connection and catalog.
