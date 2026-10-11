@@ -214,6 +214,13 @@ public final class ProtectionGuard {
         };
     }
 
+    /** Plain cells, such as the sign and entity positions of a journal entry. */
+    static Consumer<ProtectionCheck> cells(java.util.Collection<int[]> cells) {
+        return check -> {
+            for (int[] c : cells) check.cell(c[0], c[1], c[2]);
+        };
+    }
+
     /** The expected positions of selected repair cells. */
     static Consumer<ProtectionCheck> cells(List<cc.wujm.ashlar.engine.BuildExpectation.Observed> selected) {
         return check -> {

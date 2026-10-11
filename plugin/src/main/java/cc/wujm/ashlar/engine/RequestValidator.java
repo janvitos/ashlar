@@ -447,6 +447,13 @@ public final class RequestValidator {
         return grid;
     }
 
+    /** Build-region, Y-range and chunk-count checks for a write box that is not a fill op (Step 17 entities). */
+    public void checkWriteRegion(Region region, int worldMinHeight, int worldMaxHeight) {
+        checkBuildRegion(region.minX(), region.maxX(), region.minZ(), region.maxZ());
+        checkYRange(region.minY(), region.maxY(), worldMinHeight, worldMaxHeight);
+        checkChunkCount(region);
+    }
+
     private void checkBuildRegion(int minX, int maxX, int minZ, int maxZ) {
         PluginConfig.WorldConfig.BuildRegion buildRegion = config.world().buildRegion();
         if (!buildRegion.enabled()) {

@@ -4,8 +4,10 @@ package cc.wujm.ashlar.tool.mc;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import cc.wujm.ashlar.engine.Region;
 import cc.wujm.ashlar.engine.text.FontRenderException;
 import cc.wujm.ashlar.engine.text.TextExpand;
+import cc.wujm.ashlar.protect.ProtectionCheck;
 import cc.wujm.ashlar.rpc.ErrorCode;
 import cc.wujm.ashlar.rpc.InvocationContext;
 import cc.wujm.ashlar.rpc.RpcError;
@@ -59,6 +61,14 @@ public final class McBuild implements Tool {
     public McBuild withCells(CellFiles files, java.util.function.Supplier<cc.wujm.ashlar.config.PluginConfig> settings) {
         this.cellFiles = files;
         this.settings = settings;
+        return this;
+    }
+
+    private cc.wujm.ashlar.engine.EntityService entities;
+
+    /** Enables {@code entities} (Step 17). */
+    public McBuild withEntities(cc.wujm.ashlar.engine.EntityService service) {
+        this.entities = service;
         return this;
     }
 
@@ -136,6 +146,11 @@ public final class McBuild implements Tool {
 
     record Args(String world, List<FillOpArg> fills, List<SparseOpArg> blocks, List<TextArg> text, boolean snapshot,
             Boolean connect, String liquids) {
+        /** True for an entities-only call (Step 17): no block writes at all. */
+        boolean isEmpty() {
+            return fills.isEmpty() && blocks.isEmpty() && text.isEmpty();
+        }
+
         static Args parse(JsonObject o) {
             String world = ArgParse.optString(o, "world");
             BuildTransform transform = BuildTransform.parse(o);
@@ -200,9 +215,9 @@ public final class McBuild implements Tool {
                 }
             }
 
-            if (fills.isEmpty() && blocks.isEmpty() && text.isEmpty()) {
+            if (fills.isEmpty() && blocks.isEmpty() && text.isEmpty() && !EntityArgs.applies(o)) {
                 throw new ToolArgError(
-                        "\"fills\", \"blocks\" and/or \"text\" must be provided, with at least one non-empty");
+                        "\"fills\", \"blocks\", \"text\" and/or \"entities\" must be provided, with at least one non-empty");
             }
 
             boolean snapshot = ArgParse.optBoolean(o, "snapshot", false);
@@ -274,6 +289,7 @@ public final class McBuild implements Tool {
         List<String> fillsSection;
         List<String> textSection;
         String blocksLine;
+        String entitiesLine;
         final List<WarningText.SupportWarning> warnings = new ArrayList<>();
         boolean warningsTruncated = false;
         long chestsPaired = 0;
@@ -291,6 +307,7 @@ public final class McBuild implements Tool {
             return BuildStateTransform.applyParts(parts, true);
         }
         Args a = Args.parse(args);
+        if (a.isEmpty()) return CompletableFuture.completedFuture(a);
         return validateIdentity ? BuildStateTransform.applyParts(List.of(new Part(a, BuildTransform.parse(args))), true)
                 : BuildStateTransform.apply(a, BuildTransform.parse(args));
     }
@@ -309,6 +326,12 @@ public final class McBuild implements Tool {
     @Override
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
         return ToolRunner.runText("mc_build", () -> {
+            EntityArgs ents = EntityArgs.parse(args);
+            if (ents != null) {
+                if (ArgParse.has(args, "blueprint")) throw new ToolArgError("entities cannot be combined with a blueprint; place them in a separate mc_build call");
+                if (CellBuild.applies(args)) throw new ToolArgError("entities cannot be combined with cells or cellsFile; place them in a separate mc_build call");
+                if (entities == null) throw new ToolArgError("entity builds are unavailable");
+            }
             if (CellBuild.applies(args)) {
                 if (settings == null) throw new ToolArgError("cells builds are unavailable");
                 return CellBuild.run(this, ctx, args, settings.get(), cellFiles);
@@ -318,50 +341,93 @@ public final class McBuild implements Tool {
                 boolean dryRun = ArgParse.optBoolean(args, "dryRun", false);
                 boolean siteCheck = ArgParse.optBoolean(args, "preflight", false);
                 boolean detailed = ArgParse.optBoolean(args, "detailed", false);
+                if (ents != null) {
+                    String problem = entities.check(ents.entities());
+                    if (problem != null) throw new ToolArgError(problem);
+                    entities.validate(a.world(), ents.bounds());
+                }
+                if (a.isEmpty()) {
+                    if (!dryRun) return guarded(ctx, a, ents, override, detailed, args);
+                    JsonObject report = new JsonObject();
+                    report.add("entities", entityPreview(ents));
+                    ProtectionGuard.Verdict verdict = protection(args, a, ents);
+                    if (verdict != null) verdict.addTo(report);
+                    return CompletableFuture.completedFuture(report.toString());
+                }
                 if (preflight == null) {
                     if (dryRun || siteCheck) throw new ToolArgError("preflight service is unavailable");
-                    return guarded(ctx, a, override, detailed, args);
+                    return guarded(ctx, a, ents, override, detailed, args);
                 }
                 return preflight.validate(a).thenCompose(validated -> {
                     if (dryRun || siteCheck) return preflight.analyze(ctx,validated,null).thenCompose(result -> {
                         JsonObject report = result.report();
                         if (dryRun) {
-                            ProtectionGuard.Verdict verdict = protection(args, a);
+                            if (ents != null) report.add("entities", entityPreview(ents));
+                            ProtectionGuard.Verdict verdict = protection(args, a, ents);
                             if (verdict != null) verdict.addTo(report);
                             return CompletableFuture.completedFuture(report.toString());
                         }
                         if (!report.get("strictSitePass").getAsBoolean())
                             throw new ToolArgError("site preflight failed; no snapshot or blocks written: " + report);
-                        return guarded(ctx, a, override, detailed, args);
+                        return guarded(ctx, a, ents, override, detailed, args);
                     });
-                    return guarded(ctx, a, override, detailed, args);
+                    return guarded(ctx, a, ents, override, detailed, args);
                 });
             });
         });
     }
 
+    /** Protected-region overlaps including the entity cells. */
+    private ProtectionGuard.Verdict protection(JsonObject raw, Args a, EntityArgs ents) {
+        return protection == null ? null : protection.evaluate(a.world(), ProtectionGuard.parseOverride(raw), targets(a, ents));
+    }
+
+    private static java.util.function.Consumer<ProtectionCheck> targets(Args a, EntityArgs ents) {
+        java.util.function.Consumer<ProtectionCheck> t = ProtectionGuard.targets(a);
+        if (ents == null) return t;
+        java.util.function.Consumer<ProtectionCheck> c = ProtectionGuard.cells(ents.cells());
+        if (ents.replaceBox() != null) c = c.andThen(check -> check.box(ents.replaceBox(), ProtectionCheck.Shape.SOLID));
+        return t.andThen(c);
+    }
+
+    /** What a dry run reports about the entities: count per type and the parsed (world-coordinate) list. */
+    private static JsonObject entityPreview(EntityArgs ents) {
+        JsonObject o = new JsonObject();
+        o.addProperty("count", ents.entities().size());
+        o.addProperty("mode", ents.replaceBox() == null ? "add" : "replace-in-box");
+        JsonArray list = new JsonArray();
+        for (cc.wujm.ashlar.engine.EntitySpec s : ents.entities()) list.add(s.describe());
+        o.add("list", list);
+        return o;
+    }
+
     /** Applies protected regions, then builds; warning and override lines are appended to the result. */
-    private CompletableFuture<String> guarded(InvocationContext ctx, Args a, List<String> override, boolean detailed, JsonObject rawArgs) {
+    private CompletableFuture<String> guarded(InvocationContext ctx, Args a, EntityArgs ents, List<String> override, boolean detailed,
+            JsonObject rawArgs) {
         List<String> lines = protection == null ? List.of()
-                : protection.enforce(ctx, "mc_build", a.world(), override, ProtectionGuard.targets(a));
-        CompletableFuture<String> run = execute(ctx, a, detailed, rawArgs);
+                : protection.enforce(ctx, "mc_build", a.world(), override, targets(a, ents));
+        CompletableFuture<String> run = execute(ctx, a, ents, detailed, rawArgs);
         return lines.isEmpty() ? run : run.thenApply(text -> text + "\n" + String.join("\n", lines));
     }
 
-    private CompletableFuture<String> execute(InvocationContext outer, Args a, boolean detailed, JsonObject rawArgs) {
-        if (journals == null) return execute(outer, a, detailed);
+    private CompletableFuture<String> execute(InvocationContext outer, Args a, EntityArgs ents, boolean detailed, JsonObject rawArgs) {
+        if (journals == null) return execute(outer, a, ents, detailed);
         JournalArgs j = JournalArgs.parse(rawArgs);
-        return journals.journalled(outer, j.journal(), "mc_build", j.label(), ctx -> execute(ctx, a, detailed),
+        return journals.journalled(outer, j.journal(), "mc_build", j.label(), ctx -> execute(ctx, a, ents, detailed),
                 (text, commit) -> commit.lines().isEmpty() ? text : text + "\n" + String.join("\n", commit.lines()));
     }
 
     private CompletableFuture<String> execute(InvocationContext ctx, Args a, boolean detailed) {
+        return execute(ctx, a, null, detailed);
+    }
+
+    private CompletableFuture<String> execute(InvocationContext ctx, Args a, EntityArgs ents, boolean detailed) {
         BuildState state = new BuildState();
         state.detailed = detailed;
         CompletableFuture<Void> step = CompletableFuture.completedFuture(null);
 
         if (a.snapshot()) {
-            step = step.thenCompose(ignored -> snapshotStep(ctx, a, state));
+            step = step.thenCompose(ignored -> snapshotStep(ctx, a, ents, state));
         }
         if (!a.fills().isEmpty()) {
             step = step.thenCompose(ignored -> fillStep(ctx, a, state));
@@ -372,14 +438,44 @@ public final class McBuild implements Tool {
         if (!a.blocks().isEmpty()) {
             step = step.thenCompose(ignored -> blockStep(ctx, a, state));
         }
+        if (ents != null) {
+            step = step.thenComposeAsync(ignored -> entityStep(ctx, a, ents, state));
+        }
 
-        return step.thenApply(ignored ->
-                ToolText.buildResultText(state.snapshotLine, state.fillsSection, state.textSection, state.blocksLine,
-                        state.chestsPaired, state.warnings, state.warningsTruncated));
+        return step.thenApply(ignored -> {
+            String text = ToolText.buildResultText(state.snapshotLine, state.fillsSection, state.textSection, state.blocksLine,
+                    state.chestsPaired, state.warnings, state.warningsTruncated);
+            if (state.entitiesLine == null) return text;
+            return text.isEmpty() ? state.entitiesLine : text + "\n" + state.entitiesLine;
+        });
     }
 
-    private CompletableFuture<Void> snapshotStep(InvocationContext ctx, Args a, BuildState state) {
+    /** Places the entities after every block write, so walls and floors they hang on exist (Step 17). */
+    private CompletableFuture<Void> entityStep(InvocationContext ctx, Args a, EntityArgs ents, BuildState state) {
+        Region bounds = ents.bounds();
+        org.bukkit.World world = entities.validate(a.world(), bounds);
+        return entities.place(world, ents.entities(), ents.replaceBox(), bounds, ctx).thenAccept(el -> state.entitiesLine = entitiesLine(el.getAsJsonObject()));
+    }
+
+    static String entitiesLine(JsonObject r) {
+        StringBuilder sb = new StringBuilder("Entities: placed " + r.get("placed").getAsLong() + "/" + r.get("requested").getAsLong());
+        long unchanged = r.get("unchanged").getAsLong(), removed = r.get("removed").getAsLong();
+        JsonArray failures = r.getAsJsonArray("failures");
+        if (unchanged > 0) sb.append(", ").append(unchanged).append(" already there unchanged");
+        if (removed > 0) sb.append(", ").append(removed).append(" Ashlar-placed removed from entityBox");
+        if (!failures.isEmpty()) sb.append(", ").append(failures.size()).append(" not placed");
+        sb.append('.');
+        for (JsonElement f : failures) sb.append("\n  ").append(f.getAsString());
+        return sb.toString();
+    }
+
+    private CompletableFuture<Void> snapshotStep(InvocationContext ctx, Args a, EntityArgs ents, BuildState state) {
         int[][] box = boundingBox(a.fills(), a.blocks(), a.text());
+        if (ents != null) {
+            Region e = ents.bounds();
+            consider(box[0], box[1], new int[]{e.minX(), e.minY(), e.minZ()});
+            consider(box[0], box[1], new int[]{e.maxX(), e.maxY(), e.maxZ()});
+        }
         JsonObject params = new JsonObject();
         if (a.world() != null) {
             params.addProperty("world", a.world());

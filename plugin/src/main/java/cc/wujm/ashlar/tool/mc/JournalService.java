@@ -5,10 +5,12 @@ import cc.wujm.ashlar.config.ConfigHolder;
 import cc.wujm.ashlar.config.PluginConfig;
 import cc.wujm.ashlar.engine.BlockDataParser;
 import cc.wujm.ashlar.engine.JournalCapture;
+import cc.wujm.ashlar.engine.JournalExtrasUndoTask;
 import cc.wujm.ashlar.engine.JournalRestoreTask;
 import cc.wujm.ashlar.engine.Region;
 import cc.wujm.ashlar.engine.TickBudgetExecutor;
 import cc.wujm.ashlar.journal.JournalCells;
+import cc.wujm.ashlar.journal.JournalExtras;
 import cc.wujm.ashlar.journal.JournalRecorder;
 import cc.wujm.ashlar.journal.JournalStore;
 import cc.wujm.ashlar.journal.UndoRules;
@@ -58,11 +60,12 @@ public final class JournalService {
         public List<String> lines() {
             List<String> out = new ArrayList<>();
             if (entry != null) {
-                out.add("Journal: " + entry.id() + " (" + entry.cells() + " cells). Undo only this call with mc_restore {\"journal\":\""
+                out.add("Journal: " + entry.id() + " (" + entry.cells() + " cells" + (entry.extras() > 0 ? ", " + entry.extras()
+                        + " sign/entity records" : "") + "). Undo only this call with mc_restore {\"journal\":\""
                         + entry.id() + "\"}; cells changed later are kept.");
                 if (entry.blockEntityCells() > 0) {
-                    out.add("Journal note: " + entry.blockEntityCells() + " overwritten cells held block-entity data (sign text,"
-                            + " inventories) that an undo cannot bring back.");
+                    out.add("Journal note: " + entry.blockEntityCells() + " overwritten cells held block-entity data other than sign"
+                            + " text (inventories and the like) that an undo cannot bring back.");
                 }
             }
             if (note != null) out.add(note);
@@ -124,12 +127,12 @@ public final class JournalService {
             }
             if (capture.mixedWorlds()) return new Commit(null, "Journal: not kept - this call wrote to more than one world.");
             JournalCells cells = r.toCells();
-            if (cells.size() == 0 || capture.world() == null) return Commit.NONE;
+            JournalExtras extras = capture.extras();
+            if ((cells.size() == 0 && extras.isEmpty()) || capture.world() == null) return Commit.NONE;
             try {
-                var e = store.put(VerificationService.owner(ctx), capture.world().getName(), tool, label, undoOf, r.blockEntityCells(), cells);
-                String note = r.blockEntityWrites() > 0 ? "Journal note: " + r.blockEntityWrites()
-                        + " sign text writes without a block change are not journalled." : null;
-                return new Commit(e, note);
+                var e = store.put(VerificationService.owner(ctx), capture.world().getName(), tool, label, undoOf, r.blockEntityCells(), cells,
+                        extras);
+                return new Commit(e, null);
             } catch (IOException | RuntimeException ex) {
                 return new Commit(null, "Journal: not kept - " + ex.getMessage());
             }
@@ -165,11 +168,19 @@ public final class JournalService {
                         throw new UncheckedIOException(ex);
                     }
                 });
+                JournalExtras extras = io(() -> {
+                    try {
+                        return store.extras(e);
+                    } catch (IOException ex) {
+                        throw new UncheckedIOException(ex);
+                    }
+                });
                 BlockData[] palette = new BlockData[cells.palette().size()];
                 for (int i = 0; i < palette.length; i++) palette[i] = BlockDataParser.parse(cells.palette().get(i));
+                var targets = ProtectionGuard.cells(cells).andThen(ProtectionGuard.cells(extras.cells()));
                 List<String> protection = gate == null ? List.of()
-                        : a.dryRun() ? gate.preview(e.world(), ProtectionGuard.cells(cells)) : gate.enforce(e.world(), ProtectionGuard.cells(cells));
-                return new Object[]{e, world, cells, palette, protection};
+                        : a.dryRun() ? gate.preview(e.world(), targets) : gate.enforce(e.world(), targets);
+                return new Object[]{e, world, cells, palette, protection, extras};
             } catch (RuntimeException ex) {
                 store.release(e);
                 throw ex;
@@ -180,6 +191,7 @@ public final class JournalService {
             JournalCells cells = (JournalCells) prep[2];
             BlockData[] palette = (BlockData[]) prep[3];
             @SuppressWarnings("unchecked") List<String> protection = (List<String>) prep[4];
+            JournalExtras extras = (JournalExtras) prep[5];
             JournalCapture capture = a.dryRun() ? null : open(true);
             InvocationContext jctx = capture == null ? ctx : ctx.withJournal(capture);
             JournalRestoreTask task = new JournalRestoreTask(e.bounds(), world, cells, palette, a.mode(),
@@ -187,6 +199,14 @@ public final class JournalService {
             CompletableFuture<JsonElement> run;
             try {
                 run = executor.submit(task, jctx);
+                if (!extras.isEmpty()) {
+                    // Entities and sign text after the cells they hang on or sit in.
+                    JournalExtrasUndoTask xtask = new JournalExtrasUndoTask(e.bounds(), world, extras, a.mode(), a.dryRun());
+                    run = run.thenComposeAsync(r -> executor.submit(xtask, jctx).thenApply(x -> {
+                        r.getAsJsonObject().add("extras", x);
+                        return r;
+                    }));
+                }
             } catch (RuntimeException ex) {
                 run = CompletableFuture.failedFuture(ex);
             }
@@ -233,6 +253,7 @@ public final class JournalService {
                 out.add("mode \"force\" would also overwrite the changed cells.");
             }
         }
+        if (r.has("extras")) out.add(JournalExtrasUndoTask.text(r.getAsJsonObject("extras"), a.dryRun(), a.mode() == UndoRules.Mode.SAFE));
         if (e.undoneBy() != null) out.add("Note: this entry had already been undone by " + e.undoneBy() + ".");
         out.addAll(commit.lines());
         return String.join("\n", out);

@@ -57,7 +57,7 @@ public final class RepairTask extends BuildTask {
                 BlockData live=b.getBlockData();boolean blockChanged=!live.equals(target);
                 if(blockChanged){if(journal()!=null)journal().before(b,live);b.setBlockData(target,false);}
                 boolean signChanged=o.expected().sign()!=null && !o.expected().sign().equals(SignAccess.read(b));
-                if(signChanged){SignAccess.apply(b,o.expected().sign());signWrites++;if(journal()!=null)journal().noteBlockEntityWrite();}
+                if(signChanged){if(journal()!=null)journal().signBefore(b);SignAccess.apply(b,o.expected().sign());signWrites++;}
                 if(blockChanged || signChanged){written++;addChanged(1);}
             }
             write++;advance(1);if(write%64==0 && System.nanoTime()>=deadline)return false;

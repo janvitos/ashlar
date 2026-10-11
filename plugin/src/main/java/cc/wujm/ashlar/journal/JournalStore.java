@@ -54,10 +54,16 @@ public final class JournalStore {
         }
     }
 
+    /** {@code extras}: sign and entity records kept in {@code <id>.extra.json.gz} (Step 17; 0 for older entries). */
     public record Entry(String id, String owner, String world, String tool, String label, Instant createdAt, long cells,
-            long blockEntityCells, Region bounds, String undoOf, String undoneBy) {
+            long blockEntityCells, Region bounds, String undoOf, String undoneBy, long extras) {
+        public Entry(String id, String owner, String world, String tool, String label, Instant createdAt, long cells,
+                long blockEntityCells, Region bounds, String undoOf, String undoneBy) {
+            this(id, owner, world, tool, label, createdAt, cells, blockEntityCells, bounds, undoOf, undoneBy, 0);
+        }
+
         Entry withUndoneBy(String by) {
-            return new Entry(id, owner, world, tool, label, createdAt, cells, blockEntityCells, bounds, undoOf, by);
+            return new Entry(id, owner, world, tool, label, createdAt, cells, blockEntityCells, bounds, undoOf, by, extras);
         }
     }
 
@@ -124,17 +130,33 @@ public final class JournalStore {
     /** Stores a non-empty entry and applies the quotas; returns its metadata. */
     public synchronized Entry put(String owner, String world, String tool, String label, String undoOf, long blockEntityCells,
             JournalCells cells) throws IOException {
+        return put(owner, world, tool, label, undoOf, blockEntityCells, cells, null);
+    }
+
+    public synchronized Entry put(String owner, String world, String tool, String label, String undoOf, long blockEntityCells,
+            JournalCells cells, JournalExtras extras) throws IOException {
+        boolean hasExtras = extras != null && !extras.isEmpty();
         Files.createDirectories(dir);
         String id;
         do {
             id = "jrn-" + STAMP.format(clock.instant()) + "-" + String.format("%04x", ThreadLocalRandom.current().nextInt(0x10000));
         } while (entries.containsKey(id));
-        Entry e = new Entry(id, owner, world, tool, label, clock.instant(), cells.size(), blockEntityCells, cells.bounds(), undoOf, null);
+        Region bounds = hasExtras ? extras.bounds(cells.bounds()) : cells.bounds();
+        if (bounds == null) throw new IOException("nothing to journal");
+        Entry e = new Entry(id, owner, world, tool, label, clock.instant(), cells.size(), blockEntityCells, bounds, undoOf, null,
+                hasExtras ? extras.size() : 0);
         Path tmp = dir.resolve(id + ".bin.gz.tmp");
         try (OutputStream out = Files.newOutputStream(tmp)) {
             JournalCodec.write(cells, out);
         }
         Files.move(tmp, cellsPath(id), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        if (hasExtras) {
+            Path xtmp = dir.resolve(id + ".extra.json.gz.tmp");
+            try (OutputStream out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(xtmp))) {
+                out.write(GSON.toJson(extras.toJson()).getBytes(StandardCharsets.UTF_8));
+            }
+            Files.move(xtmp, extrasPath(id), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        }
         writeMeta(e);
         entries.put(id, e);
         busy.add(id);
@@ -179,6 +201,15 @@ public final class JournalStore {
     }
 
     /** Newest first. {@code touches} is exact: entries whose bounds intersect are confirmed against their cells. */
+    /** Sign and entity records of an entry; empty for entries without any. */
+    public JournalExtras extras(Entry e) throws IOException {
+        Path p = extrasPath(e.id());
+        if (e.extras() == 0 || !Files.exists(p)) return new JournalExtras();
+        try (InputStream in = new java.util.zip.GZIPInputStream(Files.newInputStream(p))) {
+            return JournalExtras.fromJson(JsonParser.parseString(new String(in.readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject());
+        }
+    }
+
     public List<Entry> list(Viewer viewer, Instant since, String labelContains, String world, Region touches, int limit)
             throws IOException {
         List<Entry> candidates;
@@ -201,11 +232,23 @@ public final class JournalStore {
                 } catch (IOException ex) {
                     continue; // evicted meanwhile
                 }
-                if (!c.touches(touches)) continue;
+                if (!c.touches(touches) && !touchesExtras(e, touches)) continue;
             }
             out.add(e);
         }
         return out;
+    }
+
+    private boolean touchesExtras(Entry e, Region box) {
+        if (e.extras() == 0) return false;
+        try {
+            for (int[] c : extras(e).cells()) {
+                if (c[0] >= box.minX() && c[0] <= box.maxX() && c[1] >= box.minY() && c[1] <= box.maxY() && c[2] >= box.minZ() && c[2] <= box.maxZ()) return true;
+            }
+        } catch (IOException ex) {
+            return false;
+        }
+        return false;
     }
 
     static boolean intersects(Region a, Region b) {
@@ -241,6 +284,10 @@ public final class JournalStore {
         return entries.size();
     }
 
+    private Path extrasPath(String id) {
+        return dir.resolve(id + ".extra.json.gz");
+    }
+
     private Path cellsPath(String id) {
         return dir.resolve(id + ".bin.gz");
     }
@@ -249,6 +296,7 @@ public final class JournalStore {
         try {
             Files.deleteIfExists(dir.resolve(id + ".json"));
             Files.deleteIfExists(cellsPath(id));
+            Files.deleteIfExists(extrasPath(id));
         } catch (IOException ex) {
             logger.warning("Failed to delete journal entry " + id + ": " + ex.getMessage());
         }
@@ -276,6 +324,7 @@ public final class JournalStore {
         o.add("bounds", bounds);
         if (e.undoOf() != null) o.addProperty("undoOf", e.undoOf());
         if (e.undoneBy() != null) o.addProperty("undoneBy", e.undoneBy());
+        if (e.extras() > 0) o.addProperty("extras", e.extras());
         return o;
     }
 
@@ -287,7 +336,7 @@ public final class JournalStore {
                 o.get("tool").getAsString(), o.has("label") ? o.get("label").getAsString() : null,
                 Instant.parse(o.get("createdAt").getAsString()), o.get("cells").getAsLong(), o.get("blockEntityCells").getAsLong(),
                 bounds, o.has("undoOf") ? o.get("undoOf").getAsString() : null,
-                o.has("undoneBy") ? o.get("undoneBy").getAsString() : null);
+                o.has("undoneBy") ? o.get("undoneBy").getAsString() : null, o.has("extras") ? o.get("extras").getAsLong() : 0);
     }
 
     /** Test helper: entries in creation order. */

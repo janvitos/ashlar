@@ -75,7 +75,7 @@ class ToolSpecTest {
         assertTrue(spec.description().contains("ALWAYS fills -> text -> blocks"));
         assertTrue(spec.description().contains("final minecraft:air entries"));
         String instructions = new ToolRegistry(List.of()).instructions();
-        assertTrue(instructions.contains("not sign text or container inventories"));
+        assertTrue(instructions.contains("sign text and decorative entities (paintings, item frames, armor stands), not container inventories"));
         assertTrue(instructions.contains("failed check is not permission to delete"));
     }
 

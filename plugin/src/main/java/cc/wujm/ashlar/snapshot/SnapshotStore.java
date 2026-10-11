@@ -208,6 +208,7 @@ public final class SnapshotStore {
             o.addProperty("ownerUuid", s.ownerUuid().toString());
         }
         o.add("data", s.data().toJson());
+        if (s.extras() != null) o.add("extras", s.extras());
         return o;
     }
 
@@ -226,7 +227,8 @@ public final class SnapshotStore {
         UUID ownerUuid = (o.has("ownerUuid") && !o.get("ownerUuid").isJsonNull())
                 ? UUID.fromString(o.get("ownerUuid").getAsString()) : null;
         RegionData data = RegionData.fromJson(o.getAsJsonObject("data"));
-        return new Snapshot(id, world, region, volume, createdAt, label, data, ownerUuid);
+        JsonObject extras = o.has("extras") && o.get("extras").isJsonObject() ? o.getAsJsonObject("extras") : null;
+        return new Snapshot(id, world, region, volume, createdAt, label, data, ownerUuid, extras);
     }
 
     private static JsonObject regionToJson(Region r) {

@@ -125,6 +125,10 @@ public final class McRestore implements Tool {
             }
             boolean truncated = r.has("warningsTruncated") && r.get("warningsTruncated").getAsBoolean();
             lines.addAll(WarningText.formatWarnings(warnings, truncated));
+            if (r.has("extras")) {
+                String x = cc.wujm.ashlar.engine.SnapshotExtrasTask.text(r.getAsJsonObject("extras"));
+                if (x != null) lines.add(x);
+            }
             return String.join("\n", lines);
         });
     }

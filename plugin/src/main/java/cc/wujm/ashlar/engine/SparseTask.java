@@ -114,11 +114,12 @@ public final class SparseTask extends BuildTask {
                 }
             }
             if (op.sign() != null) {
+                if (!blockChanged && journal() != null) {
+                    // Text-only write: keep the old text so an undo can put it back.
+                    journal().signBefore(block);
+                }
                 applySign(block, op.sign());
                 if (!blockChanged) {
-                    if (journal() != null) {
-                        journal().noteBlockEntityWrite();
-                    }
                     // Count a sign write as a change even if the block data was already equal.
                     addChanged(1);
                 }

@@ -59,10 +59,12 @@ public final class SnapshotService {
         String snapshotId = generateId();
         java.util.UUID owner = ctx.principal().kind() == InvocationContext.Kind.PLAYER
                 ? java.util.UUID.fromString(ctx.principal().id()) : null;
-        return executor.submit(readTask, ctx).thenApply(ignoredReadJson -> {
+        SnapshotExtrasTask extrasTask = SnapshotExtrasTask.capture(region, world);
+        return executor.submit(readTask, ctx).thenComposeAsync(ignoredReadJson -> executor.submit(extrasTask, ctx)).thenApply(ignored -> {
             RegionData data = readTask.regionData();
             Instant createdAt = Instant.now();
-            Snapshot snapshot = new Snapshot(snapshotId, world.getName(), region, region.volume(), createdAt, label, data, owner);
+            Snapshot snapshot = new Snapshot(snapshotId, world.getName(), region, region.volume(), createdAt, label, data, owner,
+                    extrasTask.captured());
             store.put(snapshot);
             return (JsonElement) snapshotResultJson(snapshot);
         });
@@ -78,7 +80,14 @@ public final class SnapshotService {
         PluginConfig.EngineConfig engineConfig = configHolder.get().engine();
         RestoreTask task = new RestoreTask(snapshot.region(), world, snapshot.data(), paletteBlocks,
                 engineConfig.connectBlocks(), engineConfig.supportWarnings());
-        return executor.submit(task, ctx);
+        CompletableFuture<JsonElement> blocks = executor.submit(task, ctx);
+        if (snapshot.extras() == null) return blocks;
+        // Signs and entities go back after the blocks they hang on.
+        return blocks.thenComposeAsync(r -> executor.submit(SnapshotExtrasTask.apply(snapshot.region(), world, snapshot.extras()), ctx)
+                .thenApply(x -> {
+                    r.getAsJsonObject().add("extras", x);
+                    return r;
+                }));
     }
 
     /** {@code snapshot}/{@code restore} result shape for one {@link Snapshot} (also used by {@code list_snapshots}). */
@@ -92,6 +101,10 @@ public final class SnapshotService {
         o.addProperty("createdAt", s.createdAt().toString());
         if (s.label() != null) {
             o.addProperty("label", s.label());
+        }
+        if (s.extras() != null) {
+            o.addProperty("signs", s.extras().getAsJsonArray("signs").size());
+            o.addProperty("entities", s.extras().getAsJsonArray("entities").size());
         }
         return o;
     }

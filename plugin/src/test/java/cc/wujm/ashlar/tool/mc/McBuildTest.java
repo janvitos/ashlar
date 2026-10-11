@@ -40,7 +40,7 @@ class McBuildTest {
     @Test
     void emptyBodyThrowsRefineMessage() {
         ToolArgError e = assertThrows(ToolArgError.class, () -> McBuild.Args.parse(obj("{}")));
-        assertEquals("\"fills\", \"blocks\" and/or \"text\" must be provided, with at least one non-empty",
+        assertEquals("\"fills\", \"blocks\", \"text\" and/or \"entities\" must be provided, with at least one non-empty",
                 e.getMessage());
     }
 

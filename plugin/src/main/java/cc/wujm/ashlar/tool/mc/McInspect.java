@@ -36,6 +36,14 @@ public final class McInspect implements Tool {
     private final RpcHandler readRegionHandler;
     private final UnaryOperator<String> canon;
 
+    private cc.wujm.ashlar.engine.EntityService entities;
+
+    /** Enables {@code entities: true} (Step 17). */
+    public McInspect withEntities(cc.wujm.ashlar.engine.EntityService service) {
+        this.entities = service;
+        return this;
+    }
+
     public McInspect(RpcHandler readRegionHandler) {
         this(readRegionHandler, s -> BukkitStateDefaults.CANON.canon(s));
     }
@@ -78,7 +86,7 @@ public final class McInspect implements Tool {
     record SliceArg(String axis, int at) {
     }
 
-    record Args(String world, int[] from, int[] to, SliceArg slice, String format, boolean canonical) {
+    record Args(String world, int[] from, int[] to, SliceArg slice, String format, boolean canonical, boolean entities) {
         static Args parse(JsonObject o) {
             String world = ArgParse.optString(o, "world");
             int[] from = ArgParse.requireCoords3(o, "from");
@@ -94,7 +102,7 @@ public final class McInspect implements Tool {
             if (format.equals("columns") && slice != null) {
                 throw new ToolArgError("`slice` and `format: \"columns\"` are exclusive");
             }
-            return new Args(world, from, to, slice, format, ArgParse.optBoolean(o, "canonical", true));
+            return new Args(world, from, to, slice, format, ArgParse.optBoolean(o, "canonical", true), ArgParse.optBoolean(o, "entities", false));
         }
     }
 
@@ -118,7 +126,8 @@ public final class McInspect implements Tool {
             params.add("from", intArray(x1, y1, z1));
             params.add("to", intArray(x2, y2, z2));
 
-            return readRegionHandler.handle(ctx, params).thenApply(el -> {
+            if (a.entities() && entities == null) throw new ToolArgError("entities: entity inspection is unavailable");
+            CompletableFuture<String> blocks = readRegionHandler.handle(ctx, params).thenApply(el -> {
                 JsonObject r = el.getAsJsonObject();
                 RegionData regionData = RegionData.fromJson(r);
                 if (a.canonical()) {
@@ -152,6 +161,37 @@ public final class McInspect implements Tool {
                 }
                 return ToolText.inspectStatsText(decoded, worldName, signs, signsTruncated);
             });
+            if (!a.entities()) return blocks;
+            cc.wujm.ashlar.engine.Region region = new cc.wujm.ashlar.engine.Region(x1, y1, z1, x2, y2, z2);
+            return blocks.thenComposeAsync(text -> entities.read(entities.world(a.world()), region, ctx)
+                    .thenApply(r -> text + "\n" + entitiesText(r.getAsJsonArray("entities"), r.has("truncated"))));
         });
+    }
+
+    /** {@code entities: true} section: one line per painting, item frame or armor stand whose cell is in the box. */
+    static String entitiesText(JsonArray list, boolean truncated) {
+        if (list.isEmpty()) return "Entities: none (paintings, item frames, armor stands).";
+        StringBuilder sb = new StringBuilder("Entities (" + list.size() + (truncated ? ", truncated" : "") + "):");
+        for (JsonElement el : list) {
+            cc.wujm.ashlar.engine.EntitySpec s = cc.wujm.ashlar.engine.EntitySpec.fromJson(el.getAsJsonObject());
+            sb.append("\n  ").append(s.describe());
+            switch (s.type()) {
+                case cc.wujm.ashlar.engine.EntitySpec.PAINTING -> { }
+                case cc.wujm.ashlar.engine.EntitySpec.ARMOR_STAND -> {
+                    if (s.small()) sb.append(" small");
+                    if (s.invisible()) sb.append(" invisible");
+                    if (s.noGravity()) sb.append(" noGravity");
+                    if (!s.equipment().isEmpty()) sb.append(" equipment ").append(s.json().get("equipment"));
+                    if (!s.pose().isEmpty()) sb.append(" posed ").append(String.join(",", s.pose().keySet()));
+                }
+                default -> {
+                    if (s.rotation() != 0) sb.append(" rotation ").append(s.rotation());
+                    if (s.fixed()) sb.append(" fixed");
+                    if (s.invisible()) sb.append(" invisible");
+                }
+            }
+            sb.append(s.placed() ? " [Ashlar]" : "");
+        }
+        return sb.toString();
     }
 }
