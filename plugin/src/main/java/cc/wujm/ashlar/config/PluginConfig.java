@@ -95,7 +95,16 @@ public record PluginConfig(
     }
 
     public record LimitsConfig(long maxBlocksPerOperation, long maxReadVolume, long tickBudgetMs,
-            int maxQueuedOperations, int maxChunksPerOperation, long maxFlowingLiquidsPerOperation, long maxDiffVolume) {
+            int maxQueuedOperations, int maxChunksPerOperation, long maxFlowingLiquidsPerOperation, long maxDiffVolume,
+            long maxExportVolume) {
+        public static final long DEFAULT_MAX_EXPORT_VOLUME = 4_000_000;
+
+        public LimitsConfig(long maxBlocksPerOperation, long maxReadVolume, long tickBudgetMs, int maxQueuedOperations,
+                int maxChunksPerOperation, long maxFlowingLiquidsPerOperation, long maxDiffVolume) {
+            this(maxBlocksPerOperation, maxReadVolume, tickBudgetMs, maxQueuedOperations, maxChunksPerOperation,
+                    maxFlowingLiquidsPerOperation, maxDiffVolume, DEFAULT_MAX_EXPORT_VOLUME);
+        }
+
     }
 
     public record WorldConfig(String defaultWorld, List<String> allowedWorlds, BuildRegion buildRegion) {
@@ -246,6 +255,7 @@ public record PluginConfig(
         int maxChunksPerOperation = (int) positiveOrDefault(fc, "limits.max-chunks-per-operation", 1024, logger);
         long maxFlowingLiquidsPerOperation = positiveOrDefault(fc, "limits.max-flowing-liquids-per-operation", 2000, logger);
         long maxDiffVolume = positiveOrDefault(fc, "limits.max-diff-volume", 2_000_000, logger);
+        long maxExportVolume = positiveOrDefault(fc, "limits.max-export-volume", LimitsConfig.DEFAULT_MAX_EXPORT_VOLUME, logger);
 
         String defaultWorld = fc.getString("world.default", "world");
         List<String> allowedWorlds = new ArrayList<>(fc.getStringList("world.allowed-worlds"));
@@ -309,7 +319,7 @@ public record PluginConfig(
         return new PluginConfig(
                 new ServerConfig(serverEnabled, host, port, token, List.copyOf(allowedIps)),
                 new LimitsConfig(maxBlocksPerOperation, maxReadVolume, tickBudgetMs, maxQueuedOperations,
-                        maxChunksPerOperation, maxFlowingLiquidsPerOperation, maxDiffVolume),
+                        maxChunksPerOperation, maxFlowingLiquidsPerOperation, maxDiffVolume, maxExportVolume),
                 new WorldConfig(defaultWorld, List.copyOf(allowedWorlds),
                         new WorldConfig.BuildRegion(buildRegionEnabled, minX, minZ, maxX, maxZ)),
                 new SnapshotConfig(snapshotEnabled, maxSnapshots, maxVolume),

@@ -72,6 +72,8 @@ import cc.wujm.ashlar.tool.mc.McPlayers;
 import cc.wujm.ashlar.tool.mc.McRender;
 import cc.wujm.ashlar.tool.mc.McSightline;
 import cc.wujm.ashlar.tool.mc.McWalk;
+import cc.wujm.ashlar.tool.mc.CellFiles;
+import cc.wujm.ashlar.tool.mc.McExport;
 import cc.wujm.ashlar.tool.mc.McRestore;
 import cc.wujm.ashlar.tool.mc.McProtect;
 import cc.wujm.ashlar.tool.mc.ProtectionGuard;
@@ -227,22 +229,24 @@ public final class AshlarPlugin extends JavaPlugin {
         this.protectedRegions = new cc.wujm.ashlar.protect.ProtectedRegions(dataFolder.resolve("protected.json"));
         loadProtectedRegions();
         ProtectionGuard protection = new ProtectionGuard(protectedRegions, configHolder, operationLog, getLogger());
+        CellFiles cellFiles = new CellFiles(dataFolder);
         McBuild buildTool = new McBuild(snapshotCreateHandler, fillBatchHandler, setBlocksHandler, blueprintStore, () -> {
             var limits = configHolder.get().limits();
             return new BlueprintCompiler.Limits(limits.maxBlocksPerOperation(), limits.maxChunksPerOperation(),
                     limits.maxFlowingLiquidsPerOperation());
-        }).withPreflight(preflight).withJournal(journalService).withProtection(protection);
+        }).withPreflight(preflight).withJournal(journalService).withProtection(protection)
+                .withCells(cellFiles, configHolder::get);
         VerificationService verification = new VerificationService(buildTool, preflight, executor, configHolder,
                 new VerificationStore(), snapshotCreateHandler);
         DiffService diffService = new DiffService(buildTool, preflight, executor, configHolder, new DiffStore(),
-                snapshotStore, snapshotCreateHandler, dataFolder.resolve("expected"));
+                snapshotStore, snapshotCreateHandler, dataFolder.resolve("expected")).withCells(cellFiles);
         ViewService viewService = new ViewService(configHolder, executor, renderExecutor);
         ToolRegistry toolRegistry = new ToolRegistry(List.of(
                 new McStatus(healthHandler),
                 new McPlayers(playersHandler),
                 new McSurvey(heightmapHandler, renderHandler),
                 buildTool,
-                new McBlueprint(blueprintStore, new cc.wujm.ashlar.tool.mc.TerrainFitService(configHolder, executor, preflight).withProtection(protection)),
+                new McBlueprint(blueprintStore, new cc.wujm.ashlar.tool.mc.TerrainFitService(configHolder, executor, preflight).withProtection(protection)).withCells(cellFiles),
                 new McPlan(buildTool, preflight, renderExecutor),
                 new McVerify(buildTool, verification),
                 new McRepair(verification, diffService).withJournal(journalService).withProtection(protection),
@@ -251,6 +255,7 @@ public final class AshlarPlugin extends JavaPlugin {
                 new McRender(renderHandler).withFirstPerson(viewService, configHolder),
                 new McSightline(viewService, configHolder),
                 new McWalk(readRegionHandler, configHolder, renderExecutor),
+                new McExport(readRegionHandler, configHolder, cellFiles, renderExecutor),
                 new McSnapshot(snapshotCreateHandler, listSnapshotsHandler, journalService),
                 new McRestore(restoreHandler, journalService).withProtection(protection, snapshotStore::get),
                 new McProtect(protectedRegions, configHolder),

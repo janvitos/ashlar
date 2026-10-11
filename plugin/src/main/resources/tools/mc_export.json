@@ -1,0 +1,70 @@
+{
+  "name": "mc_export",
+  "title": "Export blocks to a file",
+  "description": "Writes the blocks of a box to a compressed file, plugins/Ashlar/exports/<name>.json.gz, for offline editing, rebuilding or later comparison. Read-only in the world.\n\nWHEN TO USE: to keep an exact copy of an area larger than mc_inspect returns (up to 4,000,000 blocks by default), to edit it offline and rebuild it with mc_build {cellsFile:name}, or to compare it later with mc_diff {against:{expectedFile:name}}.\nWHEN NOT TO USE: for statistics or a quick look (use mc_inspect or mc_render); as a rollback point before changes (use mc_build snapshot:true, the journal or mc_snapshot); for sign text, inventories or entities, which are not exported.\n\nPARAMETERS: from/to (inclusive corners), optional world, name ([a-z0-9][a-z0-9_-]{0,63}; overwrite:true replaces an existing export). format \"cells\" (default): {format, world, bounds, cells:[[x,y,z,\"state\"],...]}, with skipAir:true leaving out air cells (a rebuild then never clears anything). format \"palette-rle\": {bounds, order \"y,z,x\", palette, runs:[[paletteIndex,count],...]}, much smaller for big boxes. canonical (default true) drops properties that equal their defaults, as mc_inspect does.\n\nSIDE EFFECTS: writes one file; the 20 newest exports are kept and older ones are removed. The box is read through the normal tick-budgeted region reads (several for a large box), which can load the chunks it covers; encoding and writing run off the main thread. A box over limits.max-export-volume is rejected before reading.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "description": "First inclusive corner [x, y, z].",
+        "type": "array",
+        "items": {
+          "type": "integer"
+        },
+        "minItems": 3,
+        "maxItems": 3
+      },
+      "to": {
+        "description": "Second inclusive corner [x, y, z].",
+        "type": "array",
+        "items": {
+          "type": "integer"
+        },
+        "minItems": 3,
+        "maxItems": 3
+      },
+      "world": {
+        "description": "World name. Omitted uses the plugin's configured default world.",
+        "type": "string",
+        "minLength": 1
+      },
+      "name": {
+        "description": "Export name, without extension.",
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+      },
+      "format": {
+        "description": "cells (default) or palette-rle.",
+        "type": "string",
+        "enum": [
+          "cells",
+          "palette-rle"
+        ]
+      },
+      "canonical": {
+        "description": "Drop default-valued properties (default true).",
+        "type": "boolean"
+      },
+      "skipAir": {
+        "description": "cells format: leave out air cells (default false).",
+        "type": "boolean"
+      },
+      "overwrite": {
+        "description": "Replace an existing export of this name (default false).",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "from",
+      "to",
+      "name"
+    ],
+    "$schema": "https://json-schema.org/draft/2020-12/schema"
+  },
+  "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false
+  }
+}

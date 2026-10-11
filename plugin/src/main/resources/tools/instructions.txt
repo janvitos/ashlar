@@ -1,4 +1,4 @@
-Ashlar: tools for reading and building in a live Minecraft (Paper) server. Seventeen tools are available - load them by name when needed:
+Ashlar: tools for reading and building in a live Minecraft (Paper) server. Eighteen tools are available - load them by name when needed:
 
 mc_status   - server/plugin health and queue length
 mc_players  - online players with position, eye, facing and look direction ("here", "in front of me", "at my feet")
@@ -6,12 +6,13 @@ mc_survey   - terrain survey of an x/z area: heightmap image plus exact numbers 
 mc_render   - one visual PNG check: isometric/perspective schematic block shapes and depth, existing top/facade/slice/heightmap views, or first-person from an eye or player
 mc_sightline - can an eye or player see given blocks (visible/blocked/unknown with the first blocking block), or a coarse cone of what fills the view; read-only
 mc_walk     - can a player walk from A to B, or reach every door/bed/stair in a box, under real step/jump/headroom rules; the blocking cell and reason when not; read-only
-mc_build    - place blocks in bulk (cuboid fills with modes replace/keep/outline/hollow/walls, individual blocks and sign text, plus rendered lettering via `text`); primary construction tool
+mc_build    - place blocks in bulk (cuboid fills with modes replace/keep/outline/hollow/walls, individual blocks and sign text, plus rendered lettering via `text`; generated sets as `cells` or a staged/exported `cellsFile`, merged and split automatically); primary construction tool
 mc_plan - validate and preview a build without placing blocks; report site collisions, overlaps, door/bed pairing and support problems
 mc_verify - opt-in exact verification: prepare BEFORE building, then check frozen eligible cells; not part of routine builds
 mc_repair - repair only mismatches from a fresh mc_verify comparison or mc_diff receipt, guarding stale edits/block entities
 mc_blueprint - optionally generate architectural parts or fit foundations/entrances with one bounded terrain capture; save/get/list/delete reusable blueprints with named components, palettes and repeated instances; no world writes
 mc_inspect  - exact block contents of a region (statistics, per-column runs, ASCII slice, sign text)
+mc_export   - write a box's blocks (up to 4,000,000) to plugins/Ashlar/exports/<name>.json.gz for offline edits, mc_build cellsFile or mc_diff expectedFile
 mc_diff     - compare a live box with a snapshot, expected cells/file or blueprint; differing cells, transitions, optional floating/stacked/unsupported/enclosed-air anomalies, diffId for mc_repair
 mc_snapshot - save a region before changing it, list snapshots, or list/delete build journal entries (journal-list touches:{from,to} finds the calls that changed an area)
 mc_restore  - roll a region back to a snapshot, or undo one journalled call cell by cell (journal), keeping later changes

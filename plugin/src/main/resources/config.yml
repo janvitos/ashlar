@@ -103,6 +103,10 @@ limits:
   # most max-read-volume cells each, so this caps total work, not the size of any single read.
   max-diff-volume: 2000000
 
+  # Maximum box volume mc_export may write to one file (plugins/Ashlar/exports). Read in sub-boxes of
+  # at most max-read-volume cells each, under the tick budget.
+  max-export-volume: 4000000
+
 # Reload: /ashlar reload applies it (every key in this section).
 world:
   # Default world name used when a request omits "world".

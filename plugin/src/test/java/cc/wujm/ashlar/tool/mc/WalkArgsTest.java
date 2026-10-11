@@ -44,7 +44,7 @@ class WalkArgsTest {
     @Test
     void tilesCoverTheBoxWithinTheReadLimit() {
         Region box = new Region(-10, 50, 5, 189, 89, 104);
-        List<Region> tiles = McWalk.tiles(box, 200_000);
+        List<Region> tiles = BoxRead.tiles(box, 200_000);
         long sum = 0;
         for (Region t : tiles) {
             assertTrue(t.volume() <= 200_000);
@@ -52,7 +52,7 @@ class WalkArgsTest {
         }
         assertEquals(box.volume(), sum);
         assertTrue(tiles.size() >= 4);
-        assertThrows(ToolArgError.class, () -> McWalk.tiles(new Region(0, 0, 0, 0, 300, 0), 100));
+        assertThrows(ToolArgError.class, () -> BoxRead.tiles(new Region(0, 0, 0, 0, 300, 0), 100));
     }
 
     @Test
@@ -67,7 +67,7 @@ class WalkArgsTest {
         for (int z = 0; z < 10; z++) for (int y = 64; y <= 66; y++) ids[((y - 63) * 10 + z) * 10 + 5] = 1;
         ids[((64 - 63) * 10 + 5) * 10 + 5] = 2;
         ids[((65 - 63) * 10 + 5) * 10 + 5] = 3;
-        McWalk.Cells cells = new McWalk.Cells(ids, palette, "world");
+        BoxRead.Cells cells = new BoxRead.Cells(ids, palette, "world");
         String path = McWalk.run(McWalk.Args.parse(json("{\"from\":[0,64,0],\"to\":[4,64,9],\"box\":{\"from\":[0,63,0],\"to\":[9,67,9]}}")), cells);
         assertTrue(path.contains("reachable in 13 moves"), path);
         String blocked = McWalk.run(McWalk.Args.parse(json("{\"from\":[0,64,0],\"to\":[9,64,5],\"box\":{\"from\":[0,63,0],\"to\":[9,67,9]}}")), cells);
