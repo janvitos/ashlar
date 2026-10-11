@@ -331,6 +331,31 @@ Branch: `feat/build-entities`.
     - after the force-load is dropped and the chunk unloads, all 8 entities read back unchanged;
   - test region restored to pristine air, entities killed, forceload removed, journal entries deleted. No production changes.
 
+## Step 18 implementation and verification
+
+Branch: `feat/terrain-light-analysis`.
+
+- Pure core: `SurfaceRules` (what counts as decoration, and the collision top a player stands on), `LightRules` (floor, feet and head cells of a spawn space; which cells let light through) and `LightScan` (the scan, a 6-neighbour light flood that stays in the box, and lazy greedy set cover with a spacing check).
+- Main-thread work: `SurfaceReader` reads the decoration-ignoring surface and walk heights inside the existing heightmap tasks; `LightSnapshotTask` copies one `ChunkSnapshot` per chunk under the tick budget, with chunk tickets for the box. Scan and planning run on the render executor.
+- `mc_light` is registered as the 19th tool; `mc_survey` and the heightmap RPC take `snowLayers` and `walk`.
+- Deviations from the plan:
+  - light levels are read from chunk snapshots off the main thread instead of `Block.getLightFromBlocks` on the main thread;
+  - `spacing` is the minimum distance between suggested lights (largest axis difference, default 1 = no limit), not a grid step; spaces it leaves unlit are reported as staying dark;
+  - `snowLayers` defaults to 3; the decoration-ignoring scan starts at the highest non-air block, because thin snow is not motion-blocking, and scans at most 64 blocks down;
+  - `walkHeight` is limited to 4,096 columns (64x64);
+  - `placement:"hidden"` needs the light block (it has no collision, so it can sit in the dark space itself); other blocks use `floor` or `ceiling`.
+- Context cost: tool schemas and instructions grow by about 5,600 characters (about 1,400 tokens), mostly the new `mc_light` schema. Typical `mc_light` replies are 10-180 tokens.
+- Verification:
+  - one plugin build: 842 tests passed (24 new), zero failures; adapter 8 tests passed. The full build ran before a one-line fix to `SurfaceReader` (start the decoration scan at the highest non-air block); that fix was compiled and covered by the smoke test;
+  - isolated-server smoke test `e2e-light.mjs`, 27 checks:
+    - the catalog has 19 tools; `mc_light` is read-only; `mc_survey` has `walkHeight`;
+    - hidden placement with a torch, a level not above the threshold and an unknown block are rejected;
+    - a closed 9x4x9 stone room reports 81 of 81 dark spawn spaces, bounds and per-y counts; `spawnable:false` reports 324 open cells; `includeSky` changes nothing indoors; ceiling placement of a hanging lantern lands under the roof;
+    - after building the suggested light blocks, the room reports 0 dark and "none needed"; a threshold of 3 finds dark corners again;
+    - on a row of carpet, 2-layer snow, a lantern, a bottom slab, a fence, 1-layer snow and bare stone, `TOP_SOLID_IGNORE_DECOR` reads the stone under the decoration, and walk heights are 101.063, 101.125, 101.563, 101.5, 102.5, 101, 101; `snowLayers:0` keeps the 2-layer snow; `ANY` sees every decoration;
+    - `snowLayers` without the decor type and an over-limit `walkHeight` area are rejected;
+  - test region restored to pristine air, forceload removed, journal entries deleted, no non-player entities left. No production changes.
+
 ## Fork activation
 
 User-approved deployment uses Paper 26.1.2 build 74, without a Paper upgrade. The fork now compiles against that exact API and declares minimum API 26.1. One build passed; an approved restart used a verified full 30-second in-game countdown before a graceful stop/install/start. Original artifact retained for rollback; plugin configuration/credentials unchanged. Pi points at the locally built fork adapter through the existing Docker network arrangement. Basic read-only deployment check confirmed plugin 0.4.9-dev, authenticated MCP, 13 tools and photo-reference instructions. No construction/terrain test writes or exhaustive regressions were performed on production. Pi needs `/reload` to refresh an existing session's connection and catalog.

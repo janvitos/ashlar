@@ -57,6 +57,14 @@ public final class HeightmapImageTask extends BuildTask {
     private int cursorX;
     private boolean cursorInitialized = false;
 
+    private int decorSnow = -1;
+
+    /** Step 18 {@code TOP_SOLID_IGNORE_DECOR}: also step down through decoration, ignoring up to {@code layers} snow layers. */
+    public HeightmapImageTask ignoringDecor(int layers) {
+        this.decorSnow = layers;
+        return this;
+    }
+
     public HeightmapImageTask(Region region, World world, int x1, int z1, int x2, int z2, HeightMap requestedMap) {
         super(region);
         this.world = world;
@@ -103,7 +111,7 @@ public final class HeightmapImageTask extends BuildTask {
     private boolean readRowSegment(long deadlineNanos) {
         int sinceCheck = 0;
         while (cursorX <= x2) {
-            int y = readHeight(cursorX, cursorZ, requestedMap);
+            int y = SurfaceReader.surfaceY(world, cursorX, cursorZ, requestedMap, decorSnow);
             int zi = cursorZ - z1, xi = cursorX - x1;
             heights[zi][xi] = y;
 

@@ -1,11 +1,12 @@
-Ashlar: tools for reading and building in a live Minecraft (Paper) server. Eighteen tools are available - load them by name when needed:
+Ashlar: tools for reading and building in a live Minecraft (Paper) server. Nineteen tools are available - load them by name when needed:
 
 mc_status   - server/plugin health and queue length
 mc_players  - online players with position, eye, facing and look direction ("here", "in front of me", "at my feet")
-mc_survey   - terrain survey of an x/z area: heightmap image plus exact numbers (min/max/median height, surface mix, largest flat zone); format:"text" for an ASCII map
+mc_survey   - terrain survey of an x/z area: heightmap image plus exact numbers (min/max/median height, surface mix, largest flat zone); format:"text" for an ASCII map; type TOP_SOLID_IGNORE_DECOR and walkHeight for ground under decoration and exact standing heights
 mc_render   - one visual PNG check: isometric/perspective schematic block shapes and depth, existing top/facade/slice/heightmap views, or first-person from an eye or player
 mc_sightline - can an eye or player see given blocks (visible/blocked/unknown with the first blocking block), or a coarse cone of what fills the view; read-only
 mc_walk     - can a player walk from A to B, or reach every door/bed/stair in a box, under real step/jump/headroom rules; the blocking cell and reason when not; read-only
+mc_light    - dark mob-spawn spaces in a box (counts, samples) and an optional greedy list of light positions ready for mc_build cells; read-only
 mc_build    - place blocks in bulk (cuboid fills with modes replace/keep/outline/hollow/walls, individual blocks and sign text, plus rendered lettering via `text`; generated sets as `cells` or a staged/exported `cellsFile`, merged and split automatically; paintings, item frames and armor stands via `entities`); primary construction tool
 mc_plan - validate and preview a build without placing blocks; report site collisions, overlaps, door/bed pairing and support problems
 mc_verify - opt-in exact verification: prepare BEFORE building, then check frozen eligible cells; not part of routine builds

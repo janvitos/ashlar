@@ -1,0 +1,36 @@
+{
+  "name": "mc_light",
+  "title": "Light and spawn check",
+  "description": "Finds the dark spaces in a box where hostile mobs can spawn, and can suggest where to put lights so none are left. Read-only.\n\nWHEN TO USE: after building an interior, cave, basement, wall walk or courtyard, to answer \"can mobs spawn in here?\" and to get a ready-made list of light positions (invisible light blocks by default) to pass to mc_build `cells`. Run it again after building the lights to confirm 0 dark spaces.\n\nWHEN NOT TO USE: for how a build looks (use mc_render) or whether a player can walk somewhere (use mc_walk). It does not model mob-specific rules (biomes, slime chunks, structures, spawner blocks, mob size), and it is not a lighting design tool for appearance.\n\nPARAMETERS: `from`/`to` are inclusive [x,y,z] corners of the box to check; volume at most limits.max-read-volume (200,000 by default). A spawn space is a cell whose feet and head cells are open (air, plants, 1-layer snow; not carpet, water, rails, buttons, pressure plates or redstone parts) above a floor with a full solid top (top or double slabs and upside-down stairs count; glass, leaves, ice, magma, bottom slabs, right-side-up stairs, fences and walls do not); `spawnable: false` instead counts every open cell. A space is dark when its block light is at most `threshold` (0-14, default 0, the modern hostile-mob rule); sky light is ignored (night) unless `includeSky: true`, which also requires sky light at most threshold. `samples` (0-200, default 20) lists dark feet cells. `suggest` (optional) asks for a greedy light plan: `block` (default \"light\", the invisible light block; any light-emitting block id works), `level` (1-15, default 11, above threshold; for the light block it sets its level, for other blocks give the level that block emits), `spacing` (1-32, default 1: minimum distance between suggested lights, larger for even spread), `placement` \"hidden\" (default for light: inside the dark spaces themselves, invisible and not in the way of walking because light blocks have no collision), \"floor\" (on the floor in a dark space) or \"ceiling\" (the open cell just under a ceiling above a dark space, up to 16 blocks up).\n\nSIDE EFFECTS: none - read-only. Chunks in the box are loaded and copied a few per tick; the analysis runs off the main thread. Light coverage is estimated by spreading light inside the box only, and the server updates light a moment after blocks change, so build, wait a few seconds, then re-check.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "from": {"description": "Inclusive corner [x, y, z].", "type": "array", "items": {"type": "integer"}, "minItems": 3, "maxItems": 3},
+      "to": {"description": "Inclusive corner [x, y, z] opposite from.", "type": "array", "items": {"type": "integer"}, "minItems": 3, "maxItems": 3},
+      "world": {"description": "World name. Omitted uses the plugin's configured default world.", "type": "string", "minLength": 1},
+      "threshold": {"description": "A space is dark when its light is at most this (0-14). Default 0.", "type": "integer", "minimum": 0, "maximum": 14},
+      "includeSky": {"description": "Also require sky light <= threshold (dark even by day). Default false: sky light ignored.", "type": "boolean"},
+      "spawnable": {"description": "true (default): only spaces a mob can spawn in; false: every open cell.", "type": "boolean"},
+      "samples": {"description": "Dark feet cells listed, 0-200. Default 20.", "type": "integer", "minimum": 0, "maximum": 200},
+      "suggest": {
+        "description": "Ask for a greedy list of light positions in mc_build cells form.",
+        "type": "object",
+        "properties": {
+          "block": {"type": "string", "description": "Light source block id. Default \"light\" (invisible)."},
+          "level": {"type": "integer", "minimum": 1, "maximum": 15, "description": "Light level the block emits. Default 11."},
+          "spacing": {"type": "integer", "minimum": 1, "maximum": 32, "description": "Minimum distance between lights (largest axis difference). Default 1."},
+          "placement": {"type": "string", "enum": ["hidden", "floor", "ceiling"], "description": "hidden (light block only, default), floor or ceiling."}
+        },
+        "additionalProperties": false
+      }
+    },
+    "required": ["from", "to"],
+    "$schema": "https://json-schema.org/draft/2020-12/schema"
+  },
+  "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false
+  }
+}

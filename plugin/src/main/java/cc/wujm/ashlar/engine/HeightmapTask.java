@@ -42,6 +42,8 @@ public final class HeightmapTask extends BuildTask {
     private final int z2;
     private final HeightMap heightMap;
     private final String typeName;
+    private final int decorSnow;
+    private final double[][] walk; // [zi][xi] feet y, or null when not requested
 
     private final int[][] heights; // [zi][xi]
     private final int[][] classes; // [zi][xi]: SurfaceClass.code() (0 ground, 1 liquid, 2 vegetation)
@@ -54,6 +56,12 @@ public final class HeightmapTask extends BuildTask {
     private boolean cursorInitialized = false;
 
     public HeightmapTask(Region region, World world, int x1, int z1, int x2, int z2, HeightMap heightMap, String typeName) {
+        this(region, world, x1, z1, x2, z2, heightMap, typeName, -1, false);
+    }
+
+    /** {@code decorSnow >= 0}: {@code TOP_SOLID_IGNORE_DECOR} with that many snow layers ignored; {@code walk}: also read feet heights. */
+    public HeightmapTask(Region region, World world, int x1, int z1, int x2, int z2, HeightMap heightMap, String typeName, int decorSnow,
+            boolean walk) {
         super(region);
         this.world = world;
         this.x1 = x1;
@@ -62,6 +70,8 @@ public final class HeightmapTask extends BuildTask {
         this.z2 = z2;
         this.heightMap = heightMap;
         this.typeName = typeName;
+        this.decorSnow = decorSnow;
+        this.walk = walk ? new double[z2 - z1 + 1][x2 - x1 + 1] : null;
         this.heights = new int[z2 - z1 + 1][x2 - x1 + 1];
         this.classes = new int[z2 - z1 + 1][x2 - x1 + 1];
     }
@@ -99,12 +109,9 @@ public final class HeightmapTask extends BuildTask {
     private boolean readRowSegment(long deadlineNanos) {
         int sinceCheck = 0;
         while (cursorX <= x2) {
-            int rawY = world.getHighestBlockYAt(cursorX, cursorZ, heightMap);
-            int y = rawY;
-            if (y > world.getMinHeight() && world.getBlockAt(cursorX, y, cursorZ).getType().isAir()) {
-                y--;
-            }
+            int y = SurfaceReader.surfaceY(world, cursorX, cursorZ, heightMap, decorSnow);
             heights[cursorZ - z1][cursorX - x1] = y;
+            if (walk != null) walk[cursorZ - z1][cursorX - x1] = SurfaceReader.walkY(world, cursorX, cursorZ);
 
             BlockData data = world.getBlockAt(cursorX, y, cursorZ).getBlockData();
             boolean waterlogged = data instanceof Waterlogged w && w.isWaterlogged();
@@ -158,6 +165,16 @@ public final class HeightmapTask extends BuildTask {
             classesJson.add(rowJson);
         }
         result.add("classes", classesJson);
+        if (decorSnow >= 0) result.addProperty("snowLayers", decorSnow);
+        if (walk != null) {
+            JsonArray walkJson = new JsonArray();
+            for (double[] row : walk) {
+                JsonArray rowJson = new JsonArray();
+                for (double v : row) rowJson.add(Math.round(v * 1000) / 1000.0);
+                walkJson.add(rowJson);
+            }
+            result.add("walk", walkJson);
+        }
         // Fallback for the pathological case where every cell is vegetation
         // (min/max never updated above): report over all heights rather than
         // the sentinel MAX_VALUE/MIN_VALUE.
