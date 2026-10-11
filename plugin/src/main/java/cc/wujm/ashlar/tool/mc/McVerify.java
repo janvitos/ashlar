@@ -10,7 +10,7 @@ import java.util.concurrent.CompletableFuture;
 /** Non-destructive verification with frozen pre-build expectations. */
 public final class McVerify implements Tool {
     private final ToolSpec spec=ToolSpec.load("mc_verify");private final VerificationService service;
-    public McVerify(McBuild build,VerificationService service) {this.service=service;spec.inputSchema().getAsJsonObject("properties").add("build",build.spec().inputSchema().deepCopy());}
+    public McVerify(VerificationService service) {this.service=service;}
     @Override public ToolSpec spec(){return spec;}
     static int bounded(JsonObject args,String field,int fallback,int min,int max) {
         int n=ArgParse.has(args,field) ? BuildTransform.strictInt(args.get(field),field) : fallback;

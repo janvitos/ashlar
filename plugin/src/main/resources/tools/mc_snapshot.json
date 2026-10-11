@@ -1,12 +1,12 @@
 {
   "name": "mc_snapshot",
   "title": "Snapshot region",
-  "description": "Captures the current block contents of a region (block states, sign text and decorative entities: paintings, item frames, armor stands; not inventories) so it can be restored later with mc_restore, or lists every snapshot currently stored on the server. Also lists and deletes build journal entries (every writing mc_build, mc_repair and mc_restore keeps one). This is the manual counterpart to mc_build's own `snapshot: true` option - use it to protect an area before an experimental or risky change, independent of any single build call.\n\nWHEN TO USE: before manually editing an area across several separate mc_build calls when you want one restore point covering all of them (mc_build's own snapshot option only covers that single call's bounding box); before letting a user try something destructive; to check what snapshots already exist and their ids/labels/timestamps before deciding whether to restore one, or before running low on the server's snapshot slots (oldest snapshots are evicted automatically once the configured maximum is reached).\n\nWHEN NOT TO USE: to read current block contents (use mc_inspect - snapshots do not display their contents, they only exist to be restored later). If you already passed `snapshot: true` to mc_build for a single build call, calling mc_snapshot again for the same region is redundant.\n\nPARAMETERS: `action` is \"create\" (default), \"list\", \"journal-list\" or \"journal-delete\". \"journal-list\" returns journal entries newest first (id, time, tool, world, bounds, changed cells, label, undo links); filters: `since` (ISO-8601 UTC instant), `label` (substring), `world`, `touches` {from,to} (exactly the entries that changed a cell in that box - answers \"which builds touched this area?\") and `limit` (default 50). \"journal-delete\" removes entry `id`. For \"create\": `world` (optional, defaults to the plugin's default world), `from`/`to` (required, inclusive [x, y, z] corners in any order, X east/Z south/Y up, volume up to 200,000 blocks), and an optional `label` string to help identify the snapshot later. \"list\" takes no other parameters and returns every stored snapshot regardless of world.\n\nSIDE EFFECTS: \"create\" does not modify the world - it only reads and stores a copy of the region, comparable in cost to mc_inspect over the same volume. It does consume one of the server's limited snapshot slots; the oldest snapshot is silently evicted once the configured maximum count is reached, so do not rely on a snapshot existing indefinitely. \"list\" and \"journal-list\" have no side effects at all; \"journal-delete\" permanently removes that undo record (not the blocks).",
+  "description": "Saves a region (block states, sign text and decorative entities; not inventories) for mc_restore, lists stored snapshots, or lists and deletes build journal entries (every writing mc_build, mc_repair and mc_restore keeps one).\n\nWHEN TO USE: one restore point before several separate mc_build calls in an area (mc_build snapshot:true covers only that call); before something destructive; to find snapshot ids, or (journal-list touches) which calls changed an area.\nWHEN NOT TO USE: to read blocks (mc_inspect; snapshots are not displayed). Not again after mc_build snapshot:true for the same region.\n\nPARAMETERS: action \"create\" (default) needs from/to (at most 200,000 blocks) and an optional label. \"list\" returns every snapshot. \"journal-list\" returns entries newest first (id, time, tool, world, bounds, changed cells, label, undo links), filtered by since, label, world, touches and limit (default 50). \"journal-delete\" removes entry `id`.\n\nSIDE EFFECTS: create reads the region and uses one snapshot slot; the oldest snapshot is evicted silently when the configured maximum is reached. journal-delete removes the undo record, not the blocks. Nothing else changes.",
   "inputSchema": {
     "type": "object",
     "properties": {
       "action": {
-        "description": "\"create\" (default) takes a new snapshot; \"list\" returns every snapshot currently stored; \"journal-list\" lists build journal entries; \"journal-delete\" removes one.",
+        "description": "\"create\" (default), \"list\", \"journal-list\" or \"journal-delete\".",
         "type": "string",
         "enum": [
           "create",
@@ -16,28 +16,22 @@
         ]
       },
       "world": {
-        "description": "World name for a create (omitted uses the plugin's configured default world), or a journal-list filter.",
+        "description": "World for create (default: the configured default world), or a journal-list filter.",
         "type": "string",
         "minLength": 1
       },
       "from": {
-        "description": "Inclusive [x, y, z] corner of the region to capture. Required when action is create.",
+        "description": "create: inclusive [x, y, z] corner.",
         "type": "array",
         "prefixItems": [
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           },
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           },
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           }
         ],
         "items": false,
@@ -45,23 +39,17 @@
         "maxItems": 3
       },
       "to": {
-        "description": "Inclusive [x, y, z] corner opposite `from`. Required when action is create.",
+        "description": "create: opposite inclusive corner.",
         "type": "array",
         "prefixItems": [
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           },
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           },
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           }
         ],
         "items": false,
@@ -69,7 +57,7 @@
         "maxItems": 3
       },
       "label": {
-        "description": "Optional free-text note stored with a new snapshot, e.g. \"before tower\"; for journal-list, a case-insensitive substring filter.",
+        "description": "create: a note such as \"before tower\"; journal-list: case-insensitive substring filter.",
         "type": "string"
       },
       "id": {
@@ -79,29 +67,23 @@
       },
       "since": {
         "type": "string",
-        "description": "journal-list: only entries created at or after this ISO-8601 UTC instant, e.g. \"2026-10-10T12:00:00Z\"."
+        "description": "journal-list: entries at or after this ISO-8601 UTC instant."
       },
       "touches": {
         "type": "object",
-        "description": "journal-list: only entries that changed at least one cell inside this inclusive box.",
+        "description": "journal-list: entries that changed a cell inside this inclusive box.",
         "properties": {
           "from": {
             "type": "array",
             "prefixItems": [
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               },
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               },
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               }
             ],
             "items": false,
@@ -112,19 +94,13 @@
             "type": "array",
             "prefixItems": [
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               },
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               },
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               }
             ],
             "items": false,

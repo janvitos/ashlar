@@ -250,7 +250,7 @@ public final class AshlarPlugin extends JavaPlugin {
                 buildTool,
                 new McBlueprint(blueprintStore, new cc.wujm.ashlar.tool.mc.TerrainFitService(configHolder, executor, preflight).withProtection(protection)).withCells(cellFiles),
                 new McPlan(buildTool, preflight, renderExecutor),
-                new McVerify(buildTool, verification),
+                new McVerify(verification),
                 new McRepair(verification, diffService).withJournal(journalService).withProtection(protection),
                 new McInspect(readRegionHandler).withEntities(entityService),
                 new McDiff(diffService),

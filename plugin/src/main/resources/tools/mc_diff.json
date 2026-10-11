@@ -1,12 +1,12 @@
 {
   "name": "mc_diff",
   "title": "Compare a region",
-  "description": "Compares a live box with a reference and reports exactly which cells differ: counts by class (missing, unexpected, wrong-material, wrong-properties), \"expected -> found\" transitions, the bounding box of the differences and the first sample cells in y,z,x order. Optional anomaly checks find floating or stacked snow/carpets/plates/rails/torches/plants, unsupported attached blocks and enclosed air pockets. States compare in canonical form: no minecraft: prefix and no default-valued properties, so light[level=11,waterlogged=false] equals light[level=11]; air, cave_air and void_air are equal. When cells differ, returns a diffId receipt for mc_repair.\n\nWHEN TO USE: to check a finished build or edit against what it should be in one call instead of several mc_inspect slices; to see what changed since a snapshot; to audit a blueprint placement; to find stray snow, floating decorations or sealed air pockets in an area.\n\nWHEN NOT TO USE: for a plain block inventory (mc_inspect); for appearance (mc_render); for exact checks that must freeze keep/filter eligibility and sign text BEFORE building (mc_verify). Entities, sign text and other NBT are not compared (mc_inspect entities:true lists decorative entities).\n\nPARAMETERS/COORDINATES: X grows east, Z grows south, Y grows up. from/to are inclusive corners in any order; volume is capped by limits.max-diff-volume (default 2,000,000) and read in sub-boxes of at most limits.max-read-volume. against takes exactly one reference: {snapshot:id} (its region must contain the box), {expected:[[x,y,z,\"state\"],...]} (at most 50,000 cells), {expectedFile:name} (server file plugins/Ashlar/expected/<name>.json or .json.gz with the same array or {\"cells\":[...]}), or {blueprint:{id,palette?}, transform?} (compiled like mc_build; frozen eligible final cells). Reference cells outside the box are counted and skipped. scope \"box\" (default) also compares undeclared cells against baselineSnapshot when given, else skips them; scope \"declared\" compares declared cells only. ignore: up to 32 globs such as \"*_leaves\", \"snow[layers=1]\" or \"oak_*[*]\"; a cell is skipped when the reference or the live state matches. compare \"material\" ignores properties. anomalies: any of floating, stacked, unsupported, enclosedAir. samples 1-1000 (default 50). format: summary (default), cells (all samples) or columns (per x,z column counts and y ranges).\n\nSIDE EFFECTS: none on the world. Stores an owner-scoped diff receipt (at most 100,000 differing cells; expires after two hours or on plugin reload/restart).",
+  "description": "Compares a live box with a reference and reports which cells differ: counts by class (missing, unexpected, wrong-material, wrong-properties), \"expected -> found\" transitions, the bounding box of the differences and sample cells. Optional anomaly checks find floating or stacked decorations, unsupported attached blocks and enclosed air pockets. States compare in canonical form (no minecraft: prefix, no default-valued properties; air variants are equal). When cells differ, returns a diffId for mc_repair.\n\nWHEN TO USE: to check a finished build or edit against what it should be in one call; to see what changed since a snapshot; to audit a blueprint placement; to find stray snow, floating decorations or sealed air pockets.\nWHEN NOT TO USE: for a block inventory (mc_inspect) or appearance (mc_render); for checks that must freeze keep/filter eligibility and sign text before building (mc_verify). Entities, sign text and other NBT are not compared.\n\nPARAMETERS: from/to inclusive corners, at most limits.max-diff-volume (default 2,000,000). against takes one reference: {snapshot} (its region must contain the box), {expected} (at most 50,000 cells), {expectedFile} or {blueprint, transform?} (compiled like mc_build). Reference cells outside the box are counted and skipped. ignore: up to 32 globs; a cell is skipped when either state matches. samples 1-1000 (default 50).\n\nSIDE EFFECTS: none on the world. Stores a diff receipt (at most 100,000 differing cells) that expires after two hours or on plugin reload.",
   "inputSchema": {
     "type": "object",
     "properties": {
       "world": {
-        "description": "World name. Omitted uses the plugin's configured default world.",
+        "description": "World name; default: the configured default world.",
         "type": "string",
         "minLength": 1
       },
@@ -14,49 +14,37 @@
         "type": "array",
         "prefixItems": [
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           },
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           },
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           }
         ],
         "items": false,
         "minItems": 3,
         "maxItems": 3,
-        "description": "Inclusive [x, y, z] corner of the box to compare."
+        "description": "Inclusive [x, y, z] corner."
       },
       "to": {
         "type": "array",
         "prefixItems": [
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           },
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           },
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           }
         ],
         "items": false,
         "minItems": 3,
         "maxItems": 3,
-        "description": "Inclusive [x, y, z] corner opposite `from`. Order does not matter."
+        "description": "Opposite inclusive corner."
       },
       "against": {
         "description": "Exactly one reference: snapshot, expected, expectedFile or blueprint (transform only with blueprint).",
@@ -97,7 +85,7 @@
           "expectedFile": {
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-            "description": "Name without extension of plugins/Ashlar/expected/<name>.json(.gz), else a finished staged upload or an mc_export file."
+            "description": "Name without extension of plugins/Ashlar/expected/<name>.json(.gz) (an array of cells or {\"cells\":[...]}), a finalized staged upload or an mc_export file."
           },
           "blueprint": {
             "type": "object",
@@ -184,7 +172,7 @@
           "columns"
         ],
         "default": "summary",
-        "description": "summary: counts, transitions, bbox and 5 samples. cells: every kept sample. columns: per x,z column difference counts and y ranges."
+        "description": "summary (default): counts, transitions, bbox and 5 samples. cells: every kept sample. columns: per x,z column counts and y ranges."
       }
     },
     "required": [

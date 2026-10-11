@@ -1,12 +1,12 @@
 {
   "name": "mc_render",
   "title": "Render view",
-  "description": "Renders a region as a PNG image from a chosen viewpoint, so an AI can see terrain layout and building results instead of reading block-state text. Views include existing maps/facades/slices/heightmaps, shape-aware isometric/perspective schematics, and a first-person view from an eye position.\n\nWHEN TO USE: isometric/perspective for one finished-build appearance check showing stairs, slabs, doors, windows and depth. \"top\" to check terrain shape, a build's footprint, or how a structure sits on the land. \"north\"/\"south\"/\"east\"/\"west\" to inspect a facade - windows, doors, symmetry, roof lines. \"slice\" (axis + coordinate) for a floor plan (axis \"y\") or a vertical cut, e.g. to confirm a room is hollow. \"heightmap\" for terrain relief; prefer mc_survey, which adds the exact numbers. \"first-person\" to see what a player sees from a spot (a vantage point, a spawn, a window), up to 256 blocks away.\n\nWHEN NOT TO USE: to get exact block states, orientations or counts - use mc_inspect. Colors are lossy, not textures. Angled views list approximate/cube-fallback models; not an exhaustive vanilla renderer. To answer whether specific blocks are visible from a spot, use mc_sightline; render first-person only to show the view.\n\nPARAMETERS: `from`/`to` are inclusive corners in any order: [x,y,z], or [x,z] for \"top\"/\"heightmap\" (preferred - the surface is found automatically; pass a y range to a top view only to look under a roof or underground, since it shows the highest block within that range). \"top\"/\"heightmap\" are area-priced (x/z footprint <= 200,000 cells); side/angled views/\"slice\" are volume-priced (<= 200,000 blocks) - for a facade, limit y to the building's height. `view` (default \"top\") is one of top/north/south/east/west/slice/heightmap/isometric/perspective; `slice` is required for `view: \"slice\"`. `scale` is pixels per block, 0-16, or 0-32 for angled views (default 0 = auto). `grid` is grid spacing, 0-64 (default 10; 0 disables it). `camera` for angled views: compass azimuth 0-360, elevation 5-85, perspective fov 20-90. Angled grids must be 0. `compareTo` (angled only): a snapshot id; changed blocks are tinted orange, added green, removed shown as translucent red cubes - a before/after check. `zoom` (angled only, instead of from/to): {pos:[x,y,z], radius 1-16, default 4} for a tight close-up. `heightmapType`/`contour` are heightmap-only. \"first-person\" takes no from/to: give `eye` [x,y,z] (feet + 1.62 for a standing player) with `yaw`/`pitch`, or `player` (their live eye and direction; yaw/pitch override), plus optional `fov` 10-110 (default 70, vertical), `distance` 8-256 (default 128), `width`/`height` (default 960x540, at most 1,000,000 pixels).\n\nSIDE EFFECTS: none - read-only. Returns an image plus text: view, axes, top-left coordinate, grid interval and a legend (blocks as hex color, name, pixel count; for \"heightmap\", height bands plus min/max/median height, surface materials and the largest flat zone). PNGs are capped at 3MB (scale halves automatically). First-person only reads chunks that are already loaded; unloaded ones are drawn flat purple and counted as unknownPixels, never as air. Larger distances read more chunks (limit: limits.max-chunks-per-operation).",
+  "description": "Renders a region as a PNG so you can see terrain and builds: flat maps, facades, slices and heightmaps, shape-aware isometric/perspective schematics, and a first-person view from an eye.\n\nWHEN TO USE: isometric/perspective for one appearance check of a finished build (stairs, slabs, doors, windows, depth). \"top\" for terrain shape, a footprint or how a structure sits on the land. \"north\"/\"south\"/\"east\"/\"west\" for a facade (windows, symmetry, roof lines). \"slice\" for a floor plan (axis \"y\") or a vertical cut. \"heightmap\" for relief (mc_survey adds the numbers). \"first-person\" for what a player sees from a spot, up to 256 blocks away.\nWHEN NOT TO USE: for exact states, orientations or counts (mc_inspect): colours are map colours, not textures, and angled views use schematic shapes. To ask whether blocks are visible from a spot, use mc_sightline.\n\nPARAMETERS: \"top\"/\"heightmap\" are priced by x/z area and the other views by volume (at most 200,000 each); for a facade, limit y to the building. Angled views take `camera`, `compareTo` and `zoom` and need grid 0. \"first-person\" takes `eye` or `player` instead of from/to.\n\nSIDE EFFECTS: read-only. Returns the image plus text: bounds, size, scale, axes and a legend of the most visible blocks (hex colour per block; heightmap: height bands and terrain numbers). PNGs are capped at 3 MB (scale halves automatically). First-person reads only loaded chunks; unloaded ones are drawn flat purple and counted as unknownPixels, never as air.",
   "inputSchema": {
     "type": "object",
     "properties": {
       "world": {
-        "description": "World name. Omitted uses the plugin's configured default world.",
+        "description": "World name; default: the configured default world.",
         "type": "string",
         "minLength": 1
       },
@@ -16,19 +16,13 @@
             "type": "array",
             "prefixItems": [
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               },
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               },
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               }
             ],
             "items": false,
@@ -39,14 +33,10 @@
             "type": "array",
             "prefixItems": [
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               },
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               }
             ],
             "items": false,
@@ -54,7 +44,7 @@
             "maxItems": 2
           }
         ],
-        "description": "Inclusive corner of the region: [x, y, z], or just [x, z] for view \"top\"/\"heightmap\" (the surface is then found automatically over the whole world height). Give a y range to a top view only when you want to look under a roof or underground. Required for every view except \"first-person\"."
+        "description": "Inclusive corner: [x, y, z], or [x, z] for \"top\"/\"heightmap\" (the surface is found automatically; give y only to look under a roof or underground). Not used by \"first-person\"."
       },
       "to": {
         "anyOf": [
@@ -62,19 +52,13 @@
             "type": "array",
             "prefixItems": [
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               },
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               },
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               }
             ],
             "items": false,
@@ -85,14 +69,10 @@
             "type": "array",
             "prefixItems": [
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               },
               {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "type": "integer"
               }
             ],
             "items": false,
@@ -100,10 +80,10 @@
             "maxItems": 2
           }
         ],
-        "description": "Inclusive corner opposite `from`, same shape as `from`. Order does not matter."
+        "description": "Opposite inclusive corner, same shape as `from`."
       },
       "view": {
-        "description": "\"top\" (default): top-down layout, shaded like a vanilla in-game map. \"north\"/\"south\"/\"east\"/\"west\": the facade seen from that compass direction, shaded by depth. \"slice\": an exact-color 2D cross-section (requires the `slice` parameter). \"heightmap\": color-banded terrain. \"isometric\" (orthographic) / \"perspective\": shape-aware schematic depth with optional camera; require 3D bounds and are volume-priced. \"first-person\": what an eye at `eye` (or `player`) sees, looking along yaw/pitch; takes no from/to.",
+        "description": "\"top\" (default, shaded like an in-game map), \"north\"/\"south\"/\"east\"/\"west\" (the facade seen from that side), \"slice\" (exact colours, needs `slice`), \"heightmap\", \"isometric\"/\"perspective\" (schematic block shapes with depth; need 3D bounds), \"first-person\".",
         "type": "string",
         "enum": [
           "top",
@@ -119,7 +99,7 @@
         ]
       },
       "slice": {
-        "description": "Required when `view` is \"slice\"; ignored otherwise.",
+        "description": "Required for view \"slice\".",
         "type": "object",
         "properties": {
           "axis": {
@@ -129,13 +109,11 @@
               "y",
               "z"
             ],
-            "description": "Which axis is held fixed. \"y\" gives a top-down floor plan at one exact layer; \"x\" or \"z\" gives a vertical cross-section."
+            "description": "\"y\": a floor plan at one layer; \"x\"/\"z\": a vertical cross-section."
           },
           "at": {
             "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991,
-            "description": "The fixed coordinate value on that axis. Must lie within [from, to] on that axis."
+            "description": "The fixed coordinate, within [from, to]."
           }
         },
         "required": [
@@ -144,19 +122,19 @@
         ]
       },
       "scale": {
-        "description": "Pixels per block, 0-16 (angled views 0-32, for close-ups). Default 0 = auto-sized so the image's longer side is about 1024px (flat views capped at 4,000,000 pixels). Angled views cap 1,000,000 pixels plus estimated intersection work, adapting resolution explicitly.",
+        "description": "Pixels per block, 0-16 (angled views 0-32). Default 0 = auto: up to 16 px per block and about 1024 px on the longer side; angled views may reduce resolution to stay within their work budget and say so.",
         "type": "integer",
         "minimum": 0,
         "maximum": 32
       },
       "grid": {
-        "description": "Draw a coordinate grid line every N blocks, with coordinate labels along the top/left edges. Default 10 for flat views; angled views default to 0 and reject nonzero grids.",
+        "description": "Grid line with coordinate labels every N blocks. Default 10 for flat views; angled views need 0.",
         "type": "integer",
         "minimum": 0,
         "maximum": 64
       },
       "camera": {
-        "description": "Angled views only. Compass azimuth (north=0, east=90), default 135. Elevation defaults 35.26438968 for isometric and 30 for perspective. Perspective fov defaults 50, invalid on isometric. Work budgets can reduce resolution, reported explicitly.",
+        "description": "Angled views only: azimuth (compass, north=0, east=90; default 135), elevation (default 35.26 isometric, 30 perspective), fov (perspective only, default 50).",
         "type": "object",
         "properties": {
           "azimuth": {
@@ -178,12 +156,12 @@
         "additionalProperties": false
       },
       "compareTo": {
-        "description": "Angled views only: a snapshot id (from mc_snapshot or mc_build snapshot:true). Cells that differ from it are marked: changed blocks tinted orange, added blocks green, removed blocks drawn as translucent red cubes. Cells outside the snapshot's box are not compared. The text reports changed/added/removed counts.",
+        "description": "Angled views only: a snapshot id. Blocks changed since are tinted orange, added green, removed drawn as translucent red cubes; cells outside the snapshot are not compared. The text gives the counts.",
         "type": "string",
         "minLength": 1
       },
       "zoom": {
-        "description": "Angled views only, instead of from/to: a close-up cube around `pos` reaching `radius` blocks each way (default 4, at most 16). The view defaults to isometric; the scale defaults to 32 px per block for radius 4 or less, else auto.",
+        "description": "Angled views only, instead of from/to: a cube of `radius` blocks (default 4, at most 16) around `pos`. Defaults to isometric and, for radius 4 or less, 32 px per block.",
         "type": "object",
         "properties": {
           "pos": {
@@ -206,7 +184,7 @@
         "additionalProperties": false
       },
       "eye": {
-        "description": "first-person only: the eye position [x, y, z] (decimals allowed). A standing player's eye is feet y + 1.62. Give exactly one of eye or player.",
+        "description": "first-person: eye position [x, y, z], decimals allowed (a standing player's eye is feet + 1.62). Give eye or player.",
         "type": "array",
         "items": {
           "type": "number"
@@ -215,48 +193,48 @@
         "maxItems": 3
       },
       "player": {
-        "description": "first-person only: an online player's name; uses their live eye position and look direction (yaw/pitch override it) in their own world.",
+        "description": "first-person: an online player; uses their eye and look direction (yaw/pitch override).",
         "type": "string",
         "pattern": "^[A-Za-z0-9_]{1,16}$"
       },
       "yaw": {
-        "description": "first-person: look direction in Minecraft degrees as F3 shows it: 0 south, 90 west, 180 north, -90 east. Required with eye.",
+        "description": "first-person: degrees as F3 shows them: 0 south, 90 west, 180 north, -90 east. Required with eye.",
         "type": "number",
         "minimum": -360,
         "maximum": 360
       },
       "pitch": {
-        "description": "first-person: -90 straight up, 0 level, 90 straight down. Required with eye.",
+        "description": "first-person: -90 up, 0 level, 90 down. Required with eye.",
         "type": "number",
         "minimum": -90,
         "maximum": 90
       },
       "fov": {
-        "description": "first-person: vertical field of view in degrees, default 70 (the game's default).",
+        "description": "first-person: vertical field of view, default 70.",
         "type": "number",
         "minimum": 10,
         "maximum": 110
       },
       "distance": {
-        "description": "first-person: how far to look, in blocks, default 128.",
+        "description": "first-person: view distance in blocks, default 128.",
         "type": "integer",
         "minimum": 8,
         "maximum": 256
       },
       "width": {
-        "description": "first-person: image width in pixels, default 960.",
+        "description": "first-person: image width, default 960.",
         "type": "integer",
         "minimum": 64,
         "maximum": 1920
       },
       "height": {
-        "description": "first-person: image height in pixels, default 540; width*height at most 1,000,000.",
+        "description": "first-person: image height, default 540; width*height at most 1,000,000.",
         "type": "integer",
         "minimum": 64,
         "maximum": 1080
       },
       "heightmapType": {
-        "description": "Only used when `view` is \"heightmap\": which surface to measure (same meaning as mc_survey's `type`). Default SOLID_OR_LIQUID_NO_LEAVES.",
+        "description": "heightmap only: surface type as in mc_survey. Default SOLID_OR_LIQUID_NO_LEAVES.",
         "type": "string",
         "enum": [
           "SOLID",
@@ -266,7 +244,7 @@
         ]
       },
       "contour": {
-        "description": "Only used when `view` is \"heightmap\": draw a contour line every N blocks of height, 0 disables. Default 5.",
+        "description": "heightmap only: contour line every N blocks of height; 0 disables. Default 5.",
         "type": "integer",
         "minimum": 0,
         "maximum": 4096

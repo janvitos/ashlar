@@ -1,53 +1,53 @@
 {
   "name": "mc_build",
   "title": "Build",
-  "description": "Places blocks in the Minecraft world in bulk: cuboid fills, individual block placements, lettering rendered by the plugin (`text`) and/or decorative `entities` (paintings, item frames, armor stands), up to 500,000 blocks per call. Executes asynchronously across ticks, so large builds do not lag players.\n\nWHEN TO USE: build a saved reusable design with `blueprint:{id:...,palette:{...}}` (managed by mc_blueprint), or any task placing more than a handful of blocks - buildings, terrain shaping, clearing space, roads, walls. Prefer few large `fills`. Use `blocks` for details needing a specific orientation or state (stairs, doors, torches, signs): pass the full block state string, e.g. `minecraft:oak_stairs[facing=north,half=bottom]`. Use `text` for lettering bigger than a single sign - never place letter-shaped blocks by hand. Use `entities` for paintings, item frames and armor stands instead of mc_command summon: they are journalled, snapshotted and placed after the walls they hang on.\nFor generated content (terrain patches, voxelized models, exports) pass `cells`: [[x,y,z,\"state\"],...] (up to 50,000 inline) or `cellsFile` naming a staged upload (mc_blueprint stage/finalize) or an mc_export file; Ashlar merges equal neighbours into boxes, so do not merge them yourself.\nWHEN NOT TO USE: to read the world (use `mc_survey`/`mc_inspect`); to run a server command (use `mc_command`).\n\nCOORDINATES: A `blueprint` selector cannot be combined with direct fills/blocks/text. Its component mirrors/rotations are applied first, then instance positions and project-frame repetition, then the project `transform`. All components compile into the existing global fills -> text -> blocks passes, preserving instance order within each pass; a snapshot captures their union once. Dimensions/constraints are advisory. X grows east, Z grows south, Y grows up. Coordinates are absolute unless `transform` is supplied: then every fill corner, block position, text position and entity position is local to `transform.origin`. Mirror local X or Z first, rotate clockwise viewed from above, then add the world origin. Block states (including omitted defaults), filter orientations and expanded text geometry transform with the positions; sign strings stay readable, but mirrored block lettering has mirrored glyphs. Supply both halves of doors/beds yourself. `from`/`to` are inclusive corners in any order. Volume = (x2-x1+1)*(y2-y1+1)*(z2-z1+1). Execution order is ALWAYS fills -> text -> blocks -> entities, regardless of JSON key order. Array order applies within each phase only. A later individual block can overwrite an earlier air fill; to preserve an opening, omit conflicting blocks or place final minecraft:air entries at the end of blocks. Reports are compact by default; detailed:true includes per-fill and per-text-entry results. `mode`: \"replace\" (default) overwrites everything; \"keep\" fills only air; \"outline\"/\"hollow\" place a 1-block shell (hollow also clears the inside); \"walls\" places only the four vertical sides - use it for rooms, then add a floor and roof separately. `filter` restricts a fill to blocks matching that state (e.g. `filter: \"minecraft:air\"` builds only into empty space). Blocks are placed without physics by default (sand/gravel do not fall; water/lava sit frozen); `liquids: \"flow\"` makes water/lava spread and fall normally. Connectable blocks (panes, fences, walls, bars, stairs) get a shape-only update so they connect like hand-placed blocks. To write a sign, pass a `sign` object on a `blocks` entry whose block is a sign, e.g. `minecraft:oak_wall_sign[facing=south]` in the air block in front of the wall - never replace the wall block itself.\n\nENTITIES: `entities` cannot be combined with `blueprint` or `cells`/`cellsFile`; use a separate call. A call may hold only entities. Under `transform`, facings and armor-stand yaw turn with the build, and a mirror keeps each painting on the same wall cells (its `pos` then names the lower-right cell as seen by the viewer). Entities are tagged as Ashlar-placed; marker armor stands are never touched.\n\nCELLS: `cells`/`cellsFile` cannot be combined with fills, blocks, text, blueprint, transform or preflight. Coordinates are absolute; positions and states are checked, conflicting duplicates are rejected, up to 2,000,000 cells. Phases: solids, then air, then late blocks that need support (snow layers, carpets, torches, lanterns, plants, rails, signs, doors, beds). A large set is split automatically into parts that each fit the per-call limits; every part is validated and protection-checked before the first write, then parts are built in order under one journal id. If a part fails, the earlier parts stay built and the reply gives `resume:\"<token>\"` to repeat the same call from that part. dryRun:true reports the merge and parts without writing.\n\nSIDE EFFECTS: dryRun:true returns read-only site diagnostics without snapshots or writes; use mc_plan for image previews. Otherwise permanently modifies the world. Every phase is structurally validated before the first snapshot/write, including aggregate limits and sign data. Optional preflight:true also rejects pairing/support failures or incomplete neighbor checks before writing; overwritten non-air cells remain advisory, since terrain cannot be distinguished from structures. Site checks do not reserve the world or simulate connections, fluid spreading or entities. Every writing call is journalled: the response names a journal id (a blueprint build also ends with a \"Blueprint: <id> (module, status, undo tags); journal <id>\" line), and mc_restore {journal} later undoes only this call, keeping cells changed since (`label` names the entry; `journal:false` skips it for throwaway tests). The journal also holds sign text and the entities this call placed or removed (undo removes or respawns them), but not inventories. `snapshot: true` additionally saves the whole affected region first, including sign text and decorative entities. Protected regions (mc_protect): a write target inside a deny region rejects the whole call before any snapshot or write, naming the region; a warn region adds a warning line; `override` lists regions the user explicitly allowed. dryRun and mc_plan report overlaps as `protected`. Limits per call: 500,000 blocks total, 1,024 chunks footprint, one world (see `liquids` for its own, smaller cap); an over-limit request is rejected before anything changes. The response lists WARNINGS for unsupported blocks (ladders, torches, signs, doors, carpets...); fix those before reporting the build done.",
+  "description": "Places blocks in bulk: cuboid fills, individual blocks (with sign text), rendered lettering (`text`), generated cell sets (`cells`/`cellsFile`), saved blueprints and decorative `entities`. Up to 500,000 blocks per call; runs across ticks without lagging players.\n\nWHEN TO USE: any placement beyond a handful of blocks - buildings, terrain, clearing, roads. Prefer few large `fills`. Use `blocks` for oriented or stateful details with the full state string, e.g. `minecraft:oak_stairs[facing=north,half=bottom]`; `text` for lettering larger than a sign (never hand-place letters); `entities` for paintings, item frames and armor stands (journalled and snapshotted, unlike mc_command summon); `blueprint:{id,palette?}` for a saved mc_blueprint design; `cells` [[x,y,z,\"state\"],...] (up to 50,000 inline) or `cellsFile` (staged upload or mc_export file) for generated content - equal neighbours are merged into boxes for you.\nWHEN NOT TO USE: to read the world (mc_survey, mc_inspect); to run a server command (mc_command).\n\nCOORDINATES: X east, Z south, Y up. Positions are absolute unless `transform` is given; then every position is local: mirror first, rotate clockwise viewed from above, then add the origin. States, filters and text geometry transform too; sign strings stay readable, mirrored block lettering has mirrored glyphs. `from`/`to` are inclusive corners in any order. Execution order is ALWAYS fills -> text -> blocks -> entities, regardless of JSON key order; array order applies within each phase. A later block overwrites an earlier air fill: to keep an opening, omit conflicting blocks or place final minecraft:air entries at the end of blocks. Supply both halves of doors and beds. A blueprint applies component mirror/rotation, then instance positions and repetition, then `transform`, and cannot be combined with fills/blocks/text. `cells`/`cellsFile` are absolute and cannot be combined with fills, blocks, text, blueprint, transform or preflight; up to 2,000,000 cells are split into parts that are all validated and protection-checked before the first write and built under one journal id (if a part fails, the earlier parts stay and the reply gives `resume`). `entities` cannot be combined with blueprint or cells. Blocks are placed without physics (see `liquids`); connectable blocks get a shape-only update (see `connect`). For a sign, add a `sign` object to a `blocks` entry whose block is a sign (a wall sign goes in the air block in front of the wall).\n\nSIDE EFFECTS: permanently modifies the world, except with dryRun:true (read-only JSON report; mc_plan adds an image). Every phase is structurally validated before the first snapshot or write; preflight:true also rejects door/bed pairing and support failures. Every writing call is journalled: the reply names a journal id that mc_restore {journal} undoes selectively, including sign text and placed or removed entities (not inventories); snapshot:true also saves the affected region first. A deny protected region (mc_protect) rejects the whole call unless named in `override`; a warn region adds a warning. Limits per call: 500,000 blocks, 1,024 chunks, one world; an over-limit request changes nothing. The reply lists WARNINGS for unsupported blocks (ladders, torches, signs, doors, carpets...); fix them before reporting the build done.",
   "inputSchema": {
     "type": "object",
     "properties": {
-      "cells": { "type": "array", "minItems": 1, "maxItems": 50000, "description": "Absolute [x, y, z, \"block_state\"] cells, up to 50,000; merged into fills automatically. Not with fills/blocks/text/blueprint.", "items": { "type": "array", "prefixItems": [{ "type": "integer" }, { "type": "integer" }, { "type": "integer" }, { "type": "string", "minLength": 1 }], "items": false, "minItems": 4, "maxItems": 4 } },
-      "cellsFile": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$", "description": "Name of a finished staged upload (mc_blueprint stage/finalize) or an mc_export file, without extension." },
+      "cells": { "type": "array", "minItems": 1, "maxItems": 50000, "description": "Absolute [x, y, z, \"block_state\"] cells, up to 50,000.", "items": { "type": "array", "prefixItems": [{ "type": "integer" }, { "type": "integer" }, { "type": "integer" }, { "type": "string", "minLength": 1 }], "items": false, "minItems": 4, "maxItems": 4 } },
+      "cellsFile": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$", "description": "Name of a finalized staged upload (mc_blueprint stage/finalize) or an mc_export file, without extension." },
       "resume": { "type": "string", "pattern": "^[0-9a-f]{12}:[0-9]+$", "description": "Token from a stopped cells build: repeats the same call from that part." },
-      "detailed": { "type": "boolean", "default": false, "description": "Include per-fill and per-text-entry results. Default output retains phase totals, snapshot IDs and all support warnings. Does not affect placement or safety checks." },
-      "override": { "type": "array", "maxItems": 32, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$" }, "description": "Protected region names this call may write into anyway (mc_protect). Name each region; no wildcards. Only when the user explicitly asks." },
-      "label": { "type": "string", "minLength": 1, "maxLength": 100, "description": "Optional name for this call's journal entry, e.g. \"berg lookout\"; mc_snapshot journal-list can filter by it." },
-      "journal": { "type": "boolean", "default": true, "description": "Record the original state of every changed cell so mc_restore {journal} can undo this call selectively. false only for throwaway tests." },
-      "dryRun": { "type": "boolean", "default": false, "description": "Read-only final-scene analysis; no snapshots or writes. Returns a JSON report. Use mc_plan for images." },
-      "preflight": { "type": "boolean", "default": false, "description": "Before building, check the final virtual site and reject missing/incompatible door/bed parts, support warnings or incomplete neighbor checking. Collision/overlap counts are advisory. Structural validation always runs regardless of this flag." },
+      "detailed": { "type": "boolean", "default": false, "description": "Add per-fill and per-text-entry results. Default false." },
+      "override": { "type": "array", "maxItems": 32, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$" }, "description": "Protected region names this call may write into anyway; no wildcards. Only when the user explicitly asks." },
+      "label": { "type": "string", "minLength": 1, "maxLength": 100, "description": "Name for this call's journal entry; mc_snapshot journal-list can filter by it." },
+      "journal": { "type": "boolean", "default": true, "description": "Default true. false skips the undo record; only for throwaway tests." },
+      "dryRun": { "type": "boolean", "default": false, "description": "Read-only final-scene report; no snapshots or writes." },
+      "preflight": { "type": "boolean", "default": false, "description": "Reject the build before writing if door/bed pairing, support or neighbour checks fail. Structural validation always runs." },
       "world": {
-        "description": "World name. Omitted uses the plugin's configured default world.",
+        "description": "World name; default: the configured default world.",
         "type": "string",
         "minLength": 1
       },
       "blueprint": {
         "type": "object",
         "additionalProperties": false,
-        "description": "Build a saved mc_blueprint document. Exclusive with direct fills/blocks/text. Optional palette overrides document bindings; instance bindings take precedence. Compiled states are validated before snapshots/writes; expansion and aggregate server limits apply.",
+        "description": "Build a saved mc_blueprint document. The reply ends with a \"Blueprint:\" line naming its tags and journal id.",
         "properties": {
           "id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
-          "palette": { "type": "object", "maxProperties": 128, "additionalProperties": { "type": "string" }, "description": "Role name -> literal block state. Component defaults < document palette < these overrides < instance palette. Inline properties on $role[property=value] override bound properties." }
+          "palette": { "type": "object", "maxProperties": 128, "additionalProperties": { "type": "string" }, "description": "Role -> block state. Precedence: component defaults < document palette < these overrides < instance palette; $role[property=value] overrides bound properties." }
         },
         "required": ["id"]
       },
       "transform": {
-        "description": "Optional local coordinate frame for ALL fills, blocks and text. Mirror first, rotate second, translate last. Omit to preserve existing absolute-coordinate behavior. Rotation is clockwise viewed from above: 90 maps local east (+X) to world south (+Z). No automatic paired-block creation.",
+        "description": "Local frame for all positions: mirror, then rotate clockwise viewed from above (90 maps local +X to world +Z), then translate. Paired blocks are not created for you.",
         "type": "object",
         "additionalProperties": false,
         "properties": {
           "origin": {
-            "description": "World [x,y,z] location of local [0,0,0]. Required when transform is present; coordinates must be signed 32-bit integers.",
+            "description": "World [x, y, z] of local [0, 0, 0].",
             "type": "array",
-            "items": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 },
+            "items": { "type": "integer" },
             "minItems": 3,
             "maxItems": 3
           },
           "rotation": {
-            "description": "Clockwise degrees around local Y, viewed from above. Default 0.",
+            "description": "Clockwise degrees viewed from above. Default 0.",
             "type": "integer",
             "enum": [0, 90, 180, 270]
           },
           "mirror": {
-            "description": "Local coordinate to negate before rotation: x reflects across the YZ plane; z reflects across the XY plane. Default none. Does not flip Y.",
+            "description": "Local axis to negate before rotating. Default none.",
             "type": "string",
             "enum": ["none", "x", "z"]
           }
@@ -55,7 +55,7 @@
         "required": ["origin"]
       },
       "fills": {
-        "description": "Cuboid fill operations, executed in array order via the plugin's fill_batch RPC.",
+        "description": "Cuboid fills, in array order.",
         "type": "array",
         "items": {
           "type": "object",
@@ -64,19 +64,13 @@
               "type": "array",
               "prefixItems": [
                 {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "type": "integer"
                 },
                 {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "type": "integer"
                 },
                 {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "type": "integer"
                 }
               ],
               "items": false,
@@ -88,33 +82,27 @@
               "type": "array",
               "prefixItems": [
                 {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "type": "integer"
                 },
                 {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "type": "integer"
                 },
                 {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "type": "integer"
                 }
               ],
               "items": false,
               "minItems": 3,
               "maxItems": 3,
-              "description": "Inclusive [x, y, z] corner opposite `from`. Order does not matter."
+              "description": "Opposite inclusive corner; order does not matter."
             },
             "block": {
               "type": "string",
               "minLength": 1,
-              "description": "Block state string in the \"minecraft:\" namespace, optionally with properties, e.g. \"minecraft:stone\" or \"minecraft:oak_log[axis=y]\". Attached/oriented blocks (ladders, torches, signs, doors, stairs): see the orientation rules on `blocks[].block`; the same rules apply here."
+              "description": "Block state, e.g. \"minecraft:oak_log[axis=y]\"; orientation rules as on blocks[].block."
             },
             "mode": {
-              "description": "\"replace\" (default) overwrites everything; \"keep\" only fills air; \"outline\" places only the 1-block shell on all six faces; \"hollow\" places that shell and clears the inside; \"walls\" places only the four vertical sides (no floor or ceiling) and leaves the inside untouched - use \"walls\" for rooms and buildings, then add a floor and a roof with separate fills. On natural terrain, clear the interior with an \"air\" fill first: \"walls\" does not remove grass, flowers, snow or dirt inside.",
+              "description": "\"replace\" (default) overwrites everything; \"keep\" fills only air; \"outline\" places a 1-block shell; \"hollow\" places the shell and clears the inside; \"walls\" places only the four vertical sides (add floor and roof separately). \"walls\" does not clear grass, flowers or snow inside: on terrain, clear the inside with an air fill first.",
               "type": "string",
               "enum": [
                 "replace",
@@ -125,7 +113,7 @@
               ]
             },
             "filter": {
-              "description": "Only replace cells whose current block matches this state string (unspecified properties act as a wildcard), e.g. \"minecraft:air\" to build only into empty space - useful for repairing a crater or hole without disturbing the surrounding undamaged terrain: fill the bounding box with `filter: \"minecraft:air\"` so only the missing air pockets are replaced.",
+              "description": "Replace only cells matching this state (unspecified properties match any), e.g. \"minecraft:air\" to fill only the empty cells of a crater.",
               "type": "string"
             }
           },
@@ -137,7 +125,7 @@
         }
       },
       "blocks": {
-        "description": "Individual block placements, executed in array order via the plugin's set_blocks RPC.",
+        "description": "Individual blocks, in array order.",
         "type": "array",
         "items": {
           "type": "object",
@@ -146,37 +134,31 @@
               "type": "array",
               "prefixItems": [
                 {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "type": "integer"
                 },
                 {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "type": "integer"
                 },
                 {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "type": "integer"
                 }
               ],
               "items": false,
               "minItems": 3,
               "maxItems": 3,
-              "description": "[x, y, z] position: absolute by default, local when transform is supplied."
+              "description": "[x, y, z] position."
             },
             "block": {
               "type": "string",
               "minLength": 1,
-              "description": "Block state string in the \"minecraft:\" namespace, with properties for orientation where relevant, e.g. \"minecraft:oak_stairs[facing=north,half=bottom]\". Orientation rules: for attached blocks (ladder, wall_torch, wall_sign, wall_banner, lever/button with face=wall) `facing` points AWAY from the supporting block - a ladder on the west wall of a room is ladder[facing=east]. Doors: the panel sits flush with the block face OPPOSITE to `facing`, so a door in a south wall that should be flush with the outside uses facing=north; place half=lower at y and half=upper at y+1 with identical other properties; hinge=left/right chooses the swing side. Stairs: the tall half is on the `facing` side (you walk up toward `facing`); half=top for upside-down stairs. Beds: part=foot at pos, part=head one block toward `facing`. Chests/furnaces: `facing` is the side the front is on. Slabs: type=bottom|top|double. Torches: `torch` stands on a solid block below; a torch on a wall is `wall_torch[facing=<away from the wall>]` placed in the air block beside the wall - never replace a wall block with a torch. Same for `soul_torch`/`redstone_torch`. Chests: with connect enabled, adjacent single chests with the same facing are paired automatically - normally write `type=single` (or omit `type`) and the same `facing` for both halves. For advanced static exact-state plans with connect:false, provide consistent explicit type=left/right halves; verify both types and positions, never guess handedness. Exact verification includes chest type."
+              "description": "Full block state, e.g. \"minecraft:oak_stairs[facing=north,half=bottom]\". Attached blocks (ladder, wall_torch, wall_sign, wall_banner, lever/button with face=wall): `facing` points AWAY from the support (a ladder on a room's west wall is facing=east) and the block goes in the air cell beside the wall - never replace the wall itself. `torch` stands on the block below. Doors: the panel sits on the face OPPOSITE `facing`; half=lower at y and half=upper at y+1 with identical other properties; hinge picks the swing side. Stairs: you walk up toward `facing`; half=top is upside down. Beds: part=foot at pos, part=head one block toward `facing`. Chests/furnaces: `facing` is the front. Slabs: type=bottom|top|double. Chests: with connect on, adjacent single chests with the same facing pair automatically; with connect:false give explicit type=left/right halves and never guess handedness."
             },
             "sign": {
-              "description": "Sign text/appearance to write onto this entry's block, which must be a sign (block name ending in \"_sign\" or \"_hanging_sign\"). At least one of front/back must be given.",
+              "description": "Text for this entry's sign block (*_sign or *_hanging_sign); front and/or back.",
               "type": "object",
               "properties": {
                 "front": {
-                  "description": "Up to 4 lines of text for the sign's front side, top to bottom. Missing lines are left blank. Each line max 64 characters.",
+                  "description": "Up to 4 lines, top to bottom, at most 64 characters each.",
                   "minItems": 1,
                   "maxItems": 4,
                   "type": "array",
@@ -186,7 +168,7 @@
                   }
                 },
                 "back": {
-                  "description": "Up to 4 lines of text for the sign's back side, top to bottom. Missing lines are left blank. Each line max 64 characters.",
+                  "description": "Up to 4 lines, top to bottom, at most 64 characters each.",
                   "minItems": 1,
                   "maxItems": 4,
                   "type": "array",
@@ -196,15 +178,15 @@
                   }
                 },
                 "color": {
-                  "description": "Dye color name for the text, e.g. \"black\" (default) or \"red\". Applies to whichever of front/back is given.",
+                  "description": "Dye colour of the text, default \"black\".",
                   "type": "string"
                 },
                 "glowing": {
-                  "description": "Whether the text has the glow-ink-sac glowing effect. Default false.",
+                  "description": "Glowing text. Default false.",
                   "type": "boolean"
                 },
                 "waxed": {
-                  "description": "Whether the sign is waxed (can no longer be edited by right-clicking with a dye). Default false.",
+                  "description": "Waxed (players cannot edit it). Default false.",
                   "type": "boolean"
                 }
               }
@@ -217,7 +199,7 @@
         }
       },
       "text": {
-        "description": "Renders lettering as blocks: the plugin's built-in 5x7 dot-matrix font for ASCII, or java.awt for non-ASCII (CJK etc.: 12 rows tall, up to 12 columns per character; a line mixing both is 12 rows, everything sitting on one baseline). Use this for any name, label or word made of blocks (a name over a gate, \"WELCOME\" on a hillside, a shop sign bigger than a single sign block) instead of placing letter-shaped blocks yourself - hand-placed letters come out misshapen; this does not. Executed via the same fill_batch machinery as `fills` (one run per row of pixels, not one block at a time), so it counts against the same 500,000-block/1,024-chunk limits and gets the same connect/support-warning handling.",
+        "description": "Lettering rendered as blocks: a 5x7 font for ASCII; other scripts (CJK...) through Java fonts, 12 rows tall. Use it for any word made of blocks instead of hand-placed letters. Counts against the same limits as fills.",
         "type": "array",
         "items": {
           "type": "object",
@@ -226,36 +208,30 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 64,
-              "description": "The text to render, 1-64 characters after trimming. Up to 4 lines separated by \\n; each new line starts one row below the previous, with a 1-row gap. Printable ASCII uses the built-in 5x7 font; any other character (CJK etc.) is rendered through this server's Java font rendering and fails the whole call with a clear error if this JVM has no fonts for it - retry with ASCII text instead."
+              "description": "1-64 characters, up to 4 lines separated by \\n (1-row gap). Non-ASCII fails the call if the server has no font for it."
             },
             "pos": {
               "type": "array",
               "prefixItems": [
                 {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "type": "integer"
                 },
                 {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "type": "integer"
                 },
                 {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "type": "integer"
                 }
               ],
               "items": false,
               "minItems": 3,
               "maxItems": 3,
-              "description": "The [x, y, z] block of the first (top) line of text, in the viewer's frame - see `facing`. With `align: \"left\"` (default) this is the bottom-left pixel; with `align: \"center\"` it is the bottom-CENTRE (see `align`). For a wall-mounted `facing: \"south\"/\"north\"/\"east\"/\"west\"` text this is a block in the wall's own plane (the text is one block thick); for `facing: \"up\"` it is a block on the ground the text lies flat on."
+              "description": "Bottom-left block (align \"left\") or bottom-centre block (align \"center\") of the first line, in the text's own plane; for facing \"up\", the ground cell it lies on."
             },
             "block": {
               "type": "string",
               "minLength": 1,
-              "description": "Block state string for the letters themselves, e.g. \"minecraft:white_concrete\". Solid, opaque blocks read best; avoid transparent/see-through blocks unless a see-through sign effect is wanted."
+              "description": "Block state for the letters; solid opaque blocks read best."
             },
             "align": {
               "type": "string",
@@ -263,11 +239,11 @@
                 "left",
                 "center"
               ],
-              "description": "How `pos` relates to the text, along the advance (reading) axis. \"left\" (default): `pos` is the bottom-left block of the first line. \"center\": `pos` is the bottom-CENTRE block of the first line - the text extends half its total width to each side of `pos`; when the width does not split evenly, the extra block goes on the advance-positive side (the side the text continues onto). Use \"center\" for free-standing lettering anchored on a player's position, so no manual half-width math is needed."
+              "description": "\"left\" (default) or \"center\" (pos is the bottom-centre; an uneven extra block goes toward the reading direction). Use \"center\" to anchor on a player's position."
             },
             "background": {
               "type": "string",
-              "description": "Optional block state string for a solid plaque behind the letters, covering the text's full bounding box (not just the ink). Omit for no background - then only the ink is written and the gaps between/around letters are left completely untouched (no air is written into them), so text can be painted directly onto an existing wall without disturbing it."
+              "description": "Optional block state for a solid plaque over the text's bounding box. Without it only the letters are written and the gaps are left untouched."
             },
             "facing": {
               "type": "string",
@@ -278,19 +254,19 @@
                 "west",
                 "up"
               ],
-              "description": "Which direction the text reads from. \"south\" (default): upright, readable by someone standing south of it looking north. \"north\"/\"east\"/\"west\": upright, readable from that side. \"up\": flat on the ground (the y = pos.y plane), readable from above, with the top of the letters toward north - use this for a word on a floor, path or platform."
+              "description": "Side it is read from: \"south\" (default), \"north\", \"east\", \"west\" (upright), or \"up\" (flat on the ground, letter tops toward north)."
             },
             "scale": {
               "type": "integer",
               "minimum": 1,
               "maximum": 4,
-              "description": "Each font pixel becomes an NxN block square, N = this value. Default 1 (a capital letter is 5x7 blocks, a CJK character about 12x12). Use 2-4 for lettering meant to be read from a distance (a hillside or a large building facade)."
+              "description": "Each font pixel becomes an NxN square. Default 1 (a capital is 5x7 blocks); 2-4 to read from afar."
             },
             "spacing": {
               "type": "integer",
               "minimum": 0,
               "maximum": 3,
-              "description": "Columns of blank space between adjacent glyphs, before `scale` is applied. Default 1."
+              "description": "Blank columns between glyphs before scale. Default 1."
             }
           },
           "required": [
@@ -301,15 +277,15 @@
         }
       },
       "snapshot": {
-        "description": "When true, snapshot the bounding box of all fills/blocks before building, so mc_restore can undo this call. Default: false.",
+        "description": "Save the affected bounding box first (block states, sign text, decorative entities). Default false.",
         "type": "boolean"
       },
       "connect": {
-        "description": "Whether connectable blocks (glass panes, fences, walls, iron bars, stairs, redstone wire) get a shape-only update after placing so they connect to their neighbours. Default: true. Set false to skip this pass (e.g. for speed on a very large batch, or to intentionally leave a disconnected placeholder shape).",
+        "description": "Shape-only update so panes, fences, walls, bars, stairs and redstone wire connect to their neighbours. Default true; false skips it.",
         "type": "boolean"
       },
       "entities": {
-        "description": "Decorative entities placed after every block write (paintings, item frames, glow item frames, armor stands), up to 256. Each needs `type` and `pos` [x,y,z] (local when `transform` is given). painting: `facing` (north/south/east/west: the side the picture shows on, away from its wall) and `variant` (e.g. \"kebab\", \"minecraft:skull_and_roses\"); `pos` is the lower-left cell as seen by someone looking at the picture, in the air in front of the wall; the whole picture needs a solid wall behind and free air in front. item_frame/glow_item_frame: `facing` (also up/down for floor/ceiling frames; the frame sits in `pos` against the block on the opposite side), optional `item` (id), `rotation` 0-7, `fixed` (default true: cannot be knocked off or rotated by players), `invisible`. armor_stand: `pos` is the feet cell, optional `yaw` (degrees, 0 = facing south, 90 = west), `equipment` {head,chest,legs,feet,mainHand,offHand: item id}, `pose` {head,body,leftArm,rightArm,leftLeg,rightLeg: [x,y,z] degrees}, `small`, `invisible`, `noGravity`. An identical entity already at the spot is reported unchanged; a different one there is reported and left alone. One entity that cannot be placed (no wall, blocked, unknown variant) is reported; the others are still placed.",
+        "description": "Up to 256 decorative entities, placed after all blocks. Each needs `type` and `pos` (local under `transform`; facings and yaw turn with it). painting: `facing` (the side the picture shows on) and `variant` (e.g. \"kebab\"); `pos` is the lower-left cell as the viewer sees it (lower-right under a mirror transform), in the air in front of a solid wall. item_frame/glow_item_frame: `facing` (also up/down; it hangs on the block opposite), optional `item`, `rotation` 0-7, `fixed` (default true), `invisible`. armor_stand: `pos` is the feet cell; optional `yaw` (0 south, 90 west), `equipment` {head,chest,legs,feet,mainHand,offHand: item id}, `pose` {head,body,leftArm,rightArm,leftLeg,rightLeg: [x,y,z] degrees}, `small`, `invisible`, `noGravity`. An identical entity already there is left as is; one that cannot be placed is reported and the rest are still placed.",
         "type": "array",
         "minItems": 1,
         "maxItems": 256,
@@ -334,12 +310,12 @@
         }
       },
       "entityMode": {
-        "description": "\"add\" (default) adds the entities next to whatever is there. \"replace-in-box\" first removes the Ashlar-placed entities of the requested types whose cell is inside `entityBox`, then places the new ones; entities placed by hand, mobs and players are never removed.",
+        "description": "\"add\" (default), or \"replace-in-box\": first remove the Ashlar-placed entities of the requested types inside `entityBox`. Hand-placed entities, marker armor stands, mobs and players are never removed.",
         "type": "string",
         "enum": ["add", "replace-in-box"]
       },
       "entityBox": {
-        "description": "Required with entityMode \"replace-in-box\": {from,to} inclusive corners (local when `transform` is given), at most 1,000,000 blocks.",
+        "description": "{from, to} inclusive corners for \"replace-in-box\" (local under `transform`), at most 1,000,000 blocks.",
         "type": "object",
         "properties": {
           "from": {"type": "array", "items": {"type": "integer"}, "minItems": 3, "maxItems": 3},
@@ -348,7 +324,7 @@
         "required": ["from", "to"]
       },
       "liquids": {
-        "description": "\"static\" (default) places water/lava as a frozen still block, exactly as before - it never flows or drains, useful for a pond, pool or lava lake that should stay put. \"flow\" places water/lava with real physics: a single water/lava source block placed with `liquids: \"flow\"` spreads and falls like a hand-placed one, so a fountain (source at the top, open air below, a basin to catch it), a waterfall (source at a cliff edge) or a stream (source at the high end of a sloped channel) actually flows. Applies to every `minecraft:water`/`minecraft:lava` target in this call's `fills` and `blocks`, not just one; every other block is unaffected either way. Capped separately from the overall block limit - a large `flow` fill (e.g. filling a whole lake with source blocks) can be rejected even when well under 500,000 blocks, so use `flow` for a small number of source blocks, not to bulk-fill a liquid body.",
+        "description": "\"static\" (default): water and lava never flow. \"flow\": water and lava in this call's fills and blocks behave like hand-placed sources (fountains, waterfalls, streams). Flow has its own smaller cap: use it for a few sources, not to fill a lake.",
         "type": "string",
         "enum": [
           "static",

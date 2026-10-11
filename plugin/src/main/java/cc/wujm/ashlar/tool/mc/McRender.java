@@ -97,16 +97,15 @@ public final class McRender implements Tool {
                 chunks.addProperty("inView", r.snapshot().requested());
                 chunks.addProperty("loaded", r.snapshot().loaded());
                 summary.add("chunks", chunks);
-                summary.add("geometry", r.output().details());
+                summary.add("geometry", AngledRenderText.geometry(r.output().details(), cc.wujm.ashlar.engine.BukkitStateDefaults.CANON::canon));
                 JsonArray legend = new JsonArray();
-                for (var e : r.output().image().legend().stream().limit(20).toList()) {
+                for (var e : r.output().image().legend()) {
                     JsonObject l = new JsonObject();
                     l.addProperty("block", e.block());
-                    l.addProperty("pixels", e.pixels());
+                    l.addProperty("color", e.colorHex());
                     legend.add(l);
                 }
-                summary.add("legend", legend);
-                summary.addProperty("legendTruncated", r.output().image().legend().size() > 20);
+                AngledRenderText.addLegend(summary, legend, false, cc.wujm.ashlar.engine.BukkitStateDefaults.CANON::canon);
                 return List.of(ContentBlock.image(java.util.Base64.getEncoder().encodeToString(r.png()), "image/png"),
                         ContentBlock.text(summary.toString()));
             });
@@ -298,7 +297,7 @@ public final class McRender implements Tool {
                     List<ToolText.ColorLegendEntry> legend = new ArrayList<>();
                     for (JsonElement le : r.getAsJsonArray("legend")) {
                         JsonObject l = le.getAsJsonObject();
-                        legend.add(new ToolText.ColorLegendEntry(l.get("color").getAsString(), l.get("block").getAsString(), l.get("pixels").getAsInt()));
+                        legend.add(new ToolText.ColorLegendEntry(l.get("color").getAsString(), AngledRenderText.state(l.get("block").getAsString(), cc.wujm.ashlar.engine.BukkitStateDefaults.CANON::canon), l.get("pixels").getAsInt()));
                     }
                     text = ToolText.renderText(view, boundsFrom, boundsTo, width, height, scaleOut,
                             axes.get("right").getAsString(), axes.get("down").getAsString(),

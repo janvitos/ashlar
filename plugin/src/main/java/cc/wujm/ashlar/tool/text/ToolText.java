@@ -146,13 +146,17 @@ public final class ToolText {
     public record ColorLegendEntry(String color, String block, int pixels) {
     }
 
-    /** The tail lines for every other view: a fixed header plus one "color block (N px)" row per legend entry. */
+    /** Legend rows shown for a flat view; the rest are counted. */
+    public static final int COLOR_LEGEND_LIMIT = 20;
+
+    /** The tail lines for every other view: a header plus one "color block (N px)" row per legend entry, most visible first. */
     public static List<String> renderColorLegendTail(List<ColorLegendEntry> legend) {
         List<String> lines = new ArrayList<>();
-        lines.add("Legend (Minecraft map color -> block; similar blocks can share a color, disambiguate here):");
-        for (ColorLegendEntry entry : legend) {
+        lines.add("Legend (map color -> block; similar blocks can share a color):");
+        for (ColorLegendEntry entry : legend.subList(0, Math.min(COLOR_LEGEND_LIMIT, legend.size()))) {
             lines.add("  " + entry.color() + " " + entry.block() + " (" + entry.pixels() + " px)");
         }
+        if (legend.size() > COLOR_LEGEND_LIMIT) lines.add("  (" + (legend.size() - COLOR_LEGEND_LIMIT) + " more blocks)");
         return lines;
     }
 

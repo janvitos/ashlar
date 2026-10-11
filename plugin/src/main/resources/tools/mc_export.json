@@ -1,7 +1,7 @@
 {
   "name": "mc_export",
   "title": "Export blocks to a file",
-  "description": "Writes the blocks of a box to a compressed file, plugins/Ashlar/exports/<name>.json.gz, for offline editing, rebuilding or later comparison. Read-only in the world.\n\nWHEN TO USE: to keep an exact copy of an area larger than mc_inspect returns (up to 4,000,000 blocks by default), to edit it offline and rebuild it with mc_build {cellsFile:name}, or to compare it later with mc_diff {against:{expectedFile:name}}.\nWHEN NOT TO USE: for statistics or a quick look (use mc_inspect or mc_render); as a rollback point before changes (use mc_build snapshot:true, the journal or mc_snapshot); for sign text, inventories or entities, which are not exported.\n\nPARAMETERS: from/to (inclusive corners), optional world, name ([a-z0-9][a-z0-9_-]{0,63}; overwrite:true replaces an existing export). format \"cells\" (default): {format, world, bounds, cells:[[x,y,z,\"state\"],...]}, with skipAir:true leaving out air cells (a rebuild then never clears anything). format \"palette-rle\": {bounds, order \"y,z,x\", palette, runs:[[paletteIndex,count],...]}, much smaller for big boxes. canonical (default true) drops properties that equal their defaults, as mc_inspect does.\n\nSIDE EFFECTS: writes one file; the 20 newest exports are kept and older ones are removed. The box is read through the normal tick-budgeted region reads (several for a large box), which can load the chunks it covers; encoding and writing run off the main thread. A box over limits.max-export-volume is rejected before reading.",
+  "description": "Writes the blocks of a box to plugins/Ashlar/exports/<name>.json.gz for offline editing, rebuilding or later comparison. Read-only in the world.\n\nWHEN TO USE: to keep an exact copy of an area larger than mc_inspect returns (default limit 4,000,000 blocks), then rebuild it with mc_build {cellsFile:name} or compare it with mc_diff {against:{expectedFile:name}}.\nWHEN NOT TO USE: for statistics or a quick look (mc_inspect, mc_render); as a rollback point (mc_build snapshot:true or mc_snapshot); sign text, inventories and entities are not exported.\n\nPARAMETERS: from/to, optional world, name ([a-z0-9][a-z0-9_-]{0,63}; overwrite:true replaces). format \"cells\" (default): {format, world, bounds, cells:[[x,y,z,\"state\"],...]}; skipAir:true leaves out air (a rebuild then never clears). \"palette-rle\": {bounds, order \"y,z,x\", palette, runs:[[paletteIndex,count],...]}, much smaller. canonical (default true) drops default-valued properties.\n\nSIDE EFFECTS: writes one file; only the 20 newest exports are kept. Tick-budgeted region reads may load chunks; encoding runs off the main thread. Boxes over limits.max-export-volume are rejected before reading.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -24,7 +24,7 @@
         "maxItems": 3
       },
       "world": {
-        "description": "World name. Omitted uses the plugin's configured default world.",
+        "description": "World name; default: the configured default world.",
         "type": "string",
         "minLength": 1
       },

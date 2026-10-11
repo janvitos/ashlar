@@ -204,4 +204,11 @@ class ImageRendererTest {
         int bbl = (int) Math.round(bb * 0.6);
         return (a << 24) | (rr << 16) | (gg << 8) | bbl;
     }
+
+    @Test
+    void autoScaleIsCappedForSmallRegions() {
+        assertEquals(ImageRenderer.MAX_AUTO_SCALE, ImageRenderer.resolveScale(0, 5, 3));
+        assertEquals(4, ImageRenderer.resolveScale(0, 256, 10));
+        assertEquals(40, ImageRenderer.resolveScale(40, 5, 3));
+    }
 }

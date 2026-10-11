@@ -11,7 +11,8 @@ import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /**
- * Compact reply text for an isometric/perspective {@code mc_render}: a colour legend of the most
+ * Compact reply text for an isometric/perspective {@code mc_render} (the geometry and legend helpers also serve
+ * first-person replies and {@code mc_plan} previews): a colour legend of the most
  * visible blocks plus the render geometry without fixed boilerplate, unit vectors, internal work
  * estimates, or zero/false/empty fields. Block states go through {@code canon}. Pure Java.
  */
@@ -21,14 +22,21 @@ final class AngledRenderText {
     static final int LEGEND_LIMIT = 20;
     static final int SAMPLE_LIMIT = 10;
     private static final Set<String> DROPPED = Set.of("projection", "screenRight", "screenUp", "requestedScale",
-            "estimatedIntersectionWork", "transparentLayerLimit", "assumptions");
+            "estimatedIntersectionWork", "transparentLayerLimit", "assumptions", "pixels", "cellsTraversed");
 
     /** {@code render} is the plugin's render result ({@code view, bounds, width, height, scale, legend, geometry}). */
     static String text(JsonObject render, UnaryOperator<String> canon) {
         JsonObject out = new JsonObject();
         for (String k : new String[]{"view", "bounds", "width", "height", "scale"}) out.add(k, render.get(k));
+        addLegend(out, render.has("legend") ? render.getAsJsonArray("legend") : new JsonArray(),
+                render.has("legendTruncated") && render.get("legendTruncated").getAsBoolean(), canon);
+        if (render.has("geometry")) out.add("geometry", geometry(render.getAsJsonObject("geometry"), canon));
+        return out.toString();
+    }
+
+    /** {@code legend: {state: color}} for the most visible entries (already in pixel order), plus {@code legendMore}. */
+    static void addLegend(JsonObject out, JsonArray entries, boolean truncated, UnaryOperator<String> canon) {
         JsonObject legend = new JsonObject();
-        JsonArray entries = render.has("legend") ? render.getAsJsonArray("legend") : new JsonArray();
         int shown = 0;
         for (JsonElement el : entries) {
             if (shown == LEGEND_LIMIT) break;
@@ -39,10 +47,8 @@ final class AngledRenderText {
         }
         out.add("legend", legend);
         int more = entries.size() - shown;
-        if (render.has("legendTruncated") && render.get("legendTruncated").getAsBoolean()) more = Math.max(more, 1);
+        if (truncated) more = Math.max(more, 1);
         if (more > 0) out.addProperty("legendMore", more);
-        if (render.has("geometry")) out.add("geometry", geometry(render.getAsJsonObject("geometry"), canon));
-        return out.toString();
     }
 
     static JsonObject geometry(JsonObject g, UnaryOperator<String> canon) {
@@ -74,7 +80,7 @@ final class AngledRenderText {
     }
 
     /** Legend placeholders ({@code entity:painting}, {@code diff:removed}) are not block states. */
-    private static String state(String s, UnaryOperator<String> canon) {
+    static String state(String s, UnaryOperator<String> canon) {
         if (s.startsWith("entity:") || s.startsWith("diff:")) return s;
         try {
             return canon.apply(s);

@@ -368,10 +368,11 @@ public final class McBuild implements Tool {
                             if (ents != null) report.add("entities", entityPreview(ents));
                             ProtectionGuard.Verdict verdict = protection(args, a, ents);
                             if (verdict != null) verdict.addTo(report);
-                            return CompletableFuture.completedFuture(report.toString());
+                            return CompletableFuture.completedFuture(PlanReportText.text(report, cc.wujm.ashlar.engine.BukkitStateDefaults.CANON::canon));
                         }
                         if (!report.get("strictSitePass").getAsBoolean())
-                            throw new ToolArgError("site preflight failed; no snapshot or blocks written: " + report);
+                            throw new ToolArgError("site preflight failed; no snapshot or blocks written: "
+                                    + PlanReportText.text(report, cc.wujm.ashlar.engine.BukkitStateDefaults.CANON::canon));
                         return guarded(ctx, a, ents, override, detailed, args);
                     });
                     return guarded(ctx, a, ents, override, detailed, args);

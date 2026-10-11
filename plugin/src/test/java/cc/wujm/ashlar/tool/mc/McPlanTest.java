@@ -13,16 +13,14 @@ class McPlanTest {
         RpcHandler unexpected = (ctx,args) -> { fail("No writing handler should run"); return null; };
         return new McBuild(unexpected,unexpected,unexpected);
     }
-    @Test void planPublishesTheCompleteAuthoritativeBuildSchema() {
+    @Test void planReferencesTheBuildSchemaInsteadOfCopyingIt() {
         McBuild build = build(); McPlan plan = new McPlan(build,new BuildPreflight(null,null),Runnable::run);
-        assertEquals(build.spec().inputSchema(),plan.spec().inputSchema().getAsJsonObject("properties").get("build"));
+        JsonObject nested = plan.spec().inputSchema().getAsJsonObject("properties").getAsJsonObject("build");
+        assertEquals("object",nested.get("type").getAsString());
+        assertFalse(nested.has("properties"));
+        assertTrue(nested.get("description").getAsString().contains("see mc_build"));
         assertTrue(plan.spec().annotations().get("readOnlyHint").getAsBoolean());
         assertFalse(plan.spec().annotations().get("destructiveHint").getAsBoolean());
-    }
-    @Test void planSchemaCannotMutateBuildSchema() {
-        McBuild build = build(); McPlan plan = new McPlan(build,new BuildPreflight(null,null),Runnable::run);
-        plan.spec().inputSchema().getAsJsonObject("properties").getAsJsonObject("build").addProperty("external",true);
-        assertFalse(build.spec().inputSchema().has("external"));
     }
     @Test void missingBuildFailsWithoutCallingAWorldWritingHandler() {
         assertTrue(new McPlan(build(),new BuildPreflight(null,null),Runnable::run).call(null,new JsonObject()).join().isError());

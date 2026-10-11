@@ -22,8 +22,6 @@ public final class McPlan implements Tool {
 
     public McPlan(McBuild build, BuildPreflight preflight, Executor images) {
         this.build = build; this.preflight = preflight; this.images = images;
-        // Keep the nested build schema identical to mc_build without maintaining a second copy.
-        spec.inputSchema().getAsJsonObject("properties").add("build",build.spec().inputSchema().deepCopy());
     }
     @Override public ToolSpec spec() { return spec; }
     @Override public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
@@ -50,7 +48,7 @@ public final class McPlan implements Tool {
     }
     private List<ContentBlock> content(BuildPreflight.Result result) {
         JsonObject report = result.report();
-        if (result.preview() == null) return List.of(ContentBlock.text(report.toString()));
+        if (result.preview() == null) return List.of(ContentBlock.text(PlanReportText.text(report, cc.wujm.ashlar.engine.BukkitStateDefaults.CANON::canon)));
         var rp = result.preview(); int scale = rp.scale();
         try {
             ImageRenderer.Output out; byte[] png; JsonObject geometry = null;
@@ -75,7 +73,7 @@ public final class McPlan implements Tool {
             info.add("legend",legend); info.addProperty("legendTruncated",out.legend().size() > 50);
             if (geometry != null) info.add("geometry",geometry);
             report.add("preview",info);
-            return List.of(ContentBlock.text(report.toString()),ContentBlock.image(Base64.getEncoder().encodeToString(png),"image/png"));
+            return List.of(ContentBlock.text(PlanReportText.text(report, cc.wujm.ashlar.engine.BukkitStateDefaults.CANON::canon)),ContentBlock.image(Base64.getEncoder().encodeToString(png),"image/png"));
         } catch (java.io.IOException e) { throw new ToolArgError("preview encoding failed: " + e.getMessage()); }
     }
 }
