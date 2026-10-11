@@ -1,7 +1,7 @@
 {
   "name": "mc_inspect",
   "title": "Inspect blocks",
-  "description": "Reads exact block data from the world: a block-frequency table, an ASCII cross-section, or per-column block runs.\n\nDefault output: every distinct state in the box by count and percentage, plus its bounds (e.g. \"is there leftover scaffolding?\"). With `slice`: one 2D layer or cut as an ASCII grid with a legend and coordinate ruler (grids over 80x60 are downsampled to the most common block per character, as noted). With format \"columns\" (not with slice): exact bottom-to-top runs per column, to repair a hole, crater or wall gap in one call. For a picture of a layer, use mc_render view \"slice\".\n\nWHEN TO USE: after mc_build when build feedback raises a specific doubt; to read existing structures or terrain in detail (mc_survey reads only the surface).\nWHEN NOT TO USE: to find ground level over a large area (mc_survey); to place blocks (mc_build).\n\nCOORDINATES: X east, Z south, Y up; from/to inclusive corners in any order; at most 200,000 blocks.\n\nSIDE EFFECTS: read-only.",
+  "description": "Reads exact block data from the world: a block-frequency table, an ASCII cross-section, or per-column block runs.\n\nDefault output: every distinct state in the box by count and percentage, plus its bounds (e.g. \"is there leftover scaffolding?\"). With `slice`: one 2D layer or cut as an ASCII grid with a legend and coordinate ruler (grids over 80x60 are downsampled to the most common block per character, as noted). With format \"columns\" (not with slice): exact bottom-to-top runs per column, to repair a hole, crater or wall gap in one call. With format \"exterior\" (not with slice): what the finished build shows outside - blocks next to air reached from the box's sides or top, by material - plus sealed air and detached pieces not connected to the bottom layer (stray blocks, leftover scaffolding); leave a one-block air margin around the build, with the bottom layer in the ground; an open doorway lets outside air in, so interior faces then count too. For a picture of a layer, use mc_render view \"slice\".\n\nWHEN TO USE: after mc_build when build feedback raises a specific doubt; to read existing structures or terrain in detail (mc_survey reads only the surface).\nWHEN NOT TO USE: to find ground level over a large area (mc_survey); to place blocks (mc_build).\n\nCOORDINATES: X east, Z south, Y up; from/to inclusive corners in any order; at most 200,000 blocks.\n\nSIDE EFFECTS: read-only.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -47,11 +47,12 @@
         "description": "Opposite inclusive corner."
       },
       "format": {
-        "description": "\"stats\" (default) or \"columns\": one line per column, \"x,z: y1-y2 block | y3-y4 block | ...\", at most 1,024 columns. Not with slice.",
+        "description": "\"stats\" (default); \"columns\": one line per column, \"x,z: y1-y2 block | y3-y4 block | ...\", at most 1,024 columns; \"exterior\": outside surface by material, sealed air and detached pieces. Not with slice.",
         "type": "string",
         "enum": [
           "stats",
-          "columns"
+          "columns",
+          "exterior"
         ]
       },
       "slice": {

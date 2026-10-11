@@ -9,6 +9,8 @@ All notable changes to this project are documented in this file.
 - Added 1 unit test.
 - Over-limit errors from `mc_inspect`, `mc_render`, `mc_survey` and `mc_snapshot` name the exact boxes to use instead of only saying "split it": "mc_inspect region volume 270000 exceeds the 200,000-block limit. Reduce the from/to range, or split it into 2 calls: [0,40,0]..[110,69,59], [111,40,0]..[149,69,59]." Pieces are slabs along the longest side (the fewest calls), up to four are listed, and a box over 64 times the limit only gets "reduce the range". Reads are not split automatically: replies are already summaries, and the limits exist to bound server work.
 - Added 3 unit tests.
+- `mc_inspect format:"exterior"`: what a finished build shows outside. Air is flooded in from the box's sides and top (the bottom layer counts as ground). The reply counts the non-air blocks next to that air by material, the air sealed off from outside, and detached pieces: groups of blocks not connected to the bottom layer, smallest first, which catches stray blocks and leftover scaffolding. A test house with one stray plank: "242 of 290 non-air blocks are seen from outside. Exterior materials: stone_bricks 168 (69.4%), stone 73 (30.2%), oak_planks 1 (0.4%)" and "1x oak_planks [453,47,404]..[453,47,404]". A 200,000-block box takes about 0.3 s. It is an option on an existing tool, so the tool count stays at 19.
+- Added 3 unit tests.
 
 ## 0.5.1 (fork)
 
