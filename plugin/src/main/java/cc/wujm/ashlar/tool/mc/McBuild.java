@@ -337,7 +337,10 @@ public final class McBuild implements Tool {
                 return CellBuild.run(this, ctx, args, settings.get(), cellFiles);
             }
             List<String> override = ProtectionGuard.parseOverride(args);
-            return prepare(args, preflight != null).thenCompose(a -> {
+            String blueprintId = ArgParse.has(args, "blueprint") && blueprintStore != null && args.get("blueprint").isJsonObject()
+                    && ArgParse.has(args.getAsJsonObject("blueprint"), "id") ? ArgParse.requireString(args.getAsJsonObject("blueprint"), "id") : null;
+            JsonObject blueprintTags = blueprintId == null ? null : blueprintStore.tags(blueprintId);
+            CompletableFuture<String> built = prepare(args, preflight != null).thenCompose(a -> {
                 boolean dryRun = ArgParse.optBoolean(args, "dryRun", false);
                 boolean siteCheck = ArgParse.optBoolean(args, "preflight", false);
                 boolean detailed = ArgParse.optBoolean(args, "detailed", false);
@@ -374,7 +377,24 @@ public final class McBuild implements Tool {
                     return guarded(ctx, a, ents, override, detailed, args);
                 });
             });
+            if (blueprintId == null || ArgParse.optBoolean(args, "dryRun", false)) return built;
+            return built.thenApply(text -> text + "\n" + traceLine(blueprintId, blueprintTags, text));
         });
+    }
+
+    private static final java.util.regex.Pattern JOURNAL_ID = java.util.regex.Pattern.compile("Journal: (jrn-[0-9]{8}-[0-9]{6}-[0-9a-f]{4})");
+
+    /** Step 19: one line naming the blueprint, its tags (without the note) and the journal id, for traceable transcripts. */
+    static String traceLine(String id, JsonObject tags, String text) {
+        StringBuilder sb = new StringBuilder("Blueprint: ").append(id);
+        if (tags != null) {
+            List<String> parts = new ArrayList<>();
+            for (String k : List.of("module", "status", "undo")) if (tags.has(k)) parts.add(k + "=" + tags.get(k).getAsString());
+            if (!parts.isEmpty()) sb.append(" (").append(String.join(", ", parts)).append(')');
+        }
+        var m = JOURNAL_ID.matcher(text);
+        sb.append(m.find() ? "; journal " + m.group(1) : "; no journal");
+        return sb.append('.').toString();
     }
 
     /** Protected-region overlaps including the entity cells. */

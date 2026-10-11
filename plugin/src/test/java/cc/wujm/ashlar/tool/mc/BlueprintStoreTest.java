@@ -44,7 +44,7 @@ class BlueprintStoreTest {
         assertEquals("Repeated windows", store.get("test").get("description").getAsString());
         var updated = store.save("test", doc, true);
         assertNotEquals(original.get("revision"), updated.get("revision"));
-        try (var files = Files.list(directory)) { assertEquals(1, files.count()); }
+        try (var files = Files.list(directory)) { assertEquals(1, files.filter(f -> !f.getFileName().toString().endsWith(".bounds.json")).count()); }
     }
 
     @Test void invalidOrOversizedWritesLeaveExistingDocumentUntouched() {
