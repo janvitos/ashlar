@@ -36,7 +36,7 @@ public final class BlockDataParser {
         try {
             parsed = Bukkit.createBlockData(raw);
         } catch (IllegalArgumentException e) {
-            throw new RpcError(ErrorCode.INVALID_BLOCK, "cannot parse block '" + raw + "'");
+            throw new RpcError(ErrorCode.INVALID_BLOCK, "cannot parse block '" + raw + "': " + BukkitStateDefaults.diagnose(raw));
         }
         CACHE.put(raw, parsed);
         return parsed;

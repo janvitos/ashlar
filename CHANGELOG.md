@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- Invalid block states now explain themselves in one line, on every path that parses them (`mc_build` blocks/fills/text/cells/cellsFile, blueprints at build time, `mc_plan`, `mc_verify`, `mc_repair`):
+  - `oak_stairs facing=up is invalid; facing: north|east|south|west`;
+  - `oak_stairs has no property 'facin'; properties: facing, half, shape, waterlogged`;
+  - `stone has no properties; use plain stone`;
+  - `unknown block 'oak_stair'; did you mean oak_stairs, dark_oak_stairs, pale_oak_stairs?`;
+  - syntax errors such as `missing ]`.
+- Errors for `blocks`, `fills` and `text` no longer start with a misleading `transform:` when no transform was given.
+- Added 5 unit tests and 3 `e2e-usability.mjs` checks.
+
 - Token efficiency: the full tool catalogue (19 schemas plus instructions) went from about 175 KB to 85 KB. `mc_plan` and `mc_verify` no longer embed a copy of the whole `mc_build` schema in their `build` parameter (about 25 KB each); it is now a short object that refers to mc_build, and the arguments are still validated exactly as mc_build validates them. Tool descriptions are about 30% shorter and keep the four sections. The instructions dropped details that the tool descriptions already carry (10.8 KB to 6.2 KB).
 - `mc_plan` and `mc_build dryRun` replies are compact: collisions grouped as `collisions: [{change: "a -> b", n, at}]`, `materials` with canonical states, issues without `severity` (at most 20, plus `issuesMore`), and a preview legend `{state: color}`. Internal and derived fields and zero/false/empty optional counters are left out. Example: one house plan went from 1,378 to 586 characters; with `image:false` it went from 1,059 to 382. The internal plan report used by preflight and verification is unchanged.
 - Flat renders automatically scale small regions to at most 16 px per block (for example, a 9-block plan preview is 144 px instead of 1,017 px). Flat and first-person legends list at most 20 blocks with canonical states. `mc_players lookingAt` uses canonical states.

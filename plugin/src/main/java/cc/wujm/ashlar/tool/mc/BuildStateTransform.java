@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package cc.wujm.ashlar.tool.mc;
 
+import cc.wujm.ashlar.engine.BukkitStateDefaults;
 import cc.wujm.ashlar.rpc.MainThread;
 import cc.wujm.ashlar.tool.ToolArgError;
 import org.bukkit.Bukkit;
@@ -90,7 +91,7 @@ final class BuildStateTransform {
                     }
                     states.put(key, data.getAsString());
                 } catch (IllegalArgumentException ex) {
-                    throw new ToolArgError("transform: invalid block state '" + key.block() + "': " + ex.getMessage());
+                    throw new ToolArgError("invalid block state '" + key.block() + "': " + BukkitStateDefaults.diagnose(key.block()));
                 }
             }
             return (Void) null;
