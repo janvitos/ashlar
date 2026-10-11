@@ -67,6 +67,15 @@ class ToolSpecTest {
     }
 
     @Test
+    void instructionsFitClaudeCodesLimitWithSafetyFirst() {
+        // Claude Code keeps only the first 4,096 characters of server instructions.
+        String instructions = new ToolRegistry(List.of()).instructions();
+        assertTrue(instructions.length() <= 4000, "instructions are " + instructions.length() + " characters");
+        int override = instructions.indexOf("pass override only when the user explicitly asks");
+        assertTrue(override >= 0 && override < instructions.indexOf("Default lightweight workflow:"));
+    }
+
+    @Test
     void buildReportAndOrderingGuidanceAreExplicit() {
         var spec = ToolSpec.load("mc_build");
         var detailed = spec.inputSchema().getAsJsonObject("properties").getAsJsonObject("detailed");
@@ -106,9 +115,9 @@ class ToolSpecTest {
             assertTrue(views.contains("isometric"));assertTrue(views.contains("perspective"));
             assertEquals(360,p.getAsJsonObject("camera").getAsJsonObject("properties").getAsJsonObject("azimuth").get("exclusiveMaximum").getAsInt());
         }
-        String instructions=new ToolRegistry(List.of()).instructions();
-        assertTrue(instructions.contains("schematic visual cuboids"));
-        assertFalse(instructions.contains("not shape-aware perspective views"));
+        // The render tool itself says angled views are schematic, so the instructions need not.
+        assertTrue(ToolSpec.load("mc_render").description().contains("angled views use schematic shapes"));
+        assertFalse(new ToolRegistry(List.of()).instructions().contains("not shape-aware perspective views"));
     }
 
     @Test
