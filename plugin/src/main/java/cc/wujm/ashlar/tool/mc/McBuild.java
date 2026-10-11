@@ -74,6 +74,20 @@ public final class McBuild implements Tool {
         return this;
     }
 
+    private cc.wujm.ashlar.engine.SupportRecheck supportRecheck;
+
+    /** Rechecks support warnings once a multi-phase build has finished writing. */
+    public McBuild withSupportRecheck(cc.wujm.ashlar.engine.SupportRecheck service) {
+        this.supportRecheck = service;
+        return this;
+    }
+
+    /** Support warnings of several cells parts, held back until every part is built. */
+    static final class DeferredWarnings {
+        final List<WarningText.SupportWarning> warnings = new ArrayList<>();
+        boolean truncated = false;
+    }
+
     /** Structural validation of one cells part, without writing. */
     CompletableFuture<Void> validatePart(Args a) {
         return preflight == null ? CompletableFuture.completedFuture(null) : preflight.validate(a).thenApply(v -> null);
@@ -84,9 +98,41 @@ public final class McBuild implements Tool {
         return protection == null ? List.of() : protection.enforce(ctx, "mc_build", a.world(), override, ProtectionGuard.targets(a));
     }
 
-    /** Builds one already validated cells part. */
-    CompletableFuture<String> runPart(InvocationContext ctx, Args a) {
-        return validatePart(a).thenCompose(v -> execute(ctx, a, false));
+    /** Builds one already validated cells part; its support warnings go to {@code deferred}. */
+    CompletableFuture<String> runPart(InvocationContext ctx, Args a, DeferredWarnings deferred) {
+        return validatePart(a).thenCompose(v -> execute(ctx, a, null, false, deferred));
+    }
+
+    /**
+     * Report lines for warnings collected over several writes, keeping only positions that are
+     * still unsupported now. Not from the main thread.
+     */
+    CompletableFuture<List<String>> recheckedWarningLines(InvocationContext ctx, String world, DeferredWarnings deferred) {
+        BuildState state = new BuildState();
+        state.warnings.addAll(deferred.warnings);
+        state.warningsTruncated = deferred.truncated;
+        return recheck(ctx, world, state).thenApply(v -> WarningText.formatWarnings(state.warnings, state.warningsTruncated));
+    }
+
+    /** Replaces {@code state.warnings} with the ones that still hold now that every phase has written. */
+    private CompletableFuture<Void> recheck(InvocationContext ctx, String world, BuildState state) {
+        if (supportRecheck == null || state.warnings.isEmpty()) return CompletableFuture.completedFuture(null);
+        List<int[]> positions = new ArrayList<>();
+        for (WarningText.SupportWarning w : state.warnings) positions.add(new int[] {w.x(), w.y(), w.z()});
+        CompletableFuture<JsonElement> rechecked;
+        try {
+            rechecked = supportRecheck.recheck(world, positions, ctx);
+        } catch (RuntimeException e) {
+            return CompletableFuture.completedFuture(null);
+        }
+        // The blocks are already written; if the recheck fails, keep the per-phase warnings.
+        return rechecked.handle((el, t) -> {
+            if (t == null) {
+                state.warnings.clear();
+                collectWarnings(state, el.getAsJsonObject());
+            }
+            return null;
+        });
     }
 
     /** Runs all parts of a cells build under one journal entry. */
@@ -493,6 +539,10 @@ public final class McBuild implements Tool {
     }
 
     private CompletableFuture<String> execute(InvocationContext ctx, Args a, EntityArgs ents, boolean detailed) {
+        return execute(ctx, a, ents, detailed, (DeferredWarnings) null);
+    }
+
+    private CompletableFuture<String> execute(InvocationContext ctx, Args a, EntityArgs ents, boolean detailed, DeferredWarnings deferred) {
         BuildState state = new BuildState();
         state.detailed = detailed;
         CompletableFuture<Void> step = CompletableFuture.completedFuture(null);
@@ -512,11 +562,22 @@ public final class McBuild implements Tool {
         if (!a.blocks().isEmpty()) {
             step = step.thenCompose(ignored -> blockStep(ctx, a, state));
         }
+        // Each phase checked support right after its own writes; a later phase may have added the support.
+        int phases = (a.fills().isEmpty() ? 0 : 1) + (a.shapes().isEmpty() ? 0 : 1) + (a.text().isEmpty() ? 0 : 1) + (a.blocks().isEmpty() ? 0 : 1);
+        if (deferred == null && phases > 1) {
+            step = step.thenComposeAsync(ignored -> recheck(ctx, a.world(), state));
+        }
         if (ents != null) {
             step = step.thenComposeAsync(ignored -> entityStep(ctx, a, ents, state));
         }
 
         return step.thenApply(ignored -> {
+            if (deferred != null) {
+                deferred.warnings.addAll(state.warnings);
+                deferred.truncated |= state.warningsTruncated;
+                state.warnings.clear();
+                state.warningsTruncated = false;
+            }
             List<String> fillsAndShapes = state.shapesSection == null ? state.fillsSection
                     : state.fillsSection == null ? state.shapesSection
                     : java.util.stream.Stream.concat(state.fillsSection.stream(), state.shapesSection.stream()).toList();

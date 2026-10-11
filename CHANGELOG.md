@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+- `mc_build` no longer reports false support warnings when a later part of the same call supplies the support, for example a hanging lantern in `fills` under a ceiling in `blocks`. Each phase (fills, shapes, text, blocks, and each `cells` part) still checks support right after its own writes, but the warned positions are now checked again once the whole call has written, and only the ones still unsupported are reported. Agents are told to fix every warning, so a false one cost extra calls.
+
 ## 0.5.1 (fork)
 
 - The MCP server no longer stays disconnected after the plugin restarts. A connection attempt the server accepted but never answered (for example while Paper was stopping or starting) used to wait forever: Node's WebSocket has no handshake timeout, so no retry was ever scheduled. An attempt not authenticated within 15 seconds is now abandoned and retried with the usual backoff.
