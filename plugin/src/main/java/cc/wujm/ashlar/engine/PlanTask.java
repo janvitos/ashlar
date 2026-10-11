@@ -126,7 +126,7 @@ public final class PlanTask extends BuildTask {
             if (!preview) { previewDone = true; return true; }
             if (!cursorReady) init(previewBounds);
             do {
-                encoder.add(virtual(x,y,z).getAsString());
+                encoder.add(expectedStates.computeIfAbsent(virtual(x,y,z),BlockData::getAsString));
                 if (next(previewBounds)) { previewData = encoder.finish(previewBounds); paletteArgb = new int[previewData.palette().size()]; previewDone = true; break; }
                 if (++batch % 128 == 0 && System.nanoTime() >= deadline) return false;
             } while (true);
