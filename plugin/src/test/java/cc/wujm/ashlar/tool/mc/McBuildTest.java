@@ -6,6 +6,7 @@ import com.google.gson.JsonParser;
 import cc.wujm.ashlar.tool.ToolArgError;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -40,7 +41,7 @@ class McBuildTest {
     @Test
     void emptyBodyThrowsRefineMessage() {
         ToolArgError e = assertThrows(ToolArgError.class, () -> McBuild.Args.parse(obj("{}")));
-        assertEquals("\"fills\", \"blocks\", \"text\" and/or \"entities\" must be provided, with at least one non-empty",
+        assertEquals("\"fills\", \"shapes\", \"blocks\", \"text\" and/or \"entities\" must be provided, with at least one non-empty",
                 e.getMessage());
     }
 
@@ -242,5 +243,32 @@ class McBuildTest {
         ToolArgError e = assertThrows(ToolArgError.class, () -> McBuild.Args.parse(obj(
                 "{\"text\":[{\"text\":\"HI\",\"pos\":[0,60,0],\"block\":\"minecraft:stone\",\"align\":\"middle\"}]}")));
         assertTrue(e.getMessage().contains("align"));
+    }
+
+    @Test
+    void shapesExpandAndFollowTheTransform() {
+        McBuild.Args a = McBuild.Args.parse(obj(
+                "{\"shapes\":[{\"shape\":\"cone\",\"from\":[0,0,0],\"to\":[8,4,4],\"axis\":\"x\",\"block\":\"minecraft:stone\"}],"
+                        + "\"transform\":{\"origin\":[100,64,200],\"rotation\":90}}"));
+        McBuild.ShapeArg s = a.shapes().getFirst();
+        assertFalse(a.isEmpty());
+        // Rotating 90 clockwise maps local +X to world +Z and local +Z to world -X.
+        assertArrayEquals(new int[] {96, 64, 200}, s.expanded().min());
+        assertArrayEquals(new int[] {100, 68, 208}, s.expanded().max());
+        long tip = s.expanded().runs().stream().filter(r -> r.from()[2] == 208 || r.to()[2] == 208)
+                .mapToLong(r -> Math.min(r.to()[2], 208) - Math.max(r.from()[2], 208) + 1).sum();
+        assertEquals(1, tip);
+        int[][] box = McBuild.boundingBox(a);
+        assertArrayEquals(s.expanded().min(), box[0]);
+        assertArrayEquals(s.expanded().max(), box[1]);
+    }
+
+    @Test
+    void invalidShapesNameTheEntry() {
+        ToolArgError e = assertThrows(ToolArgError.class, () -> McBuild.Args.parse(obj(
+                "{\"shapes\":[{\"shape\":\"sphere\",\"from\":[0,0,0],\"to\":[4,4,4],\"thickness\":20,\"block\":\"minecraft:glass\"}]}")));
+        assertEquals("shapes[0].thickness: must be between 0 and 16, got 20", e.getMessage());
+        assertThrows(ToolArgError.class, () -> McBuild.Args.parse(obj(
+                "{\"shapes\":[{\"shape\":\"torus\",\"from\":[0,0,0],\"to\":[4,4,4],\"block\":\"minecraft:glass\"}]}")));
     }
 }

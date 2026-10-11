@@ -450,6 +450,23 @@ Branch: `fix/invalid-state-errors`.
   - on the isolated server, `e2e-usability.mjs` passes 27 checks (3 new), and `e2e-transforms.mjs` and `e2e-blueprints.mjs` pass;
   - no production changes.
 
+## Feature: curved shape primitives
+
+Branch: `feat/curved-shapes`.
+
+- From the post-Step-20 review (item 4). Round towers, domes, spires and curved walls used to need every cell computed by the agent and sent as `cells`, which cost many tokens and often had gaps or lopsided circles.
+- `mc_build shapes: [{shape, from, to, block, axis?, thickness?}]`, at most 64 per call:
+  - `cylinder`, `sphere`, `dome`, `cone` and `pyramid`, each inscribed in its inclusive box, so sizes can be odd or even and unequal sides give ellipses;
+  - a cell belongs to the shape when its centre is inside the solid; every cone or pyramid layer keeps at least its centre cells, so tips are never missing;
+  - `axis` sets the direction of a cylinder, or from base to top of a dome, cone or pyramid (`-y` gives bowls and upside-down cones);
+  - `thickness` keeps cells within that many face steps of the outside. Base faces stay open. Face-step distance makes every shell watertight.
+- The pure `ShapeExpand` computes the cells at parse time (off the main thread, at most 8,000,000 box cells per shape) and emits runs along whichever axis needs the fewest. The runs are fill ops, so shapes share fill validation, the block limit, protection, snapshots, the journal, preflight and plan simulation. With `transform`, shapes are expanded in local coordinates and each run is mapped to world coordinates.
+- Blueprint components accept `shapes` (with `$role` blocks), counted against the blueprint volume and operation limits.
+- Verification:
+  - one plugin build: 895 tests passed (9 new), zero failures;
+  - on the isolated server, the new `e2e-curves.mjs` passes 21 checks: dry-run counts match the placed cells, hollow and open cells, transforms, `mc_plan`, errors, a blueprint with a role, and journal undo. The isometric render of the test tower was inspected visually;
+  - no production changes.
+
 ## Fork activation
 
 User-approved deployment uses Paper 26.1.2 build 74, without a Paper upgrade. The fork now compiles against that exact API and declares minimum API 26.1. One build passed; an approved restart used a verified full 30-second in-game countdown before a graceful stop/install/start. Original artifact retained for rollback; plugin configuration/credentials unchanged. Pi points at the locally built fork adapter through the existing Docker network arrangement. Basic read-only deployment check confirmed plugin 0.4.9-dev, authenticated MCP, 13 tools and photo-reference instructions. No construction/terrain test writes or exhaustive regressions were performed on production. Pi needs `/reload` to refresh an existing session's connection and catalog.

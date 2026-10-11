@@ -35,13 +35,14 @@ public final class BuildPreflight {
         if (args.liquids() != null) options.addProperty("liquids",args.liquids());
         if (args.connect() != null) options.addProperty("connect",args.connect());
         World world = validator.resolveWorld(options);
-        int[][] box = McBuild.boundingBox(args.fills(),args.blocks(),args.text());
+        int[][] box = McBuild.boundingBox(args);
         Region bounds = Region.of(box[0],box[1]);
         checkHorizontal(bounds);
         // The executor acquires the entire envelope's tickets, not just the union of operation chunks.
         validator.checkChunkCount(bounds);
         JsonArray fillJson = new JsonArray();
         for (var f:args.fills()) fillJson.add(McBuild.fillOpJson(f));
+        for (var s:args.shapes()) for (var run:s.expanded().runs()) fillJson.add(McBuild.runJson(run,s.block()));
         for (var t:args.text()) {
             if (t.background() != null) fillJson.add(fill(t.expanded().bboxMin(),t.expanded().bboxMax(),t.background()));
             for (var run:t.expanded().inkRuns()) fillJson.add(fill(run.from(),run.to(),t.block()));

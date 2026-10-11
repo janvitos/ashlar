@@ -227,6 +227,22 @@ public final class ToolText {
         return lines;
     }
 
+    /** One entry of the "Shapes:" section: the shape kind, its world bounding box, and how many of its cells changed. */
+    public record ShapeEntryLine(int index, String shape, int[] from, int[] to, long changed, long volume) {
+    }
+
+    /** The "Shapes:" section: one line per {@code shapes} entry, then the total line, like {@link #textSection}. */
+    public static List<String> shapesSection(List<ShapeEntryLine> entries, long totalChanged, long totalVolume, long elapsedMs) {
+        List<String> lines = new ArrayList<>();
+        lines.add("Shapes:");
+        for (ShapeEntryLine e : entries) {
+            lines.add("  #" + e.index() + " " + e.shape() + " [" + joinCoords(e.from()) + "] -> [" + joinCoords(e.to()) + "]: "
+                    + e.changed() + "/" + e.volume() + " changed");
+        }
+        lines.add("  total: " + totalChanged + "/" + totalVolume + " changed in " + elapsedMs + "ms");
+        return lines;
+    }
+
     /**
      * The {@code chestsPaired: <n>} line (step8e-prompt.md): how many adjacent single chests were
      * paired into double chests across this call's fills/blocks. Omitted entirely when zero, so a

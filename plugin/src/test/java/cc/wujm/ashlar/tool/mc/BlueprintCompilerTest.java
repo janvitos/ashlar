@@ -174,4 +174,26 @@ class BlueprintCompilerTest {
         for (int i = 0; i < BlueprintCompiler.MAX_RAW_OPS; i++) fills.add(fills.get(0).deepCopy());
         assertThrows(ToolArgError.class, () -> BlueprintCompiler.validate(huge));
     }
+
+    @Test void shapesTakeRolesAndCountTowardsLimits() {
+        JsonObject doc = obj("""
+                {"version":1,"palette":{"roof":"minecraft:copper_block"},
+                 "components":{"tower":{"shapes":[{"shape":"dome","from":[0,0,0],"to":[6,3,6],"block":"$roof","thickness":1}]}},
+                 "instances":[{"component":"tower","pos":[0,0,0],"repeat":{"count":2,"step":[10,0,0]}}]}
+                """);
+        var parts = compile(doc, request());
+        assertEquals(2, parts.size());
+        McBuild.ShapeArg dome = parts.get(1).args().shapes().getFirst();
+        assertEquals("minecraft:copper_block", dome.block());
+        assertArrayEquals(new int[] {110, 64, 200}, dome.expanded().min());
+        assertArrayEquals(new int[] {0, 0, 0}, BlueprintCompiler.bounds(doc)[0]);
+        assertArrayEquals(new int[] {16, 3, 6}, BlueprintCompiler.bounds(doc)[1]);
+        long blocks = dome.expanded().blocks();
+        ToolArgError e = assertThrows(ToolArgError.class, () -> BlueprintCompiler.compile(doc, request(),
+                new BlueprintCompiler.Limits(blocks, Long.MAX_VALUE, Long.MAX_VALUE)));
+        assertTrue(e.getMessage().contains("exceeds limit"), e.getMessage());
+        JsonObject bad = doc.deepCopy();
+        bad.getAsJsonObject("components").getAsJsonObject("tower").getAsJsonArray("shapes").get(0).getAsJsonObject().addProperty("radius", 3);
+        assertThrows(ToolArgError.class, () -> BlueprintCompiler.validate(bad));
+    }
 }
