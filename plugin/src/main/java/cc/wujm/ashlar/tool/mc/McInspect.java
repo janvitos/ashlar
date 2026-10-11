@@ -30,7 +30,7 @@ public final class McInspect implements Tool {
 
     private static final long MAX_VOLUME = 200_000;
     private static final long MAX_COLUMNS = 1024;
-    private static final List<String> FORMATS = List.of("stats", "columns");
+    private static final List<String> FORMATS = List.of("stats", "columns", "exterior");
 
     private final ToolSpec spec = ToolSpec.load("mc_inspect");
     private final RpcHandler readRegionHandler;
@@ -107,8 +107,8 @@ public final class McInspect implements Tool {
                 slice = new SliceArg(axis, at);
             }
             String format = ArgParse.optEnum(o, "format", FORMATS, "stats");
-            if (format.equals("columns") && slice != null) {
-                throw new ToolArgError("`slice` and `format: \"columns\"` are exclusive");
+            if (!format.equals("stats") && slice != null) {
+                throw new ToolArgError("`slice` and `format: \"" + format + "\"` are exclusive");
             }
             return new Args(world, from, to, slice, format, ArgParse.optBoolean(o, "canonical", true), ArgParse.optBoolean(o, "entities", false));
         }
@@ -162,6 +162,10 @@ public final class McInspect implements Tool {
 
                 if (a.slice() != null) {
                     return ToolText.inspectSliceText(decoded, new SliceText.SliceSpec(a.slice().axis(), a.slice().at()), signs, signsTruncated);
+                }
+                if (a.format().equals("exterior")) {
+                    String text = ExteriorScan.text(ExteriorScan.scan(decoded), decoded, worldName);
+                    return signs.isEmpty() ? text : text + "\n" + signs.size() + (signsTruncated ? "+" : "") + " sign(s) in the box; format \"stats\" lists their text.";
                 }
                 if (a.format().equals("columns")) {
                     return ToolText.inspectColumnsText(decoded, worldName, signs, signsTruncated);
