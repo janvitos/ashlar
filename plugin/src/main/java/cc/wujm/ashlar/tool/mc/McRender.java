@@ -288,10 +288,7 @@ public final class McRender implements Tool {
 
                 String text;
                 if (cc.wujm.ashlar.render.RenderCamera.angled(view)) {
-                    JsonObject summary = new JsonObject(); summary.addProperty("view",view);summary.add("bounds",bounds);
-                    summary.addProperty("width",width);summary.addProperty("height",height);summary.addProperty("scale",scaleOut);
-                    summary.add("geometry",r.get("geometry"));
-                    text = summary.toString();
+                    text = AngledRenderText.text(r, cc.wujm.ashlar.engine.BukkitStateDefaults.CANON::canon);
                 } else if (view.equals("heightmap")) {
                     HeightmapText.HeightmapRenderFields fields = HeightmapJson.renderFields(r);
                     text = ToolText.renderText(view, boundsFrom, boundsTo, width, height, scaleOut,

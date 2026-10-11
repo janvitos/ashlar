@@ -17,7 +17,7 @@ async function tool(name,args){const r=await client.callTool({name,arguments:arg
 async function read(){return plugin.request("read_region",{from,to});}
 async function fingerprint(){return {region:await read(),snapshots:(await plugin.request("list_snapshots",{})).snapshots.map(s=>s.id).sort()};}
 async function readonly(fn){const b=await fingerprint();const r=await fn();const a=await fingerprint();check(()=>assert.deepEqual(a,b));return r;}
-async function image(name,args){const r=await readonly(()=>tool("mc_render",args));fs.mkdirSync(out,{recursive:true});fs.writeFileSync(`${out}/${name}.png`,Buffer.from(r.content.find(c=>c.type==="image").data,"base64"));const m=JSON.parse(text(r));check(()=>assert.ok(m.width*m.height<=1000000));check(()=>assert.ok(m.geometry.estimatedIntersectionWork<=64000000));return r;}
+async function image(name,args){const r=await readonly(()=>tool("mc_render",args));fs.mkdirSync(out,{recursive:true});fs.writeFileSync(`${out}/${name}.png`,Buffer.from(r.content.find(c=>c.type==="image").data,"base64"));const m=JSON.parse(text(r));check(()=>assert.ok(m.width*m.height<=1000000));check(()=>assert.ok(m.legend&&!("assumptions" in m.geometry)));return r;}
 async function rejected(args){const b=await fingerprint();const r=await client.callTool({name:"mc_render",arguments:args});check(()=>assert.equal(r.isError,true));const a=await fingerprint();check(()=>assert.deepEqual(a,b));}
 const cases=[];
 for(const type of ["bottom","top","double"])cases.push(`minecraft:stone_slab[type=${type}]`);

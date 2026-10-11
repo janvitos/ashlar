@@ -56,11 +56,14 @@ try{
     check(()=>assert.match(t,/Journal: jrn-/,t));
     const box={from:[559,99,-1],to:[591,104,8]};
     let r=await tool("mc_render",{...box,view:"isometric",camera:{azimuth:20,elevation:35}});save(r,"gallery");let geo=geometry(r);
-    check(()=>assert.equal(geo.cubeFallbackStates,0,JSON.stringify(geo.cubeFallbackSamples)));
+    check(()=>assert.equal(geo.cubeFallbackStates??0,0,JSON.stringify(geo.cubeFallbackSamples)));
     check(()=>assert.equal(geo.entityPlaceholderCells,3,JSON.stringify(geo)));
     check(()=>assert.ok(JSON.parse(text(r)).geometry&&!("diff" in geo)));
+    // The angled reply carries a compact legend (canonical states, top 20) and no boilerplate.
+    const gl=JSON.parse(text(r)).legend;
+    check(()=>assert.ok(Object.keys(gl).length>=5&&"entity:painting" in gl&&Object.keys(gl).every(k=>!k.startsWith("minecraft:")&&!k.includes("waterlogged=false"))&&!("assumptions" in geo)&&text(r).length<1500,text(r)));
     r=await tool("mc_render",{...box,view:"perspective"});save(r,"gallery-perspective");
-    check(()=>assert.equal(geometry(r).cubeFallbackStates,0));
+    check(()=>assert.equal(geometry(r).cubeFallbackStates??0,0));
     // Zoom: a tight close-up of the bell.
     r=await tool("mc_render",{zoom:{pos:[578,100,2],radius:2}});save(r,"zoom-bell");
     const zs=JSON.parse(text(r));
