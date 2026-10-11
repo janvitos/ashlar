@@ -14,8 +14,10 @@ import org.bukkit.block.sign.Side;
 import org.bukkit.block.sign.SignSide;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Executes a {@code read_region} request: scans {@link #region()} in {@code
@@ -50,6 +52,8 @@ public class ReadTask extends BuildTask {
     private final World world;
     private final RegionData.Encoder encoder = new RegionData.Encoder();
     private final List<JsonObject> signs = new ArrayList<>();
+    /** One {@code getAsString()} and sign test per distinct state; BlockData compares by state. */
+    private final Map<BlockData, Cached> states = new HashMap<>();
     private boolean signsTruncated = false;
 
     private int cursorY;
@@ -105,9 +109,9 @@ public class ReadTask extends BuildTask {
         while (cursorX <= r.maxX()) {
             Block block = world.getBlockAt(cursorX, cursorY, cursorZ);
             BlockData data = block.getBlockData();
-            encoder.add(data.getAsString());
-            String materialName = data.getMaterial().name().toLowerCase(Locale.ROOT);
-            if (materialName.endsWith("_sign") || materialName.endsWith("_hanging_sign")) {
+            Cached state = states.computeIfAbsent(data, ReadTask::cache);
+            encoder.add(state.text());
+            if (state.sign()) {
                 collectSign(block, cursorX, cursorY, cursorZ);
             }
             advance(1);
@@ -121,6 +125,13 @@ public class ReadTask extends BuildTask {
             }
         }
         return true;
+    }
+
+    private record Cached(String text, boolean sign) {}
+
+    private static Cached cache(BlockData data) {
+        String materialName = data.getMaterial().name().toLowerCase(Locale.ROOT);
+        return new Cached(data.getAsString(), materialName.endsWith("_sign") || materialName.endsWith("_hanging_sign"));
     }
 
     /** Read-only palette access for budgeted render color resolution; no world access. */

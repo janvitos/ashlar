@@ -38,6 +38,8 @@ public final class DiffScanTask extends BuildTask {
     private final int sampleCap;
 
     private final Map<String, Integer> index = new HashMap<>();
+    /** Palette index per distinct state, so {@code getAsString()} runs once per state, not per cell. */
+    private final Map<BlockData, Integer> dataIndex = new HashMap<>();
     private final List<String> palette = new ArrayList<>();
     private final List<BlockData> paletteData = new ArrayList<>();
     private final int[] grid;
@@ -88,13 +90,17 @@ public final class DiffScanTask extends BuildTask {
         int since = 0, i = offset(cx, cy, cz);
         while (cy <= r.maxY()) {
             BlockData data = world.getBlockAt(cx, cy, cz).getBlockData();
-            String s = data.getAsString();
-            Integer idx = index.get(s);
+            Integer idx = dataIndex.get(data);
             if (idx == null) {
-                idx = palette.size();
-                index.put(s, idx);
-                palette.add(s);
-                paletteData.add(data);
+                String s = data.getAsString();
+                idx = index.get(s);
+                if (idx == null) {
+                    idx = palette.size();
+                    index.put(s, idx);
+                    palette.add(s);
+                    paletteData.add(data);
+                }
+                dataIndex.put(data, idx);
             }
             grid[i++] = idx;
             advance(1);
