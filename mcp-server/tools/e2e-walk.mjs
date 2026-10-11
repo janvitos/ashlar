@@ -27,7 +27,7 @@ try{
     await client.connect(transport);const health=await plugin.request("health",{});assert.equal(health.onlinePlayers,0);assert.equal(health.queuedOperations,0);
     const base=await plugin.request("read_region",{from,to});assert.ok(base.palette.every(s=>s==="minecraft:air"),"Region must be pristine air");
     snapshot=(await plugin.request("snapshot",{from,to,label:"walk acceptance pristine region"})).id;
-    const catalog=await client.listTools();check(()=>assert.equal(catalog.tools.length,18));
+    const catalog=await client.listTools();check(()=>assert.equal(catalog.tools.length,19));
     check(()=>assert.equal(catalog.tools.find(t=>t.name==="mc_walk").annotations.readOnlyHint,true));
     await tool("mc_command",{command:`forceload add ${from[0]} ${from[2]} ${to[0]} ${to[2]}`});forced=true;
     // Floor; a wall at x=6 with a closed door at z=0; a one-high ledge at x>=10 reached only by a stair facing east at (9,0,3).

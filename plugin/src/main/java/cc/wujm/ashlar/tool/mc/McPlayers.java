@@ -89,7 +89,7 @@ public final class McPlayers implements Tool {
         }
         JsonObject o = la.getAsJsonObject();
         JsonArray pos = o.getAsJsonArray("pos");
-        return "  looking at " + o.get("block").getAsString() + " at " + pos.get(0).getAsInt() + "," + pos.get(1).getAsInt()
+        return "  looking at " + AngledRenderText.state(o.get("block").getAsString(), cc.wujm.ashlar.engine.BukkitStateDefaults.CANON::canon) + " at " + pos.get(0).getAsInt() + "," + pos.get(1).getAsInt()
                 + "," + pos.get(2).getAsInt() + " (" + o.get("face").getAsString() + " face)";
     }
 }

@@ -64,7 +64,7 @@ try{
         const {result,report}=await plan(placed(house),options);
         check(()=>assert.equal(report.valid,true));check(()=>assert.equal(report.strictSitePass,true));
         check(()=>assert.equal(report.existingNonAirChanged,1));check(()=>assert.equal(report.clearedCells,1));
-        check(()=>assert.deepEqual(report.collisionSamples[0],{pos:[386,101,2],existing:"minecraft:gold_block",target:"minecraft:air",kind:"clear"}));
+        check(()=>assert.deepEqual(report.collisions[0],{change:"gold_block -> air",n:1,at:[386,101,2]}));
         check(()=>assert.ok(report.overlappingCells>=29));
         const image=result.content.find(c=>c.type==="image");check(()=>assert.ok(image));
         const png=Buffer.from(image.data,"base64");check(()=>assert.equal(png.subarray(1,4).toString(),"PNG"));

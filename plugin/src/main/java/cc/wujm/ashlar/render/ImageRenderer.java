@@ -57,7 +57,7 @@ public final class ImageRenderer {
      *
      * @param sliceAxis "x"/"y"/"z", only read when {@code view} is {@code "slice"}
      * @param sliceAt   the fixed coordinate on {@code sliceAxis}, only read when {@code view} is {@code "slice"}
-     * @param scale     px per block, {@code <= 0} means auto (largest scale with {@code max(w,h) <= 1024} and
+     * @param scale     px per block, {@code <= 0} means auto (largest scale up to 16 with {@code max(w,h) <= 1024} and
      *                  {@code w*h <= 4,000,000}); the halving-retry-on-size loop (docs/prompts/step4e-prompt.md,
      *                  Result section) calls back in with an explicit scale
      * @param grid      grid line every N blocks, {@code 0} disables grid lines and coordinate labels
@@ -394,13 +394,17 @@ public final class ImageRenderer {
     // Scale / upscale
     // ------------------------------------------------------------------
 
+    static final int MAX_AUTO_SCALE = 16;
+
     /** Package-visible: reused by {@link HeightmapImageRenderer}, which shares the same auto-scale/pixel-budget rule. */
+
     static int resolveScale(int requested, int blocksWide, int blocksTall) {
         if (requested > 0) {
             return requested;
         }
         int maxDim = Math.max(blocksWide, blocksTall);
-        int auto = Math.max(1, 1024 / Math.max(1, maxDim));
+        // At most 16 px per block, as for angled views: a flat block is one colour, so a small box gains nothing from more pixels.
+        int auto = Math.max(1, Math.min(MAX_AUTO_SCALE, 1024 / Math.max(1, maxDim)));
         while (auto > 1 && (long) blocksWide * auto * (long) blocksTall * auto > PIXEL_BUDGET) {
             auto--;
         }

@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- Token efficiency: the full tool catalogue (19 schemas plus instructions) went from about 175 KB to 85 KB. `mc_plan` and `mc_verify` no longer embed a copy of the whole `mc_build` schema in their `build` parameter (about 25 KB each); it is now a short object that refers to mc_build, and the arguments are still validated exactly as mc_build validates them. Tool descriptions are about 30% shorter and keep the four sections. The instructions dropped details that the tool descriptions already carry (10.8 KB to 6.2 KB).
+- `mc_plan` and `mc_build dryRun` replies are compact: collisions grouped as `collisions: [{change: "a -> b", n, at}]`, `materials` with canonical states, issues without `severity` (at most 20, plus `issuesMore`), and a preview legend `{state: color}`. Internal and derived fields and zero/false/empty optional counters are left out. Example: one house plan went from 1,378 to 586 characters; with `image:false` it went from 1,059 to 382. The internal plan report used by preflight and verification is unchanged.
+- Flat renders automatically scale small regions to at most 16 px per block (for example, a 9-block plan preview is 144 px instead of 1,017 px). Flat and first-person legends list at most 20 blocks with canonical states. `mc_players lookingAt` uses canonical states.
+- Added 4 unit tests. Rewrote the 3 nested-schema tests. Updated the stale tool counts in 5 e2e scripts.
+
 - `mc_render` isometric/perspective replies now include a colour legend (`legend: {state: "#rrggbb"}`, the 20 most visible blocks, `legendMore` counts the rest), so colours in angled images can be matched to blocks. The reply is shorter: block states are canonical (no `minecraft:`, no default properties), at most 10 fallback samples are listed, and the fixed assumptions text, unit vectors, internal work estimates and zero/false/empty fields are left out. The same air-only render went from 1,150 to 197 characters. Added 2 unit tests and one `e2e-render.mjs` check.
 
 - `mc_command` / `run_command`: a vanilla command syntax error (for example `time query daytime` on 26.2) is returned as `Syntax error: <message>` (`syntaxError` in the RPC result) instead of failing with an internal error and a logged stack trace. Added 2 unit tests and one `e2e-usability.mjs` check.

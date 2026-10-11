@@ -413,6 +413,22 @@ Branch: `fix/angled-render-legend`.
 - `e2e-render.mjs` reads missing fallback counts as 0 and checks the legend; `e2e-shapes.mjs` checks the legend instead of `estimatedIntersectionWork`, which the tool reply no longer carries.
 - Verification: one plugin build, 878 tests passed (2 new), zero failures; on the isolated server `e2e-render.mjs` passes 17 checks (one new) and `e2e-shapes.mjs` 71. No production changes.
 
+## Fix: token efficiency
+
+Branch: `fix/token-efficiency`.
+
+- From the post-Step-20 review, all fixes approved as one PR:
+  - compact `mc_plan` and dryRun replies (the new pure `PlanReportText`);
+  - trimmed instructions and tool descriptions;
+  - an auto-scale cap for small flat renders;
+  - canonical block states in replies.
+- **Change to an upstream design choice:** the nested `build` parameter of `mc_plan` and `mc_verify` no longer copies the `mc_build` schema at startup. It is now `{type: object}` with a description that points to mc_build. Clients no longer get the nested schema for client-side validation; the plugin validates the arguments as before.
+- Measured: the tool catalogue went from about 175 KB to 85 KB; the instructions from 10.8 KB to 6.2 KB. A house `mc_plan` reply went from 1,378 characters to 586, and its preview image from 1,017 px to 144 px.
+- Verification:
+  - one plugin build: 881 tests passed (4 new), zero failures;
+  - on the isolated server, these e2e scripts pass: preflight, render, view, protect, verification, diff, walk, shapes, terrain-fit, generators and usability;
+  - no production changes.
+
 ## Fork activation
 
 User-approved deployment uses Paper 26.1.2 build 74, without a Paper upgrade. The fork now compiles against that exact API and declares minimum API 26.1. One build passed; an approved restart used a verified full 30-second in-game countdown before a graceful stop/install/start. Original artifact retained for rollback; plugin configuration/credentials unchanged. Pi points at the locally built fork adapter through the existing Docker network arrangement. Basic read-only deployment check confirmed plugin 0.4.9-dev, authenticated MCP, 13 tools and photo-reference instructions. No construction/terrain test writes or exhaustive regressions were performed on production. Pi needs `/reload` to refresh an existing session's connection and catalog.

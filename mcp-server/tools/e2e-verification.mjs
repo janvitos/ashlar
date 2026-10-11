@@ -37,7 +37,7 @@ plugin.start();
 try{
     await client.connect(transport);const health=await plugin.request("health",{});assert.equal(health.onlinePlayers,0);assert.equal(health.queuedOperations,0);
     const base=await read();assert.ok(base.palette.every(s=>s==="minecraft:air"),"Region must be pristine air to avoid losing existing NBT during snapshot cleanup");assert.equal(base.signs.length,0);
-    const catalog=await client.listTools();check(()=>assert.equal(catalog.tools.length,13));check(()=>assert.ok(catalog.tools.some(t=>t.name==="mc_verify")));check(()=>assert.equal(catalog.tools.find(t=>t.name==="mc_repair").annotations.destructiveHint,true));
+    const catalog=await client.listTools();check(()=>assert.equal(catalog.tools.length,19));check(()=>assert.ok(catalog.tools.some(t=>t.name==="mc_verify")));check(()=>assert.equal(catalog.tools.find(t=>t.name==="mc_repair").annotations.destructiveHint,true));
     snapshot=(await plugin.request("snapshot",{from,to,label:"verification acceptance pristine region"})).id;
     const build=placed({fills:[{from:[0,0,0],to:[4,3,4],block:"minecraft:stone",mode:"hollow"}],blocks:[
         {pos:[1,1,1],block:"minecraft:oak_stairs[facing=north,half=bottom,shape=straight]"},

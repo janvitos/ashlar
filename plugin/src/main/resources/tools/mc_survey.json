@@ -1,12 +1,12 @@
 {
   "name": "mc_survey",
   "title": "Survey terrain",
-  "description": "Surveys terrain by reading surface height over a rectangular x/z area, so an AI can form spatial intuition about the ground before building. By default (`format: \"image\"`) it renders a color heightmap: 8 hypsometric bands from dark green (low) through yellow/tan/brown to light gray (high), blue for water/lava, relief shading, a coordinate grid, and contour lines - plus text with the numbers a picture cannot give: area, min/max/median height, dominant surface materials, and the largest flat buildable zone with its coordinates and y. Always use the default image format; `format: \"text\"` (an ASCII relief map) exists only for clients that truly cannot show images or when the user explicitly asks for a text map - it is larger and harder to read than the picture. Either format accepts `matrix: true` to append the numeric per-block height matrix. `type: \"TOP_SOLID_IGNORE_DECOR\"` measures the ground under carpet, thin snow, plants and lights, and `walkHeight: true` adds the exact height a player stands at in each column (slabs, carpet, snow, fences).\n\nWHEN TO USE: before any nontrivial build, to find a flat spot, see where water/lava is, and pick a sensible y level, rather than guessing coordinates. Also useful mid-project to check terrain outside the current build area, or to answer \"what does the land around x,z look like\".\n\nWHEN NOT TO USE: for a full 3D read of placed blocks or underground structure (use mc_inspect). Do not call it repeatedly over tiny sub-areas when one call over the whole area would do; the area limit exists so one call can cover a meaningful build site.\n\nCOORDINATES: X grows east, Z grows south. `from`/`to` are inclusive [x, z] pairs (no y - this tool measures height, it does not take one). Area = (x2-x1+1)*(z2-z1+1), at most 200,000 cells; one call comfortably covers e.g. a 300x300 area. The image is area-priced, not volume-priced, so a wide, shallow survey costs the same as a square one of equal area. Y values in the output are absolute world height.\n\nSIDE EFFECTS: none - this is a read-only tool and never modifies the world. A large area (tens of thousands of cells) may take a second or two on the plugin side; there is no other cost to calling it freely.",
+  "description": "Surveys terrain over an x/z area: a colour heightmap image (height bands, water and lava in blue, relief shading, grid and contours) plus the numbers a picture cannot give: min/max/median height, surface materials and the largest flat zone with its coordinates and y.\n\nWHEN TO USE: before a substantial build, to find a flat spot, water, and a sensible y level instead of guessing; to check terrain around the build area.\nWHEN NOT TO USE: for a 3D read of placed blocks or underground structure (mc_inspect). Do not survey many tiny sub-areas when one call covers the site.\n\nCOORDINATES: X east, Z south. from/to are inclusive [x, z] pairs; area at most 200,000 cells (e.g. 300x300). Output heights are absolute y.\n\nSIDE EFFECTS: read-only.",
   "inputSchema": {
     "type": "object",
     "properties": {
       "world": {
-        "description": "World name. Omitted uses the plugin's configured default world.",
+        "description": "World name; default: the configured default world.",
         "type": "string",
         "minLength": 1
       },
@@ -14,42 +14,34 @@
         "type": "array",
         "prefixItems": [
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           },
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           }
         ],
         "items": false,
         "minItems": 2,
         "maxItems": 2,
-        "description": "Inclusive [x, z] corner of the area to survey (no y - the tool measures the surface height)."
+        "description": "Inclusive [x, z] corner."
       },
       "to": {
         "type": "array",
         "prefixItems": [
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           },
           {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "type": "integer"
           }
         ],
         "items": false,
         "minItems": 2,
         "maxItems": 2,
-        "description": "Inclusive [x, z] corner opposite `from`. Order does not matter; the tool normalizes min/max."
+        "description": "Opposite inclusive [x, z] corner."
       },
       "type": {
-        "description": "Which surface to measure. SOLID: highest solid block, ignoring water (a river reads as its bed). SOLID_OR_LIQUID: highest solid or liquid block (a river reads as its water surface). SOLID_OR_LIQUID_NO_LEAVES (default): same as SOLID_OR_LIQUID but ignores leaves, useful for finding ground level under a forest canopy. ANY: highest non-air block including leaves and snow layers. TOP_SOLID_IGNORE_DECOR: the ground you would build on - like SOLID_OR_LIQUID_NO_LEAVES, then stepping down through carpet, snow up to `snowLayers` layers, plants, torches, lanterns, rails, signs, buttons, flower pots and heads.",
+        "description": "Surface to measure. SOLID: highest solid block (a river reads as its bed). SOLID_OR_LIQUID: includes liquid surfaces. SOLID_OR_LIQUID_NO_LEAVES (default): also ignores leaves (ground under a canopy). ANY: highest non-air block. TOP_SOLID_IGNORE_DECOR: the ground you would build on, stepping down through carpet, snow up to `snowLayers`, plants, torches, lanterns, rails, signs, buttons, pots and heads.",
         "type": "string",
         "enum": [
           "SOLID",
@@ -60,7 +52,7 @@
         ]
       },
       "format": {
-        "description": "Output format. Leave unset. \"image\" (default): a color heightmap picture plus the exact numbers (min/max/median height, surface materials, largest flat zone) as text. \"text\": an ASCII relief map instead of the picture - only when the user explicitly asks for a text map; you can see images, so do not pick this on your own.",
+        "description": "\"image\" (default). \"text\" gives an ASCII map instead; only when the user asks for one or images cannot be shown.",
         "type": "string",
         "enum": [
           "image",
@@ -68,17 +60,17 @@
         ]
       },
       "matrix": {
-        "description": "Whether to include the numeric height matrix (one number per block, about one token each), appended after the image/map. In format:\"text\" it is included by default for areas up to 40x40 (1600 cells) and omitted above that unless set true. In the default format:\"image\" it is always omitted unless set true (the image already conveys relief; set true when you need exact per-block numbers for a larger area). Use `matrix: true` over a small area for repairs (filling a hole to the surrounding height). With type TOP_SOLID_IGNORE_DECOR it holds the ground under the decoration.",
+        "description": "Append the per-block height matrix (about one token per cell). Default: off for images; for text, on up to 40x40. Useful over a small area, e.g. to fill a hole to the surrounding height.",
         "type": "boolean"
       },
       "snowLayers": {
-        "description": "Only with type TOP_SOLID_IGNORE_DECOR: snow up to this many layers (0-7) counts as decoration and is looked through. Default 3.",
+        "description": "TOP_SOLID_IGNORE_DECOR only: snow up to this many layers (0-7) is looked through. Default 3.",
         "type": "integer",
         "minimum": 0,
         "maximum": 7
       },
       "walkHeight": {
-        "description": "Append per-column walking heights: the y a player's feet rest at standing on top of each column (block y plus its collision height: 65.5 on a bottom slab at 65, 65.063 on carpet, 66.5 on a fence at 65). Snow of 1 layer has no collision; water and lava report the surface. At most 4096 columns (64x64).",
+        "description": "Append the y a player's feet rest at on each column (65.5 on a bottom slab at 65, 65.063 on carpet, 66.5 on a fence). At most 4,096 columns.",
         "type": "boolean"
       }
     },

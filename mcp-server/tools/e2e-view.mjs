@@ -24,7 +24,7 @@ try{
     await client.connect(transport);const health=await plugin.request("health",{});assert.equal(health.onlinePlayers,0);assert.equal(health.queuedOperations,0);
     const base=await plugin.request("read_region",{from,to});assert.ok(base.palette.every(s=>s==="minecraft:air"),"Region must be pristine air");
     snapshot=(await plugin.request("snapshot",{from,to,label:"view acceptance pristine region"})).id;
-    const catalog=await client.listTools();check(()=>assert.equal(catalog.tools.length,18));
+    const catalog=await client.listTools();check(()=>assert.equal(catalog.tools.length,19));
     check(()=>assert.equal(catalog.tools.find(t=>t.name==="mc_sightline").annotations.readOnlyHint,true));
     // No players online, so keep the test area loaded explicitly (removed in finally).
     await tool("mc_command",{command:`forceload add ${from[0]} ${from[2]} ${to[0]} ${to[2]}`});forced=true;
@@ -55,7 +55,7 @@ try{
     r=await tool("mc_render",{view:"first-person",eye,yaw:-90,pitch:5,distance:64,width:640,height:360});
     const img=r.content.find(c=>c.type==="image");check(()=>assert.ok(img&&img.data.length>1000));
     const info=JSON.parse(text(r));check(()=>assert.equal(info.view,"first-person"));check(()=>assert.ok(info.chunks.loaded>0));
-    check(()=>assert.ok(info.legend.some(l=>l.block.startsWith("minecraft:stone_bricks"))));
+    check(()=>assert.ok(Object.keys(info.legend).some(k=>k.startsWith("stone_bricks"))));
     if(process.env.ASHLAR_VIEW_PNG)writeFileSync(process.env.ASHLAR_VIEW_PNG,Buffer.from(img.data,"base64"));
     console.log(`view acceptance passed: ${checks} checks; render ${info.width}x${info.height}, chunks ${info.chunks.loaded}/${info.chunks.inView} loaded, unknownPixels ${info.geometry.unknownPixels}`);
 }finally{
