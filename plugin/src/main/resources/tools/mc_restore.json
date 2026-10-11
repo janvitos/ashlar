@@ -1,7 +1,7 @@
 {
   "name": "mc_restore",
   "title": "Restore snapshot or undo a journalled call",
-  "description": "Undoes earlier changes: restores a snapshot's whole region, or undoes one journalled call (mc_build, mc_repair or mc_restore) cell by cell.\n\nWHEN TO USE: a build or repair went wrong, or the user asks to undo or roll back. Prefer `journal` when other work may have happened since: safe mode restores only cells that still hold what that call wrote and reports the rest as conflicts, so later edits survive. Use a snapshot `id` to reset a whole region to one moment. Journal ids are in build replies or mc_snapshot journal-list (touches).\nWHEN NOT TO USE: to look at contents (mc_inspect, mc_diff) or list snapshots and journals (mc_snapshot).\n\nPARAMETERS: one of id or journal; no coordinates (the snapshot or entry fixes them). mode, dryRun, allowBlockEntityReplacement and samples apply to journal undo only. A protected deny region (mc_protect) rejects the call unless named in override; a journal dryRun only reports it.\n\nSIDE EFFECTS: a snapshot restore overwrites its whole region; a journal undo writes only that call's changed cells, without physics or a connection pass. Both are journalled, so an undo can be undone. Sign text and decorative entities are restored too: a snapshot restore respawns or resets recorded entities and removes Ashlar-placed ones that were not there; a journal undo removes what the call placed, respawns what it removed and puts sign text back (in safe mode only where they still match). Inventories, mobs and other NBT are not restored. Unknown, evicted or expired ids are rejected without changes.",
+  "description": "Undoes earlier changes: restores a snapshot's whole region, or undoes journalled calls (mc_build, mc_repair or mc_restore) cell by cell.\n\nWHEN TO USE: a build or repair went wrong, or the user asks to undo or roll back. Prefer `journal` when other work may have happened since: safe mode restores only cells that still hold what that call wrote and reports the rest as conflicts, so later edits survive. Use a snapshot `id` to reset a whole region to one moment. Journal ids are in build replies or mc_snapshot journal-list (label, touches); to undo several calls, list them, then pass their ids as journals.\nWHEN NOT TO USE: to look at contents (mc_inspect, mc_diff) or list snapshots and journals (mc_snapshot).\n\nPARAMETERS: one of id, journal or journals; no coordinates (the snapshot or entry fixes them). mode, dryRun, allowBlockEntityReplacement and samples apply to journal undo only. A protected deny region (mc_protect) rejects the call unless named in override; a journal dryRun only reports it.\n\nSIDE EFFECTS: a snapshot restore overwrites its whole region; a journal undo writes only that call's changed cells, without physics or a connection pass. Both are journalled, so an undo can be undone. Sign text and decorative entities are restored too: a snapshot restore respawns or resets recorded entities and removes Ashlar-placed ones that were not there; a journal undo removes what the call placed, respawns what it removed and puts sign text back (in safe mode only where they still match). Inventories, mobs and other NBT are not restored. Unknown, evicted or expired ids are rejected without changes.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -14,6 +14,17 @@
         "type": "string",
         "pattern": "^jrn-\\d{8}-\\d{6}-[0-9a-f]{4}$",
         "description": "Journal id from a build/repair/restore reply or mc_snapshot journal-list. Undoes only that call."
+      },
+      "journals": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^jrn-\\d{8}-\\d{6}-[0-9a-f]{4}$"
+        },
+        "description": "Several journal ids, undone newest first in one call. All must exist before anything is written; the first failure stops the rest. Not with id or journal."
       },
       "mode": {
         "type": "string",

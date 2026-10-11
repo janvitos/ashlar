@@ -64,13 +64,42 @@ public final class McRestore implements Tool {
         }
     }
 
+    static final int MAX_JOURNALS = 50;
+
     /** {@code mc_restore {journal, mode, dryRun, allowBlockEntityReplacement, samples}}. */
     static JournalService.UndoArgs parseUndo(JsonObject o) {
         if (ArgParse.has(o, "id")) throw new ToolArgError("pass either id (a snapshot) or journal (a journal entry), not both");
         String journal = ArgParse.requireString(o, "journal");
-        if (!journal.matches("jrn-\\d{8}-\\d{6}-[0-9a-f]{4}")) {
-            throw new ToolArgError("journal must be an id like \"jrn-20261010-120239-aa42\"");
+        checkJournalId(journal, "journal");
+        return undoOptions(o, journal);
+    }
+
+    /** {@code mc_restore {journals:[...], ...}}: the ids, distinct and well-formed. */
+    static List<String> parseJournals(JsonObject o) {
+        if (ArgParse.has(o, "id")) throw new ToolArgError("pass either id (a snapshot) or journals, not both");
+        if (ArgParse.has(o, "journal")) throw new ToolArgError("pass either journal (one id) or journals (a list), not both");
+        if (!o.get("journals").isJsonArray()) throw new ToolArgError("journals must be an array of journal ids");
+        JsonArray arr = o.getAsJsonArray("journals");
+        if (arr.isEmpty() || arr.size() > MAX_JOURNALS) throw new ToolArgError("journals: 1 to " + MAX_JOURNALS + " ids");
+        List<String> ids = new ArrayList<>();
+        for (int i = 0; i < arr.size(); i++) {
+            JsonElement el = arr.get(i);
+            if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isString()) throw new ToolArgError("journals[" + i + "] must be a string");
+            String id = el.getAsString();
+            checkJournalId(id, "journals[" + i + "]");
+            if (ids.contains(id)) throw new ToolArgError("journals[" + i + "]: " + id + " is listed twice");
+            ids.add(id);
         }
+        return ids;
+    }
+
+    private static void checkJournalId(String id, String field) {
+        if (!id.matches("jrn-\\d{8}-\\d{6}-[0-9a-f]{4}")) {
+            throw new ToolArgError(field + " must be an id like \"jrn-20261010-120239-aa42\"");
+        }
+    }
+
+    private static JournalService.UndoArgs undoOptions(JsonObject o, String journal) {
         UndoRules.Mode mode = ArgParse.optEnum(o, "mode", List.of("safe", "force"), "safe").equals("force")
                 ? UndoRules.Mode.FORCE : UndoRules.Mode.SAFE;
         return new JournalService.UndoArgs(journal, mode, ArgParse.optBoolean(o, "dryRun", false),
@@ -79,6 +108,15 @@ public final class McRestore implements Tool {
 
     @Override
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
+        if (ArgParse.has(args, "journals")) {
+            return ToolRunner.runText("mc_restore", () -> {
+                List<String> ids = parseJournals(args);
+                JournalService.UndoArgs undo = undoOptions(args, null);
+                List<String> override = ProtectionGuard.parseOverride(args);
+                if (journals == null) throw new ToolArgError("the build journal is unavailable");
+                return journals.undoAll(ctx, ids, undo, protection == null ? null : protection.gate(ctx, "mc_restore", override));
+            });
+        }
         if (ArgParse.has(args, "journal")) {
             return ToolRunner.runText("mc_restore", () -> {
                 JournalService.UndoArgs undo = parseUndo(args);

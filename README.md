@@ -62,7 +62,7 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | `mc_diff` | Read-only comparison of a live box against a snapshot, expected cells or a blueprint, with anomaly checks and a repairable diffId. |
 | `mc_export` | Read-only: writes a box (up to `limits.max-export-volume`, default 4,000,000) to `plugins/Ashlar/exports/<name>.json.gz` as cells or palette-rle, canonical states by default; rebuild it with `mc_build cellsFile` or compare later with `mc_diff expectedFile`. |
 | `mc_snapshot` | Save a region before changing it, list snapshots, or list/delete build journal entries (`touches` finds the calls that changed an area). |
-| `mc_restore` | Roll a region back to a snapshot, or undo one journalled call selectively (safe/force, dry run). |
+| `mc_restore` | Roll a region back to a snapshot, or undo journalled calls selectively, one or a list (safe/force, dry run). |
 | `mc_protect` | Add, list or remove protected regions that writing tools refuse to touch (or warn about) without an explicit per-call `override`. |
 | `mc_command` | Run a server console command and return its output (escape hatch; not checked against protected regions). Notes when a plugin has taken over a vanilla command name; `vanilla:true` runs the vanilla one. |
 
