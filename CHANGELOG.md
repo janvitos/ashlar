@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## Unreleased (fork)
+## 0.5.0 (fork)
 
 - `mc_build` takes `shapes`: cylinders, spheres, domes, cones and pyramids, each inscribed in an inclusive `from`/`to` box (odd or even sizes; unequal sides give ellipses). `axis` (`y` default, `x`, `z`, or `-y`/`-x`/`-z`) orients them, so `-y` gives a bowl or an upside-down cone. `thickness` (1-16) makes a watertight shell with open base faces: a hollow cylinder is a ring wall, a hollow dome has no floor. The plugin computes the cells off the main thread and merges them into as few fill runs as possible. Shapes go through the same validation, protection, snapshots, journal, `transform`, `dryRun`/`mc_plan` and blueprint components (with `$role` blocks) as fills. Execution order is now fills -> shapes -> text -> blocks -> entities. Example: a 9-wide round tower with a dome and a spire is one call with three short entries instead of hundreds of hand-listed cells.
 - Added 9 unit tests and a new `e2e-curves.mjs` (21 checks).
