@@ -69,9 +69,17 @@ public final class McInspect implements Tool {
 
     /** Client-side pre-check mirroring mc-inspect.ts's {@code MAX_VOLUME} guard, exposed for unit testing. */
     static void checkVolume(long volume) {
+        checkVolume(volume, "Reduce the from/to range or split it into several calls.");
+    }
+
+    static void checkVolume(int[] lo, int[] hi) {
+        long volume = (long) (hi[0] - lo[0] + 1) * (hi[1] - lo[1] + 1) * (hi[2] - lo[2] + 1);
+        if (volume > MAX_VOLUME) checkVolume(volume, SplitBoxes.hint(lo, hi, MAX_VOLUME, "calls"));
+    }
+
+    private static void checkVolume(long volume, String advice) {
         if (volume > MAX_VOLUME) {
-            throw new ToolArgError("mc_inspect region volume " + volume
-                    + " exceeds the 200,000-block limit. Reduce the from/to range or split it into several calls.");
+            throw new ToolArgError("mc_inspect region volume " + volume + " exceeds the 200,000-block limit. " + advice);
         }
     }
 
@@ -112,8 +120,7 @@ public final class McInspect implements Tool {
             Args a = Args.parse(args);
             int x1 = Math.min(a.from()[0], a.to()[0]), y1 = Math.min(a.from()[1], a.to()[1]), z1 = Math.min(a.from()[2], a.to()[2]);
             int x2 = Math.max(a.from()[0], a.to()[0]), y2 = Math.max(a.from()[1], a.to()[1]), z2 = Math.max(a.from()[2], a.to()[2]);
-            long volume = (long) (x2 - x1 + 1) * (y2 - y1 + 1) * (z2 - z1 + 1);
-            checkVolume(volume);
+            checkVolume(new int[] {x1, y1, z1}, new int[] {x2, y2, z2});
             if (a.format().equals("columns")) {
                 long columns = (long) (x2 - x1 + 1) * (z2 - z1 + 1);
                 checkColumns(columns);

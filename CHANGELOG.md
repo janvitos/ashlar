@@ -7,6 +7,8 @@ All notable changes to this project are documented in this file.
 - `mc_build` no longer reports false support warnings when a later part of the same call supplies the support, for example a hanging lantern in `fills` under a ceiling in `blocks`. Each phase (fills, shapes, text, blocks, and each `cells` part) still checks support right after its own writes, but the warned positions are now checked again once the whole call has written, and only the ones still unsupported are reported. Agents are told to fix every warning, so a false one cost extra calls.
 - `mc_restore` takes `journals`: up to 50 journal ids undone newest first in one call, with one combined reply. Every id is looked up before anything is written, and the first failure stops the rest (the ones undone before it stay undone). To undo everything under a label, list it with `mc_snapshot journal-list` and pass the ids: two calls instead of one per journal, and the agent sees exactly what will be undone. `mode`, `dryRun` and the other undo options apply to every journal.
 - Added 1 unit test.
+- Over-limit errors from `mc_inspect`, `mc_render`, `mc_survey` and `mc_snapshot` name the exact boxes to use instead of only saying "split it": "mc_inspect region volume 270000 exceeds the 200,000-block limit. Reduce the from/to range, or split it into 2 calls: [0,40,0]..[110,69,59], [111,40,0]..[149,69,59]." Pieces are slabs along the longest side (the fewest calls), up to four are listed, and a box over 64 times the limit only gets "reduce the range". Reads are not split automatically: replies are already summaries, and the limits exist to bound server work.
+- Added 3 unit tests.
 
 ## 0.5.1 (fork)
 

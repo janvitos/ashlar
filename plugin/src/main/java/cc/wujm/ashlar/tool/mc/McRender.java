@@ -194,16 +194,33 @@ public final class McRender implements Tool {
     }
 
     static void checkArea(String resolvedView, long area) {
+        checkArea(resolvedView, area, "Reduce the from/to range or split it into several calls.");
+    }
+
+    /** [x, z] corners. */
+    static void checkArea(String resolvedView, int[] lo, int[] hi) {
+        long area = (long) (hi[0] - lo[0] + 1) * (hi[1] - lo[1] + 1);
+        if (area > MAX_HEIGHTMAP_AREA) checkArea(resolvedView, area, SplitBoxes.hint(lo, hi, MAX_HEIGHTMAP_AREA, "calls"));
+    }
+
+    private static void checkArea(String resolvedView, long area, String advice) {
         if (area > MAX_HEIGHTMAP_AREA) {
-            throw new ToolArgError("mc_render " + resolvedView + " area " + area
-                    + " exceeds the 200,000-cell limit. Reduce the from/to range or split it into several calls.");
+            throw new ToolArgError("mc_render " + resolvedView + " area " + area + " exceeds the 200,000-cell limit. " + advice);
         }
     }
 
     static void checkVolume(long volume) {
+        checkVolume(volume, "Reduce the from/to range or split it into several calls.");
+    }
+
+    static void checkVolume(int[] lo, int[] hi) {
+        long volume = cc.wujm.ashlar.engine.PlanGeometry.checkedVolume(new cc.wujm.ashlar.engine.Region(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]));
+        if (volume > MAX_VOLUME) checkVolume(volume, SplitBoxes.hint(lo, hi, MAX_VOLUME, "calls"));
+    }
+
+    private static void checkVolume(long volume, String advice) {
         if (volume > MAX_VOLUME) {
-            throw new ToolArgError("mc_render region volume " + volume
-                    + " exceeds the 200,000-block limit. Reduce the from/to range or split it into several calls.");
+            throw new ToolArgError("mc_render region volume " + volume + " exceeds the 200,000-block limit. " + advice);
         }
     }
 
@@ -232,9 +249,9 @@ public final class McRender implements Tool {
             int x2 = Math.max(fx, tx), y2 = Math.max(fy, ty), z2 = Math.max(fz, tz);
 
             if (resolvedView.equals("heightmap") || resolvedView.equals("top")) {
-                checkArea(resolvedView, (long) (x2 - x1 + 1) * (z2 - z1 + 1));
+                checkArea(resolvedView, new int[] {x1, z1}, new int[] {x2, z2});
             } else {
-                checkVolume(cc.wujm.ashlar.engine.PlanGeometry.checkedVolume(new cc.wujm.ashlar.engine.Region(x1,y1,z1,x2,y2,z2)));
+                checkVolume(new int[] {x1, y1, z1}, new int[] {x2, y2, z2});
             }
             checkSliceRequired(resolvedView, a.slice());
 

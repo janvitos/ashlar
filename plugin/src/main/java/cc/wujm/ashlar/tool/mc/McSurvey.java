@@ -47,8 +47,18 @@ public final class McSurvey implements Tool {
 
     /** Client-side pre-check mirroring mc-survey.ts's {@code MAX_AREA} guard, exposed for unit testing. */
     static void checkArea(long area) {
+        checkArea(area, "Reduce the from/to range or split it into several calls.");
+    }
+
+    /** [x, z] corners. */
+    static void checkArea(int[] lo, int[] hi) {
+        long area = (long) (hi[0] - lo[0] + 1) * (hi[1] - lo[1] + 1);
+        if (area > MAX_AREA) checkArea(area, SplitBoxes.hint(lo, hi, MAX_AREA, "calls"));
+    }
+
+    private static void checkArea(long area, String advice) {
         if (area > MAX_AREA) {
-            throw new ToolArgError("mc_survey area " + area + " exceeds the 200,000-cell limit. Reduce the from/to range or split it into several calls.");
+            throw new ToolArgError("mc_survey area " + area + " exceeds the 200,000-cell limit. " + advice);
         }
     }
 
@@ -79,7 +89,7 @@ public final class McSurvey implements Tool {
             int z1 = Math.min(a.from()[1], a.to()[1]);
             int z2 = Math.max(a.from()[1], a.to()[1]);
             long area = (long) (x2 - x1 + 1) * (z2 - z1 + 1);
-            checkArea(area);
+            checkArea(new int[] {x1, z1}, new int[] {x2, z2});
             if (a.walkHeight() && area > MAX_WALK_AREA) {
                 throw new ToolArgError("walkHeight: at most " + MAX_WALK_AREA + " columns (64x64), got " + area + ". Survey the whole area without it, then ask for walk heights over the part you need.");
             }
