@@ -113,7 +113,10 @@ public final class McCommand implements Tool {
             } else {
                 lines.add("(command produced no feedback)");
             }
-            if (!r.get("dispatched").getAsBoolean()) {
+            if (r.has("syntaxError")) {
+                String err = "Syntax error: " + r.get("syntaxError").getAsString();
+                if (output.isEmpty()) lines.set(0, err); else lines.add(err);
+            } else if (!r.get("dispatched").getAsBoolean()) {
                 lines.add("Warning: command \"" + r.get("command").getAsString()
                         + "\" was not dispatched (rejected by the server's command dispatcher).");
             }

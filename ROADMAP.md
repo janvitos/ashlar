@@ -368,7 +368,7 @@ Branch: `feat/usability-19`.
   - bounds are in the frame the document is written in: world bounds for blueprints in absolute coordinates, local bounds for those built with a `transform`;
   - the trace line is a separate last line, only for blueprint builds (not dry runs); it omits the note;
   - the isolated server has no plugin that takes over a vanilla command, so override detection is covered by unit tests with a fake command map; the native check covers `vanilla:true` rewriting and rejection only.
-- Found, not changed: `run_command` reports a vanilla command syntax error (for example `time query daytime`, which 26.2 replaced with timelines) as an unhandled `CommandException` instead of the error text.
+- Found, not changed: `run_command` reports a vanilla command syntax error (for example `time query daytime`, which 26.2 replaced with timelines) as an unhandled `CommandException` instead of the error text. Fixed after Step 20 (PR "run_command: report vanilla syntax errors"): see below.
 - Context cost: tool schemas and instructions grow by about 2,800 characters (about 700 tokens), mostly `mc_blueprint`.
 - Verification:
   - one plugin build: 852 tests passed (10 new), zero failures; one existing store test now ignores the bounds sidecar when counting files;
@@ -397,6 +397,13 @@ Branch: `feat/render-fidelity`.
   - the gallery, compare and zoom images were inspected: new shapes read correctly, the removed lantern shows as a red ghost, the changed basalt orange and the added block green;
   - an earlier run with a grass floor counted 2 extra changes: grass under the gallery decayed to dirt between snapshot and render, which is correct; the test floor is now stone;
   - test region restored to pristine air, forceload removed, no entities left, journal entries deleted. No production changes.
+
+## Fix: vanilla command syntax errors
+
+Branch: `fix/command-syntax-errors`.
+
+- `run_command` catches the `CommandException` Paper throws around a brigadier `CommandSyntaxException` (vanilla commands do not tell the sender) and returns `dispatched:false` with `syntaxError`; `mc_command` replies `Syntax error: <message>`. Any other exception from a command still fails the call and is logged as before. The check is by class name, so Ashlar needs no brigadier dependency.
+- Verification: one plugin build, 876 tests passed (2 new), zero failures; on the isolated server `time query daytime` and `weather query` return their syntax messages with nothing logged, and `e2e-usability.mjs` passes 24 checks (one new). No production changes.
 
 ## Fork activation
 

@@ -85,11 +85,21 @@ public final class RunCommandHandler implements RpcHandler {
                 bytesUsed[0] += lineBytes;
             });
 
-            boolean dispatched = Bukkit.dispatchCommand(sender, command);
+            boolean dispatched;
+            String syntaxError = null;
+            try {
+                dispatched = Bukkit.dispatchCommand(sender, command);
+            } catch (org.bukkit.command.CommandException e) {
+                // Vanilla commands throw a wrapped brigadier syntax error instead of telling the sender.
+                syntaxError = CommandErrors.syntaxError(e);
+                if (syntaxError == null) throw e;
+                dispatched = false;
+            }
 
             JsonObject result = new JsonObject();
             result.addProperty("command", command);
             result.addProperty("dispatched", dispatched);
+            if (syntaxError != null) result.addProperty("syntaxError", syntaxError);
             JsonArray outputArray = new JsonArray();
             for (String line : output) {
                 outputArray.add(line);
