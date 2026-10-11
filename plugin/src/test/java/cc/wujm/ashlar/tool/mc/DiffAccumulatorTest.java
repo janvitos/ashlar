@@ -123,4 +123,21 @@ class DiffAccumulatorTest {
         acc.finishEnclosedAir();
         assertEquals(1L, acc.anomalyCounts.get("enclosedAir"));
     }
+
+    @Test void enclosedAirIsReportedPerPocket() {
+        // 7x3x3 stone box with two sealed air spaces in the middle row: x=1..2 and x=4 (stone at x=3).
+        Region box = new Region(0, 0, 0, 6, 2, 2);
+        var ref = new DiffReference(box, CANON);
+        for (int y = 0; y <= 2; y++) for (int z = 0; z <= 2; z++) for (int x = 0; x <= 6; x++) ref.add(x, y, z, "stone");
+        var acc = new DiffAccumulator(ref, null, new DiffAccumulator.Settings(false, false, 50, 100, true), CANON, DiffIgnore.NONE);
+        int[] grid = new int[63];
+        for (int x : new int[]{1, 2, 4}) grid[(1 * 3 + 1) * 7 + x] = 1;
+        acc.feed(box, box, List.of("minecraft:stone", "minecraft:air"), grid);
+        acc.finishEnclosedAir();
+        assertEquals(3L, acc.anomalyCounts.get("enclosedAir"));
+        assertEquals(List.of(new DiffAccumulator.Pocket(2, 1, 1, 1, 2, 1, 1), new DiffAccumulator.Pocket(1, 4, 1, 1, 4, 1, 1)), acc.pockets);
+        String text = String.join("\n", acc.bodyLines("summary"));
+        assertTrue(text.contains("enclosedAir 3 cells in 2 pockets"), text);
+        assertTrue(text.contains("enclosedAir pocket [1,1,1]..[2,1,1]: 2 air cells"), text);
+    }
 }

@@ -155,7 +155,7 @@
             "enclosedAir"
           ]
         },
-        "description": "Placement checks on the live box. floating: snow layer, carpet, pressure plate, rail, standing torch, floor lantern or plant without suitable support below. stacked: snow layer on a partial snow layer. unsupported: attached blocks (ladders, wall torches, signs, doors, banners, hanging blocks) without support. enclosedAir: air not connected to the box boundary."
+        "description": "Placement checks on the live box. floating: snow layer, carpet, pressure plate, rail, standing torch, floor lantern or plant without suitable support below. stacked: snow layer on a partial snow layer. unsupported: attached blocks (ladders, wall torches, signs, doors, banners, hanging blocks) without support. enclosedAir: air not connected to the box boundary, reported as pockets with their bounds."
       },
       "samples": {
         "type": "integer",

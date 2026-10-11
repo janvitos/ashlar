@@ -60,5 +60,9 @@ class SightlineArgsTest {
         assertThrows(ToolArgError.class, () -> McPlayers.params(json("{\"lookRange\":8}")));
         assertThrows(ToolArgError.class, () -> McPlayers.params(json("{\"lookRange\":300}")));
         assertThrows(ToolArgError.class, () -> McPlayers.params(json("{\"range\":20}")));
+        assertFalse(McPlayers.params(json("{\"name\":\"Steve\"}")).has("name"));
+        assertEquals("Steve", McPlayers.nameFilter(json("{\"name\":\"Steve\"}")));
+        assertThrows(ToolArgError.class, () -> McPlayers.params(json("{\"name\":\" \"}")));
+        assertThrows(ToolArgError.class, () -> McPlayers.params(json("{\"name\":5}")));
     }
 }

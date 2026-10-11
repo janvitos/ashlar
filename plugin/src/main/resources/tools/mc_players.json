@@ -1,7 +1,7 @@
 {
   "name": "mc_players",
   "title": "List online players",
-  "description": "Lists online players with position, facing and status, so builds can be placed relative to a player.\n\nWHEN TO USE: whenever a request depends on where a player is or looks (\"here\", \"in front of me\", \"at my feet\", \"this wall\"); before a build that must not bury or trap a player; \"who is online\".\nWHEN NOT TO USE: for terrain or blocks unrelated to a player (mc_survey, mc_inspect). Call once and reuse the coordinates.\n\nPARAMETERS: optional lookRange 16-256 (default 16).\n\nSIDE EFFECTS: read-only. `pos` is the block the feet occupy: \"at my feet\" means y-1 (building at pos fills the player's own cell); \"in front of me\" means `inFront`, one block toward `facing`. `exact` is the unrounded position, `eye` and `yaw`/`pitch` the exact look (F3 degrees: yaw 0 south, 90 west, 180 north, -90 east; pitch -90 up, 90 down) for mc_sightline or a first-person mc_render. `lookingAt` is the first block the player's sight hits within lookRange (position, state, face): \"this\" or \"that wall\" usually means that block. Also game mode, flying and health.",
+  "description": "Lists online players with position, facing and status, so builds can be placed relative to a player.\n\nWHEN TO USE: whenever a request depends on where a player is or looks (\"here\", \"in front of me\", \"at my feet\", \"this wall\"); before a build that must not bury or trap a player; \"who is online\".\nWHEN NOT TO USE: for terrain or blocks unrelated to a player (mc_survey, mc_inspect). Call once and reuse the coordinates.\n\nPARAMETERS: optional lookRange 16-256 (default 16); optional name to report one player.\n\nSIDE EFFECTS: read-only. `pos` is the block the feet occupy: \"at my feet\" means y-1 (building at pos fills the player's own cell); \"in front of me\" means `inFront`, one block toward `facing`. `exact` is the unrounded position, `eye` and `yaw`/`pitch` the exact look (F3 degrees: yaw 0 south, 90 west, 180 north, -90 east; pitch -90 up, 90 down) for mc_sightline or a first-person mc_render. `lookingAt` is the first block the player's sight hits within lookRange (position, state, face): \"this\" or \"that wall\" usually means that block. Also game mode, flying and health.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -10,6 +10,11 @@
         "type": "integer",
         "minimum": 16,
         "maximum": 256
+      },
+      "name": {
+        "description": "Report only this player (case-insensitive). Default: everyone online.",
+        "type": "string",
+        "minLength": 1
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema"

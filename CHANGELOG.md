@@ -11,6 +11,13 @@ All notable changes to this project are documented in this file.
 
 - Region reads, snapshots, mc_diff and mc_plan previews convert each distinct block state to text once instead of once per block (Paper builds that text fresh on every call). On a 195,112-block area of mixed stairs on the test server, a read dropped from 0.9-1.2 s to 0.2-0.3 s, a snapshot from 1.3 s to 0.3 s and an mc_diff from 1.2-1.4 s to 0.14-0.35 s.
 
+- Smaller tool replies:
+  - mc_survey `format:"text"` no longer adds the per-block height matrix by default (it was on up to 40x40); pass `matrix:true` as with images. A 36x36 text survey drops from 7,346 to 1,920 characters.
+  - mc_diff reports enclosed air as pockets (bounds and cell count per sealed space) instead of sample cells: "enclosedAir 28 cells in 2 pockets".
+  - mc_players takes an optional `name` to report one player.
+- The MCP usage log line no longer repeats a single reply's token estimate ("~67 tokens = ~67 tokens").
+- Added 1 unit test.
+
 ## 0.5.0 (fork)
 
 - `mc_build` takes `shapes`: cylinders, spheres, domes, cones and pyramids, each inscribed in an inclusive `from`/`to` box (odd or even sizes; unequal sides give ellipses). `axis` (`y` default, `x`, `z`, or `-y`/`-x`/`-z`) orients them, so `-y` gives a bowl or an upside-down cone. `thickness` (1-16) makes a watertight shell with open base faces: a hollow cylinder is a ring wall, a hollow dome has no floor. The plugin computes the cells off the main thread and merges them into as few fill runs as possible. Shapes go through the same validation, protection, snapshots, journal, `transform`, `dryRun`/`mc_plan` and blueprint components (with `$role` blocks) as fills. Execution order is now fills -> shapes -> text -> blocks -> entities. Example: a 9-wide round tower with a dome and a spire is one call with three short entries instead of hundreds of hand-listed cells.
