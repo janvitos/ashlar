@@ -32,7 +32,7 @@ public record RenderCamera(double azimuth,double elevation,double fov) {
                 if (i!=1 && Math.abs((long)n)>=30_000_000) throw new IllegalArgumentException("angled bounds must be inside horizontal +/-30000000");
             }
         }
-        if (args.has("scale")) { int n=integer(args.get("scale"),"scale");if(n<0||n>16)throw new IllegalArgumentException("scale must be 0-16"); }
+        if (args.has("scale")) { int n=integer(args.get("scale"),"scale");if(n<0||n>ShapeRenderer.MAX_SCALE)throw new IllegalArgumentException("scale must be 0-"+ShapeRenderer.MAX_SCALE); }
         if (args.has("grid") && integer(args.get("grid"),"grid")!=0) throw new IllegalArgumentException("angled views require grid:0");
     }
     private static int integer(com.google.gson.JsonElement e,String field) {

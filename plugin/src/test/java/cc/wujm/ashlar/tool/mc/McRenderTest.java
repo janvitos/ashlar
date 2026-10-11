@@ -132,4 +132,26 @@ class McRenderTest {
     void nonSliceViewWithoutSliceParamDoesNotThrow() {
         assertDoesNotThrow(() -> McRender.checkSliceRequired("top", null));
     }
+
+    @Test
+    void zoomBecomesATightIsometricCube() {
+        JsonObject z = McRender.applyZoom(obj("{\"zoom\":{\"pos\":[10,64,-5],\"radius\":3}}"));
+        assertEquals("isometric", z.get("view").getAsString());
+        McRender.Args a = McRender.Args.parse(z);
+        assertArrayEquals(new int[]{7, 61, -8}, a.from());
+        assertArrayEquals(new int[]{13, 67, -2}, a.to());
+        assertEquals(32, a.scale());
+        assertEquals(0, McRender.Args.parse(McRender.applyZoom(obj("{\"zoom\":{\"pos\":[0,0,0],\"radius\":8}}"))).scale());
+        assertThrows(ToolArgError.class, () -> McRender.Args.parse(obj("{\"from\":[0,0,0],\"to\":[1,1,1],\"view\":\"north\",\"scale\":32}")));
+        assertEquals(32, McRender.Args.parse(obj("{\"from\":[0,0,0],\"to\":[1,1,1],\"view\":\"isometric\",\"scale\":32}")).scale());
+        assertEquals(4, McRender.Args.parse(McRender.applyZoom(obj("{\"view\":\"perspective\",\"zoom\":{\"pos\":[0,0,0]}}"))).to()[0]);
+    }
+
+    @Test
+    void zoomRejectsBadCombinations() {
+        assertThrows(ToolArgError.class, () -> McRender.applyZoom(obj("{\"zoom\":{\"pos\":[0,0,0]},\"from\":[0,0,0],\"to\":[1,1,1]}")));
+        assertThrows(ToolArgError.class, () -> McRender.applyZoom(obj("{\"zoom\":{\"pos\":[0,0,0]},\"view\":\"top\"}")));
+        assertThrows(ToolArgError.class, () -> McRender.applyZoom(obj("{\"zoom\":{\"pos\":[0,0,0],\"radius\":17}}")));
+        assertThrows(ToolArgError.class, () -> McRender.applyZoom(obj("{\"zoom\":{\"pos\":[0,0,0],\"size\":2}}")));
+    }
 }

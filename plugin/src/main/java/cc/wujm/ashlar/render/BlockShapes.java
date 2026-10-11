@@ -38,7 +38,7 @@ public final class BlockShapes {
         if(m.endsWith("_fence_gate"))return gate(p);
         if(m.endsWith("_fence"))return fence(p);
         if(m.endsWith("_wall"))return wall(p);
-        if(m.endsWith("_pane") || m.equals("iron_bars"))return pane(p,m.equals("iron_bars")?1:.35);
+        if(m.endsWith("_pane") || m.endsWith("_bars"))return pane(p,m.endsWith("_bars")?1:.35);
         if(m.equals("glass") || m.endsWith("_stained_glass"))return shape(List.of(CUBE),.3,"modeled");
         if(m.endsWith("_leaves"))return shape(List.of(CUBE),.7,"approximate");
         if(m.endsWith("_bed"))return shape(List.of(b(0,3.0/16,0,1,9.0/16,1),b(0,0,0,3.0/16,3.0/16,3.0/16),b(13.0/16,0,0,1,3.0/16,3.0/16),b(0,0,13.0/16,3.0/16,3.0/16,1),b(13.0/16,0,13.0/16,1,3.0/16,1)),1,"approximate");
@@ -55,9 +55,104 @@ public final class BlockShapes {
         if(m.equals("water") || m.equals("lava")){int level=Integer.parseInt(p.getOrDefault("level","0"));double h=level>=8?1:Math.max(1.0/9,(8-level)/9.0);return shape(List.of(b(0,0,0,1,h,1)),m.equals("water")?.55:1,"approximate");}
         if(m.equals("snow"))return box(b(0,0,0,1,Integer.parseInt(p.getOrDefault("layers","1"))/8.0,1));
         if(m.endsWith("_carpet") || m.equals("redstone_wire"))return shape(List.of(b(0,0,0,1,1.0/16,1)),1,m.equals("redstone_wire")?"approximate":"modeled");
+        if(m.endsWith("lantern") && !m.equals("sea_lantern") && !m.equals("jack_o_lantern"))return lantern(p);
+        if(m.endsWith("chain") && p.containsKey("axis"))return shape(List.of(along(p.get("axis"),px(6.5,0,6.5,9.5,16,9.5))),1,"approximate");
+        if(m.equals("end_rod"))return shape(List.of(toward(facing(p,"up"),px(6,0,6,10,1,10)),toward(facing(p,"up"),px(7,1,7,9,16,9))),1,"approximate");
+        if(m.endsWith("lightning_rod"))return shape(List.of(toward(facing(p,"up"),px(7,0,7,9,12,9)),toward(facing(p,"up"),px(6,12,6,10,16,10))),1,"approximate");
+        if(m.equals("candle") || m.endsWith("_candle"))return candles(Integer.parseInt(p.getOrDefault("candles","1")));
+        if(m.equals("bell"))return bell(p);
+        if(m.endsWith("campfire"))return shape(rotate(facing,List.of(px(1,0,0,5,4,16),px(11,0,0,15,4,16),px(0,3,1,16,7,5),px(0,3,11,16,7,15),px(5,0,5,11,1,11))),1,"approximate");
+        if(m.equals("pointed_dripstone"))return dripstone(p);
+        if(m.endsWith("_button"))return button(p,facing);
+        if(m.equals("lever"))return lever(p,facing);
+        if(m.equals("flower_pot") || m.startsWith("potted_"))return shape(m.startsWith("potted_")?List.of(px(5,0,5,11,6,11),px(6,6,6,10,14,10)):List.of(px(5,0,5,11,6,11)),1,"approximate");
+        if((m.endsWith("_head") || m.endsWith("_skull")) && !m.equals("piston_head"))return shape(List.of(m.contains("_wall_")?rot(facing,px(4,4,8,12,12,16)):px(4,0,4,12,8,12)),1,"approximate");
+        if(axis(state)>=0)return box(CUBE);
         if(m.endsWith("torch"))return shape(List.of(b(7.0/16,0,7.0/16,9.0/16,10.0/16,9.0/16)),1,"approximate");
         if(FULL.contains(m) || List.of("_planks","_log","_wood","_stem","_hyphae","_concrete","_terracotta","_wool","_ore","_block","_bricks","_tiles").stream().anyMatch(m::endsWith))return box(CUBE);
         return shape(List.of(CUBE),1,"cube_fallback");
+    }
+    /** Pillar-like blocks whose end faces differ from their sides: the {@code axis} index (0=x, 1=y, 2=z), or -1. */
+    public static int axis(String state){
+        String m=material(state);String a=properties(state).get("axis");
+        if(a==null || !(PILLARS.contains(m) || m.endsWith("_log") || m.endsWith("_stem") || m.endsWith("froglight")))return -1;
+        return switch(a){case "x"->0;case "z"->2;default->1;};
+    }
+    private static final Set<String> PILLARS=Set.of("basalt","polished_basalt","quartz_pillar","purpur_pillar","hay_block","bone_block","deepslate","bamboo_block","stripped_bamboo_block","muddy_mangrove_roots");
+    /** Blocks whose map colour is the top only; their sides read as this other block. */
+    private static final Map<String,String> SIDES=Map.of("grass_block","minecraft:dirt","podzol","minecraft:dirt","mycelium","minecraft:dirt","dirt_path","minecraft:dirt","crimson_nylium","minecraft:netherrack","warped_nylium","minecraft:netherrack");
+    /**
+     * Colours of the x-, y- and z-facing faces for one palette state, or {@code null} when every face uses
+     * {@code base}. {@code mapColor} resolves a state to its map colour (0 when it has none). Pillars take
+     * their end colour from the {@code axis=y} state and their side colour from {@code axis=x} (logs colour
+     * by axis in vanilla); when both match, the ends are lightened so a sideways pillar still reads.
+     */
+    public static int[] faceColors(String state,int base,java.util.function.ToIntFunction<String> mapColor){
+        String m=material(state);int a=axis(state);
+        if(a>=0){
+            String id="minecraft:"+m;int end=mapColor.applyAsInt(id+"[axis=y]"),side=mapColor.applyAsInt(id+"[axis=x]");
+            if(end==0)end=base;if(side==0)side=base;if(end==side)end=lighten(side,.22);
+            int[] c={side,side,side};c[a]=end;return c;
+        }
+        String other=SIDES.get(m);if(other==null)return null;
+        int side=mapColor.applyAsInt(other);return side==0?null:new int[]{side,base,side};
+    }
+    static int lighten(int argb,double f){int r=(argb>>16)&255,g=(argb>>8)&255,b=argb&255;r+=(int)Math.round((255-r)*f);g+=(int)Math.round((255-g)*f);b+=(int)Math.round((255-b)*f);return (argb&0xFF000000)|(r<<16)|(g<<8)|b;}
+    /** Schematic placeholder panels for one cell of a decorative entity hung on (or lying against) a block face. */
+    public static Box entityPanel(String type,String facing){
+        boolean frame=!type.equals("painting");double lo=frame?2:0,hi=frame?14:16;
+        return switch(facing){case "up"->px(lo,0,lo,hi,1,hi);case "down"->px(lo,15,lo,hi,16,hi);default->rot(facing,px(lo,lo,15,hi,hi,16));};
+    }
+    private static Box px(double x0,double y0,double z0,double x1,double y1,double z1){return b(x0/16,y0/16,z0/16,x1/16,y1/16,z1/16);}
+    private static String facing(Map<String,String> p,String def){return p.getOrDefault("facing",def);}
+    /** Turns a box drawn for {@code facing=north} (clockwise from above). */
+    static Box rot(String facing,Box q){return switch(facing){
+        case "east"->b(1-q.z1(),q.y0(),q.x0(),1-q.z0(),q.y1(),q.x1());
+        case "south"->b(1-q.x1(),q.y0(),1-q.z1(),1-q.x0(),q.y1(),1-q.z0());
+        case "west"->b(q.z0(),q.y0(),1-q.x1(),q.z1(),q.y1(),1-q.x0());
+        default->q;};}
+    private static List<Box> rotate(String facing,List<Box> boxes){return boxes.stream().map(q->rot(facing,q)).toList();}
+    /** Points a box drawn for {@code facing=up} (base on the floor) toward {@code facing}. */
+    static Box toward(String facing,Box q){return switch(facing){
+        case "up"->q;
+        case "down"->b(q.x0(),1-q.y1(),q.z0(),q.x1(),1-q.y0(),q.z1());
+        default->rot(facing,b(q.x0(),q.z0(),1-q.y1(),q.x1(),q.z1(),1-q.y0()));};}
+    private static Box along(String axis,Box q){return switch(axis){case "x"->toward("east",q);case "z"->toward("south",q);default->q;};}
+    private static Shape lantern(Map<String,String> p){
+        return shape("true".equals(p.get("hanging"))?List.of(px(5,1,5,11,8,11),px(6,8,6,10,10,10),px(7,10,7,9,16,9)):List.of(px(5,0,5,11,7,11),px(6,7,6,10,9,10)),1,"approximate");
+    }
+    private static Shape candles(int n){
+        List<Box> all=List.of(px(7,0,7,9,6,9),px(9,0,6,11,5,8),px(6,0,9,8,4,11),px(5,0,5,7,5,7));
+        List<Box> two=List.of(px(5,0,7,7,6,9),px(9,0,6,11,5,8));
+        return shape(n<=1?all.subList(0,1):n==2?two:all.subList(0,Math.min(4,n)),1,"approximate");
+    }
+    private static Shape bell(Map<String,String> p){
+        String f=facing(p,"north");List<Box> a=new ArrayList<>(List.of(px(4,4,4,12,6,12),px(5,6,5,11,13,11)));
+        switch(p.getOrDefault("attachment","floor")){
+            case "ceiling"->a.add(px(7,13,7,9,16,9));
+            case "single_wall"->a.add(rot(f,px(7,13,7,9,15,16)));
+            case "double_wall"->a.add(rot(f,px(7,13,0,9,15,16)));
+            default->a.addAll(rotate(f,List.of(px(0,0,6,2,16,10),px(14,0,6,16,16,10),px(2,13,7,14,15,9))));
+        }
+        return shape(a,1,"approximate");
+    }
+    private static Shape dripstone(Map<String,String> p){
+        String t=p.getOrDefault("thickness","tip");double w=switch(t){case "base"->2;case "middle"->3;case "frustum"->4;default->5;};
+        Box q=px(w,0,w,16-w,t.equals("tip")?11:16,16-w);
+        return shape(List.of("down".equals(p.get("vertical_direction"))?toward("down",q):q),1,"approximate");
+    }
+    private static Shape button(Map<String,String> p,String facing){
+        double d="true".equals(p.get("powered"))?1:2;
+        Box q=switch(p.getOrDefault("face","wall")){case "floor"->rot(facing,px(5,0,6,11,d,10));case "ceiling"->rot(facing,px(5,16-d,6,11,16,10));default->rot(facing,px(5,6,16-d,11,10,16));};
+        return shape(List.of(q),1,"approximate");
+    }
+    private static Shape lever(Map<String,String> p,String facing){
+        List<Box> a=switch(p.getOrDefault("face","wall")){
+            case "floor"->List.of(px(5,0,4,11,3,12),px(7,3,7,9,11,9));
+            case "ceiling"->List.of(px(5,13,4,11,16,12),px(7,5,7,9,13,9));
+            default->List.of(px(5,4,13,11,12,16),px(7,7,6,9,9,13));
+        };
+        return shape(rotate(facing,a),1,"approximate");
     }
     /** A north-facing closed panel sits on the SOUTH edge, opposite its facing. */
     public static Box panel(String facing,double t){return switch(facing){case "south"->b(0,0,0,1,1,t);case "east"->b(0,0,0,t,1,1);case "west"->b(1-t,0,0,1,1,1);default->b(0,0,1-t,1,1,1);};}

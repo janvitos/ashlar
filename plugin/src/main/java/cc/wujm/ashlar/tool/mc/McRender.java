@@ -139,8 +139,9 @@ public final class McRender implements Tool {
                 slice = new SliceArg(axis, at);
             }
             Integer scale = angled && ArgParse.has(o,"scale") ? Integer.valueOf(BuildTransform.strictInt(o.get("scale"),"scale")) : ArgParse.optInt(o, "scale");
-            if (scale != null && (scale < 0 || scale > 16)) {
-                throw new ToolArgError("scale: must be between 0 and 16, got " + scale);
+            int maxScale = angled ? cc.wujm.ashlar.render.ShapeRenderer.MAX_SCALE : 16;
+            if (scale != null && (scale < 0 || scale > maxScale)) {
+                throw new ToolArgError("scale: must be between 0 and " + maxScale + ", got " + scale);
             }
             Integer grid = angled && ArgParse.has(o,"grid") ? Integer.valueOf(BuildTransform.strictInt(o.get("grid"),"grid")) : ArgParse.optInt(o, "grid");
             if (angled && grid != null && grid != 0) throw new ToolArgError("angled views require grid:0");
@@ -155,6 +156,29 @@ public final class McRender implements Tool {
             return new Args(world, from, to, view, slice, scale, grid, heightmapType, contour,
                     ArgParse.has(o,"camera") ? o.getAsJsonObject("camera").deepCopy() : null);
         }
+    }
+
+    /**
+     * {@code zoom: {pos, radius}} (Step 20): replaces from/to with a cube of {@code radius} (default 4,
+     * 1-16) around {@code pos} and defaults the view to isometric. Returns {@code o} unchanged without zoom.
+     */
+    static JsonObject applyZoom(JsonObject o) {
+        if (!ArgParse.has(o, "zoom")) return o;
+        if (ArgParse.has(o, "from") || ArgParse.has(o, "to")) throw new ToolArgError("zoom: give either zoom or from/to, not both");
+        JsonObject z = ArgParse.requireObject(o.get("zoom"), "zoom");
+        for (String k : z.keySet()) if (!k.equals("pos") && !k.equals("radius")) throw new ToolArgError("zoom." + k + ": zoom takes pos and radius");
+        int[] pos = BuildTransform.strictCoords(z, "pos");
+        int r = ArgParse.has(z, "radius") ? BuildTransform.strictInt(z.get("radius"), "zoom.radius") : 4;
+        if (r < 1 || r > 16) throw new ToolArgError("zoom.radius: must be between 1 and 16, got " + r);
+        JsonObject out = o.deepCopy();
+        out.remove("zoom");
+        if (!ArgParse.has(out, "view")) out.addProperty("view", "isometric");
+        String view = out.get("view").isJsonPrimitive() ? out.get("view").getAsString() : "";
+        if (!cc.wujm.ashlar.render.RenderCamera.angled(view)) throw new ToolArgError("zoom: works only with view \"isometric\" or \"perspective\"");
+        out.add("from", intArray(pos[0] - r, pos[1] - r, pos[2] - r));
+        out.add("to", intArray(pos[0] + r, pos[1] + r, pos[2] + r));
+        if (!ArgParse.has(out, "scale")) out.addProperty("scale", r <= 4 ? cc.wujm.ashlar.render.ShapeRenderer.MAX_SCALE : 0);
+        return out;
     }
 
     /** These four checks mirror mc-render.ts's plain body-level throws; extracted for unit testing. */
@@ -196,7 +220,8 @@ public final class McRender implements Tool {
             if (args.has("view") && args.get("view").isJsonPrimitive() && "first-person".equals(args.get("view").getAsString())) {
                 return firstPerson(ctx, args);
             }
-            Args a = Args.parse(args);
+            JsonObject zoomed = applyZoom(args);
+            Args a = Args.parse(zoomed);
             String resolvedView = a.view() != null ? a.view() : "top";
             boolean footprintOnly = a.from().length == 2 || a.to().length == 2;
             checkShapeCompat(footprintOnly, resolvedView);
@@ -223,6 +248,10 @@ public final class McRender implements Tool {
             params.add("to", useFootprint ? intArray(x2, z2) : intArray(x2, y2, z2));
             if (a.view() != null) params.addProperty("view", a.view());
             if (a.camera() != null) params.add("camera",a.camera());
+            if (ArgParse.has(zoomed, "compareTo")) {
+                if (!cc.wujm.ashlar.render.RenderCamera.angled(resolvedView)) throw new ToolArgError("compareTo: works only with view \"isometric\" or \"perspective\"");
+                params.addProperty("compareTo", ArgParse.requireString(zoomed, "compareTo"));
+            }
             if (a.slice() != null) {
                 JsonObject sliceJson = new JsonObject();
                 sliceJson.addProperty("axis", a.slice().axis());

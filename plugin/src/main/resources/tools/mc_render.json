@@ -1,7 +1,7 @@
 {
   "name": "mc_render",
   "title": "Render view",
-  "description": "Renders a region as a PNG image from a chosen viewpoint, so an AI can see terrain layout and building results instead of reading block-state text. Views include existing maps/facades/slices/heightmaps, shape-aware isometric/perspective schematics, and a first-person view from an eye position.\n\nWHEN TO USE: isometric/perspective for one finished-build appearance check showing stairs, slabs, doors, windows and depth. \"top\" to check terrain shape, a build's footprint, or how a structure sits on the land. \"north\"/\"south\"/\"east\"/\"west\" to inspect a facade - windows, doors, symmetry, roof lines. \"slice\" (axis + coordinate) for a floor plan (axis \"y\") or a vertical cut, e.g. to confirm a room is hollow. \"heightmap\" for terrain relief; prefer mc_survey, which adds the exact numbers. \"first-person\" to see what a player sees from a spot (a vantage point, a spawn, a window), up to 256 blocks away.\n\nWHEN NOT TO USE: to get exact block states, orientations or counts - use mc_inspect. Colors are lossy, not textures. Angled views list approximate/cube-fallback models; not an exhaustive vanilla renderer. To answer whether specific blocks are visible from a spot, use mc_sightline; render first-person only to show the view.\n\nPARAMETERS: `from`/`to` are inclusive corners in any order: [x,y,z], or [x,z] for \"top\"/\"heightmap\" (preferred - the surface is found automatically; pass a y range to a top view only to look under a roof or underground, since it shows the highest block within that range). \"top\"/\"heightmap\" are area-priced (x/z footprint <= 200,000 cells); side/angled views/\"slice\" are volume-priced (<= 200,000 blocks) - for a facade, limit y to the building's height. `view` (default \"top\") is one of top/north/south/east/west/slice/heightmap/isometric/perspective; `slice` is required for `view: \"slice\"`. `scale` is pixels per block, 0-16 (default 0 = auto). `grid` is grid spacing, 0-64 (default 10; 0 disables it). `camera` for angled views: compass azimuth 0-360, elevation 5-85, perspective fov 20-90. Angled grids must be 0. `heightmapType`/`contour` are heightmap-only. \"first-person\" takes no from/to: give `eye` [x,y,z] (feet + 1.62 for a standing player) with `yaw`/`pitch`, or `player` (their live eye and direction; yaw/pitch override), plus optional `fov` 10-110 (default 70, vertical), `distance` 8-256 (default 128), `width`/`height` (default 960x540, at most 1,000,000 pixels).\n\nSIDE EFFECTS: none - read-only. Returns an image plus text: view, axes, top-left coordinate, grid interval and a legend (blocks as hex color, name, pixel count; for \"heightmap\", height bands plus min/max/median height, surface materials and the largest flat zone). PNGs are capped at 3MB (scale halves automatically). First-person only reads chunks that are already loaded; unloaded ones are drawn flat purple and counted as unknownPixels, never as air. Larger distances read more chunks (limit: limits.max-chunks-per-operation).",
+  "description": "Renders a region as a PNG image from a chosen viewpoint, so an AI can see terrain layout and building results instead of reading block-state text. Views include existing maps/facades/slices/heightmaps, shape-aware isometric/perspective schematics, and a first-person view from an eye position.\n\nWHEN TO USE: isometric/perspective for one finished-build appearance check showing stairs, slabs, doors, windows and depth. \"top\" to check terrain shape, a build's footprint, or how a structure sits on the land. \"north\"/\"south\"/\"east\"/\"west\" to inspect a facade - windows, doors, symmetry, roof lines. \"slice\" (axis + coordinate) for a floor plan (axis \"y\") or a vertical cut, e.g. to confirm a room is hollow. \"heightmap\" for terrain relief; prefer mc_survey, which adds the exact numbers. \"first-person\" to see what a player sees from a spot (a vantage point, a spawn, a window), up to 256 blocks away.\n\nWHEN NOT TO USE: to get exact block states, orientations or counts - use mc_inspect. Colors are lossy, not textures. Angled views list approximate/cube-fallback models; not an exhaustive vanilla renderer. To answer whether specific blocks are visible from a spot, use mc_sightline; render first-person only to show the view.\n\nPARAMETERS: `from`/`to` are inclusive corners in any order: [x,y,z], or [x,z] for \"top\"/\"heightmap\" (preferred - the surface is found automatically; pass a y range to a top view only to look under a roof or underground, since it shows the highest block within that range). \"top\"/\"heightmap\" are area-priced (x/z footprint <= 200,000 cells); side/angled views/\"slice\" are volume-priced (<= 200,000 blocks) - for a facade, limit y to the building's height. `view` (default \"top\") is one of top/north/south/east/west/slice/heightmap/isometric/perspective; `slice` is required for `view: \"slice\"`. `scale` is pixels per block, 0-16, or 0-32 for angled views (default 0 = auto). `grid` is grid spacing, 0-64 (default 10; 0 disables it). `camera` for angled views: compass azimuth 0-360, elevation 5-85, perspective fov 20-90. Angled grids must be 0. `compareTo` (angled only): a snapshot id; changed blocks are tinted orange, added green, removed shown as translucent red cubes - a before/after check. `zoom` (angled only, instead of from/to): {pos:[x,y,z], radius 1-16, default 4} for a tight close-up. `heightmapType`/`contour` are heightmap-only. \"first-person\" takes no from/to: give `eye` [x,y,z] (feet + 1.62 for a standing player) with `yaw`/`pitch`, or `player` (their live eye and direction; yaw/pitch override), plus optional `fov` 10-110 (default 70, vertical), `distance` 8-256 (default 128), `width`/`height` (default 960x540, at most 1,000,000 pixels).\n\nSIDE EFFECTS: none - read-only. Returns an image plus text: view, axes, top-left coordinate, grid interval and a legend (blocks as hex color, name, pixel count; for \"heightmap\", height bands plus min/max/median height, surface materials and the largest flat zone). PNGs are capped at 3MB (scale halves automatically). First-person only reads chunks that are already loaded; unloaded ones are drawn flat purple and counted as unknownPixels, never as air. Larger distances read more chunks (limit: limits.max-chunks-per-operation).",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -144,10 +144,10 @@
         ]
       },
       "scale": {
-        "description": "Pixels per block, 0-16. Default 0 = auto-sized so the image's longer side is about 1024px (flat views capped at 4,000,000 pixels). Angled views cap 1,000,000 pixels plus estimated intersection work, adapting resolution explicitly.",
+        "description": "Pixels per block, 0-16 (angled views 0-32, for close-ups). Default 0 = auto-sized so the image's longer side is about 1024px (flat views capped at 4,000,000 pixels). Angled views cap 1,000,000 pixels plus estimated intersection work, adapting resolution explicitly.",
         "type": "integer",
         "minimum": 0,
-        "maximum": 16
+        "maximum": 32
       },
       "grid": {
         "description": "Draw a coordinate grid line every N blocks, with coordinate labels along the top/left edges. Default 10 for flat views; angled views default to 0 and reject nonzero grids.",
@@ -175,6 +175,34 @@
             "maximum": 90
           }
         },
+        "additionalProperties": false
+      },
+      "compareTo": {
+        "description": "Angled views only: a snapshot id (from mc_snapshot or mc_build snapshot:true). Cells that differ from it are marked: changed blocks tinted orange, added blocks green, removed blocks drawn as translucent red cubes. Cells outside the snapshot's box are not compared. The text reports changed/added/removed counts.",
+        "type": "string",
+        "minLength": 1
+      },
+      "zoom": {
+        "description": "Angled views only, instead of from/to: a close-up cube around `pos` reaching `radius` blocks each way (default 4, at most 16). The view defaults to isometric; the scale defaults to 32 px per block for radius 4 or less, else auto.",
+        "type": "object",
+        "properties": {
+          "pos": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "radius": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16
+          }
+        },
+        "required": [
+          "pos"
+        ],
         "additionalProperties": false
       },
       "eye": {

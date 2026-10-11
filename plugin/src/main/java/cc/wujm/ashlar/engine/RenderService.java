@@ -62,18 +62,29 @@ public final class RenderService {
     /** Enqueues a region read and renders it as a facade/slice view. Must not be called from the main thread. */
     public CompletableFuture<JsonElement> renderRegion(World world, Region region, RequestValidator.RenderParams rp,
             InvocationContext ctx) {
+        return renderRegion(world, region, rp, null, ctx);
+    }
+
+    /**
+     * As above; {@code compareTo} (angled views only, may be null) is a snapshot whose blocks the render
+     * is diffed against off the main thread, tinting changed cells (Step 20).
+     */
+    public CompletableFuture<JsonElement> renderRegion(World world, Region region, RequestValidator.RenderParams rp,
+            cc.wujm.ashlar.snapshot.Snapshot compareTo, InvocationContext ctx) {
         MainThread.assertNotPrimary("RenderService.renderRegion");
-        RenderTask task = new RenderTask(region, world);
+        RenderTask task = new RenderTask(region, world, cc.wujm.ashlar.render.RenderCamera.angled(rp.view()));
         return executor.submit(task, ctx)
-                .thenComposeAsync(ignored -> renderAsync(task, task.worldName(), region, rp), renderExecutor);
+                .thenComposeAsync(ignored -> renderAsync(task, task.worldName(), region, rp, compareTo), renderExecutor);
     }
 
     /** Runs on {@link #renderExecutor}: {@link ImageRenderer#render}, PNG encoding, and the halve-on-oversize retry loop. */
     private CompletableFuture<JsonElement> renderAsync(RenderTask task, String worldName, Region region,
-            RequestValidator.RenderParams rp) {
+            RequestValidator.RenderParams rp, cc.wujm.ashlar.snapshot.Snapshot compareTo) {
         try {
             RegionData data = task.regionData();
             int[] paletteArgb = task.paletteArgb();
+            byte[] diff = compareTo == null ? null : cc.wujm.ashlar.render.SnapshotDiff.compute(data, compareTo.data());
+            var extras = new cc.wujm.ashlar.render.ShapeRenderer.Extras(task.faceColors(), diff, task.placeholders());
 
             int scale = rp.scale();
             ImageRenderer.Output out;
@@ -81,8 +92,10 @@ public final class RenderService {
             byte[] png;
             while (true) {
                 if (cc.wujm.ashlar.render.RenderCamera.angled(rp.view())) {
-                    var shaped = cc.wujm.ashlar.render.ShapeRenderer.render(data,paletteArgb,rp.view(),rp.camera(),scale);
+                    var shaped = cc.wujm.ashlar.render.ShapeRenderer.render(data,paletteArgb,rp.view(),rp.camera(),scale,extras);
                     out = shaped.image(); geometry = shaped.details();
+                    if (compareTo != null) geometry.getAsJsonObject("diff").addProperty("snapshot", compareTo.id());
+                    if (task.entitiesUnloaded()) geometry.addProperty("entitiesUnloaded", true);
                 } else out = ImageRenderer.render(data, paletteArgb, rp.view(), rp.sliceAxis(), rp.sliceAt(), scale, rp.grid());
                 png = encodePng(out.pixels(), out.width(), out.height());
                 if (png.length <= MAX_PNG_BYTES || out.scale() <= 1) break;

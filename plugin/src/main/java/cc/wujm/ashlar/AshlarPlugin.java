@@ -196,7 +196,7 @@ public final class AshlarPlugin extends JavaPlugin {
         SnapshotHandler snapshotHandler = new SnapshotHandler(configHolder, snapshotService, snapshotStore);
         RunCommandHandler runCommandHandler = new RunCommandHandler(configHolder);
         PlayersHandler playersHandler = new PlayersHandler();
-        RenderHandler renderHandler = new RenderHandler(configHolder, renderService);
+        RenderHandler renderHandler = new RenderHandler(configHolder, renderService).withSnapshots(snapshotStore);
         RpcHandler snapshotCreateHandler = snapshotHandler.snapshot();
         RpcHandler restoreHandler = snapshotHandler.restore();
         RpcHandler listSnapshotsHandler = snapshotHandler.listSnapshots();
