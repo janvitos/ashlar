@@ -15,6 +15,7 @@ All notable changes to this project are documented in this file.
   - mc_survey `format:"text"` no longer adds the per-block height matrix by default (it was on up to 40x40); pass `matrix:true` as with images. A 36x36 text survey drops from 7,346 to 1,920 characters.
   - mc_diff reports enclosed air as pockets (bounds and cell count per sealed space) instead of sample cells: "enclosedAir 28 cells in 2 pockets".
   - mc_players takes an optional `name` to report one player.
+- Builds with stairs, fences, panes, walls, iron bars or redstone are about 3x faster. After placing them, the connection pass re-wrote each one and then each of its four side neighbours, so in a solid area most blocks were re-written about five times. Neighbours that the build itself placed, and neighbours already re-written, are now skipped. A 97,556-block oak stairs fill on the test server (5 ms tick budget) dropped from 25-39 s to 8.7-11.4 s; a scene of stairs, fences, panes, walls, iron bars and redstone next to existing blocks came out identical (0 of 9,245 cells differ).
 - The MCP usage log line no longer repeats a single reply's token estimate ("~67 tokens = ~67 tokens").
 - Added 1 unit test.
 
