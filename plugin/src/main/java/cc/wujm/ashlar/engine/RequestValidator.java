@@ -409,7 +409,19 @@ public final class RequestValidator {
     }
 
     /** The x/z area (inclusive) plus the image knobs a validated {@code render} {@code view: "heightmap"} request covers. */
-    public record HeightmapRenderParams(int x1, int z1, int x2, int z2, String type, int scale, int grid, int contour) {
+    public record HeightmapRenderParams(int x1, int z1, int x2, int z2, String type, int scale, int grid, int contour, int snowLayers) {
+        public HeightmapRenderParams(int x1, int z1, int x2, int z2, String type, int scale, int grid, int contour) {
+            this(x1, z1, x2, z2, type, scale, grid, contour, SurfaceRules.DEFAULT_SNOW_LAYERS);
+        }
+    }
+
+    /** Step 18 {@code snowLayers} for {@code TOP_SOLID_IGNORE_DECOR}: 0-7, default {@link SurfaceRules#DEFAULT_SNOW_LAYERS}. */
+    public int validateSnowLayers(JsonObject params) {
+        int layers = optInt(params, "snowLayers", SurfaceRules.DEFAULT_SNOW_LAYERS);
+        if (layers < 0 || layers > 7) {
+            throw new RpcError(ErrorCode.BAD_REQUEST, "\"snowLayers\" must be between 0 and 7, got " + layers);
+        }
+        return layers;
     }
 
     /**
@@ -428,7 +440,7 @@ public final class RequestValidator {
             throw new RpcError(ErrorCode.BAD_REQUEST, "\"contour\" must be >= 0, got " + contour);
         }
         return new HeightmapRenderParams(area.x1(), area.z1(), area.x2(), area.z2(), type,
-                validateScale(params), validateGrid(params), contour);
+                validateScale(params), validateGrid(params), contour, validateSnowLayers(params));
     }
 
     private int validateScale(JsonObject params) {

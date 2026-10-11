@@ -69,4 +69,29 @@ class McSurveyTest {
         ToolArgError e = assertThrows(ToolArgError.class, () -> McSurvey.checkArea(200_001));
         assertEquals("mc_survey area 200001 exceeds the 200,000-cell limit. Reduce the from/to range or split it into several calls.", e.getMessage());
     }
+
+    @Test
+    void decorTypeAndWalkHeightParse() {
+        McSurvey.Args a = McSurvey.Args.parse(obj("{\"from\":[0,0],\"to\":[10,10],\"type\":\"TOP_SOLID_IGNORE_DECOR\",\"snowLayers\":5,\"walkHeight\":true}"));
+        assertEquals(5, a.snowLayers());
+        assertTrue(a.walkHeight());
+        assertNull(McSurvey.Args.parse(obj("{\"from\":[0,0],\"to\":[1,1]}")).snowLayers());
+    }
+
+    @Test
+    void snowLayersNeedTheDecorTypeAndRange() {
+        assertThrows(ToolArgError.class, () -> McSurvey.Args.parse(obj("{\"from\":[0,0],\"to\":[1,1],\"snowLayers\":2}")));
+        assertThrows(ToolArgError.class, () -> McSurvey.Args.parse(obj("{\"from\":[0,0],\"to\":[1,1],\"type\":\"TOP_SOLID_IGNORE_DECOR\",\"snowLayers\":8}")));
+    }
+
+    @Test
+    void walkNumbersAndText() {
+        assertEquals("65", McSurvey.walkNumber(65.0));
+        assertEquals("64.5", McSurvey.walkNumber(64.5));
+        assertEquals("65.125", McSurvey.walkNumber(65.125));
+        assertEquals("65.063", McSurvey.walkNumber(65.0625));
+        com.google.gson.JsonArray w = JsonParser.parseString("[[65,65.5],[66.5,64.25]]").getAsJsonArray();
+        String t = McSurvey.walkText(w, 10, -3);
+        assertTrue(t.endsWith("\nz=-3: 65 65.5\nz=-2: 66.5 64.25"), t);
+    }
 }

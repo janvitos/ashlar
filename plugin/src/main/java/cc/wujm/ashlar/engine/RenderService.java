@@ -162,6 +162,7 @@ public final class RenderService {
         MainThread.assertNotPrimary("RenderService.renderHeightmap");
         Region region = new Region(hp.x1(), 0, hp.z1(), hp.x2(), 0, hp.z2());
         HeightmapImageTask task = new HeightmapImageTask(region, world, hp.x1(), hp.z1(), hp.x2(), hp.z2(), requestedMap);
+        if (HeightmapTypes.ignoresDecor(hp.type())) task.ignoringDecor(hp.snowLayers());
         return MainThread.call(world::getName).thenCompose(worldName -> executor.submit(task, ctx)
                 .thenComposeAsync(ignored -> renderHeightmapAsync(task, worldName, hp), renderExecutor));
     }

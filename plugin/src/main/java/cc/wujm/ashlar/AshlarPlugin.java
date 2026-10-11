@@ -68,6 +68,7 @@ import cc.wujm.ashlar.tool.mc.BlueprintStore;
 import cc.wujm.ashlar.tool.mc.BlueprintCompiler;
 import cc.wujm.ashlar.tool.mc.McCommand;
 import cc.wujm.ashlar.tool.mc.McInspect;
+import cc.wujm.ashlar.tool.mc.McLight;
 import cc.wujm.ashlar.tool.mc.McPlayers;
 import cc.wujm.ashlar.tool.mc.McRender;
 import cc.wujm.ashlar.tool.mc.McSightline;
@@ -256,6 +257,7 @@ public final class AshlarPlugin extends JavaPlugin {
                 new McRender(renderHandler).withFirstPerson(viewService, configHolder),
                 new McSightline(viewService, configHolder),
                 new McWalk(readRegionHandler, configHolder, renderExecutor),
+                new McLight(configHolder, executor, renderExecutor),
                 new McExport(readRegionHandler, configHolder, cellFiles, renderExecutor),
                 new McSnapshot(snapshotCreateHandler, listSnapshotsHandler, journalService),
                 new McRestore(restoreHandler, journalService).withProtection(protection, snapshotStore::get),

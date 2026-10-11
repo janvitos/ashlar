@@ -23,9 +23,17 @@ public final class HeightmapTypes {
     private HeightmapTypes() {
     }
 
+    /** Step 18: the default surface, then down through decoration (see {@link SurfaceRules#skip}). */
+    public static final String IGNORE_DECOR = "TOP_SOLID_IGNORE_DECOR";
+
+    public static boolean ignoresDecor(String raw) {
+        return raw != null && raw.trim().toUpperCase(Locale.ROOT).equals(IGNORE_DECOR);
+    }
+
     public static HeightMap resolve(String raw) {
         String key = raw.trim().toUpperCase(Locale.ROOT);
         return switch (key) {
+            case IGNORE_DECOR -> HeightMap.MOTION_BLOCKING_NO_LEAVES;
             case "SOLID", "OCEAN_FLOOR" -> HeightMap.OCEAN_FLOOR;
             case "SOLID_OR_LIQUID", "MOTION_BLOCKING" -> HeightMap.MOTION_BLOCKING;
             case "SOLID_OR_LIQUID_NO_LEAVES", "MOTION_BLOCKING_NO_LEAVES" -> HeightMap.MOTION_BLOCKING_NO_LEAVES;
