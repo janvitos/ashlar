@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package cc.wujm.ashlar.engine;
 
+import cc.wujm.ashlar.journal.JournalExtras;
 import cc.wujm.ashlar.journal.JournalRecorder;
+import org.bukkit.Tag;
+import org.bukkit.entity.Entity;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -26,6 +29,7 @@ public final class JournalCapture {
     private static final int[] NZ = {0, 0, 0, 0, 0, 1, -1};
 
     private final JournalRecorder recorder;
+    private final JournalExtras extras = new JournalExtras();
     private final Map<BlockData, Integer> paletteCache = new HashMap<>();
     private final Map<Material, Boolean> blockEntity = new EnumMap<>(Material.class);
     private World world;
@@ -40,6 +44,44 @@ public final class JournalCapture {
         return recorder;
     }
 
+    /** Sign text and decorative entity changes of this call (Step 17). */
+    public JournalExtras extras() {
+        return extras;
+    }
+
+    /** Claims {@code w} as this call's world; false (and the entry is dropped) when it is a second world. */
+    private boolean claim(World w) {
+        if (mixedWorlds) return false;
+        if (world == null) world = w;
+        else if (world != w) {
+            mixedWorlds = true;
+            return false;
+        }
+        return true;
+    }
+
+    /** Records a sign's text before this call first changes it (block write or text-only write). */
+    public void signBefore(Block block) {
+        if (recorder.overflowed() || !claim(block.getWorld())) return;
+        SignSnapshot s = SignAccess.read(block);
+        if (s != null) extras.signBefore(block.getX(), block.getY(), block.getZ(), s.json());
+    }
+
+    /** An entity this call spawned (undo removes it). */
+    public void entitySpawned(Entity e, EntitySpec spec) {
+        if (claim(e.getWorld())) extras.spawned(e.getUniqueId(), spec);
+    }
+
+    /** An entity this call removed (undo spawns it again). */
+    public void entityRemoved(World w, EntitySpec spec) {
+        if (claim(w)) extras.removed(spec);
+    }
+
+    /** An entity whose values this call changed in place (undo sets them back). */
+    public void entityChanged(Entity e, EntitySpec before, EntitySpec after) {
+        if (claim(e.getWorld())) extras.changed(e.getUniqueId(), before, after);
+    }
+
     /** The world written to; {@code null} when nothing was recorded. */
     public World world() {
         return world;
@@ -52,13 +94,12 @@ public final class JournalCapture {
 
     /** Records {@code block}'s original state ({@code current}) the first time it is written. */
     public void before(Block block, BlockData current) {
-        if (recorder.overflowed() || mixedWorlds) return;
-        World w = block.getWorld();
-        if (world == null) world = w;
-        else if (world != w) { mixedWorlds = true; return; }
+        if (recorder.overflowed() || !claim(block.getWorld())) return;
         long key = JournalRecorder.pack(block.getX(), block.getY(), block.getZ());
         if (recorder.touch(key, index(current)) && hasBlockEntity(block, current.getMaterial())) {
-            recorder.addBlockEntityCell();
+            // Sign text comes back on undo; other block-entity data (inventories) does not.
+            if (Tag.ALL_SIGNS.isTagged(current.getMaterial())) signBefore(block);
+            else recorder.addBlockEntityCell();
         }
     }
 
@@ -73,11 +114,6 @@ public final class JournalCapture {
             Block b = w.getBlockAt(x + NX[i], ny, z + NZ[i]);
             before(b, b.getBlockData());
         }
-    }
-
-    /** A sign value written without a block state change: the journal cannot undo it. */
-    public void noteBlockEntityWrite() {
-        recorder.addBlockEntityWrite();
     }
 
     /** Reads the final state of every cell touched since the last finish. Returns true once done. */
@@ -99,6 +135,10 @@ public final class JournalCapture {
         }
         recorder.clearPending();
         finishCursor = 0;
+        for (long k : extras.signKeys()) {
+            SignSnapshot s = SignAccess.read(world.getBlockAt(JournalRecorder.x(k), JournalRecorder.y(k), JournalRecorder.z(k)));
+            extras.signAfter(k, s == null ? null : s.json());
+        }
         return true;
     }
 

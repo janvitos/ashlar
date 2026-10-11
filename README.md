@@ -38,6 +38,7 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 - First-person views and sightlines: `mc_render view:"first-person"` shows what an eye position or a live player sees (up to 256 blocks), and `mc_sightline` answers whether given blocks are visible from there, using real block shapes (slabs, stairs, snow layers, panes). Only already-loaded chunks are read, copied a few per tick and traced off the main thread; unloaded chunks answer unknown, never air.
 - Walk checks: `mc_walk` answers whether a player can walk from one place to another, or reach every door, bed or staircase in a box, using real movement rules (0.6 step, optional 1.25 jump, 1.8 headroom, snow/carpet/slab heights, stairs only head-on, closed doors, fences, ladders, water). When the answer is no, it names the nearest reachable place and the block that stops the next move.
 - Bulk input and export: `mc_build` takes generated content as raw `cells` (up to 50,000 inline) or a `cellsFile` staged in chunks with `mc_blueprint stage`/`finalize` (up to 2,000,000 cells); Ashlar merges equal neighbours into boxes, builds solids, then air, then blocks that need support, and splits large sets into parts under one journal id. `mc_export` writes a box to `plugins/Ashlar/exports/<name>.json.gz` for `mc_build cellsFile` or `mc_diff expectedFile`.
+- Decorative entities: `mc_build entities` places paintings (by variant and facing, `pos` = lower-left cell as the viewer sees it), item frames and glow item frames (with item, rotation, floor/ceiling facings) and armor stands (yaw, equipment, pose) after the call's blocks, so walls exist first; `entityMode:"replace-in-box"` swaps only Ashlar-placed ones. Placed entities are tagged, journalled and undone with the call; snapshots also keep sign text and these entities. `mc_inspect entities:true` lists them.
 - Protected regions (`mc_protect`): named boxes that `mc_build`, `mc_repair` and `mc_restore` refuse to write into (`deny`) or warn about (`warn`) unless the call names the region in `override`. The check runs before any snapshot or write; `mc_plan` and `dryRun` report overlaps. Regions are stored in `plugins/Ashlar/protected.json` and re-read by `/ashlar reload`; overrides are logged. Players, other plugins and `mc_command` are not checked.
 
 ## The tools
@@ -50,12 +51,12 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | `mc_render` | One visual PNG check: shape-aware isometric/perspective depth, flat top/facade/slice/heightmap views, or `first-person` from an eye or a player. Angled views need tight 3D bounds; top/heightmap stay area-priced. |
 | `mc_sightline` | Read-only line of sight from an eye or player: each target visible, blocked (with the first blocking block) or unknown, or a coarse cone of what fills the view. |
 | `mc_walk` | Read-only reachability inside a box: a path from A to B with waypoints, or everything reachable from A, with unreachable doors/beds/stairs/positions and the reason (step too high, headroom, closed door, sideways stair, gap). |
-| `mc_build` | Places blocks in bulk (cuboid fills with modes replace/keep/outline/hollow/walls, individual blocks and sign text, plus lettering rendered by the plugin via `text`). |
+| `mc_build` | Places blocks in bulk (cuboid fills with modes replace/keep/outline/hollow/walls, individual blocks and sign text, plus lettering rendered by the plugin via `text`), and paintings, item frames and armor stands via `entities`. |
 | `mc_blueprint` | Optionally generate architectural parts or fit foundations/entrances to terrain; save/get/list/delete reusable designs. No world writes. |
 | `mc_plan` | Read-only preflight and virtual-scene previews for direct builds or saved blueprints; collision/support/pairing diagnostics without placement. |
 | `mc_verify` | Freeze expected cells before building; compare actual states/sign values afterward with exact coordinate/property differences. |
 | `mc_repair` | Guarded repairs of mismatches from a fresh comparison, followed by full verification; no matching-cell or neighbor refresh writes. |
-| `mc_inspect` | Exact block contents of a region (statistics, ASCII slice, sign text). |
+| `mc_inspect` | Exact block contents of a region (statistics, ASCII slice, sign text; `entities:true` lists paintings, item frames and armor stands). |
 | `mc_diff` | Read-only comparison of a live box against a snapshot, expected cells or a blueprint, with anomaly checks and a repairable diffId. |
 | `mc_export` | Read-only: writes a box (up to `limits.max-export-volume`, default 4,000,000) to `plugins/Ashlar/exports/<name>.json.gz` as cells or palette-rle, canonical states by default; rebuild it with `mc_build cellsFile` or compare later with `mc_diff expectedFile`. |
 | `mc_snapshot` | Save a region before changing it, list snapshots, or list/delete build journal entries (`touches` finds the calls that changed an area). |
@@ -315,7 +316,7 @@ Repairs require the **latest** comparison ID. `positions:[[x,y,z],...]` selects 
 
 All selected observed block/sign values are rechecked before the first snapshot/write. A stale or protected selection rejects entirely at this guard. Each actual write rechecks its observation, so later edits are skipped/stopped, not blindly overwritten. A full recheck afterward reports what still differs; **there is no transactional lock, atomic reservation or guaranteed rollback**. Runtime failures/concurrent changes remain possible. A clean repeated repair creates no snapshot and performs no writes.
 
-**Block-entity safety:** material replacement/deletion of an existing sign/chest/etc. is blocked unless `allowBlockEntityReplacement:true` is explicitly supplied. Same-material state changes retain their entity data. **`snapshot:true` is the default**, covering only the selected delta's bounding envelope and subject to current snapshot capacity. Existing snapshots store **block states only, not sign text/colors, inventories or arbitrary NBT**. Do not treat that snapshot as an NBT backup. `snapshot:false` explicitly opts out; Step 10's richer project revision/undo workflow is still future work.
+**Block-entity safety:** material replacement/deletion of an existing sign/chest/etc. is blocked unless `allowBlockEntityReplacement:true` is explicitly supplied. Same-material state changes retain their entity data. **`snapshot:true` is the default**, covering only the selected delta's bounding envelope and subject to current snapshot capacity. Snapshots store **block states, sign text and decorative entities (paintings, item frames, armor stands), not inventories or arbitrary NBT**. Do not treat that snapshot as an NBT backup. `snapshot:false` explicitly opts out; Step 10's richer project revision/undo workflow is still future work.
 
 The opt-in `mcp-server/tools/e2e-verification.mjs` reserves pristine air `[536,99,-40]` through `[616,120,40]`, restores it, deletes all generated receipts/documents and removes its temporary forced chunk. It requires the same disposable-server variables described above and zero online players. Item/forced-chunk administration is used only for inventory-preservation assertions; it never manages server lifecycle.
 
@@ -606,7 +607,7 @@ A small hut (survey, snapshot, build, a couple of renders, a final reply - about
 | `snapshot.enabled` | `true` | Whether `mc_snapshot`/`mc_restore` are available. |
 | `snapshot.max-snapshots` | `20` | Snapshots kept on disk; oldest is evicted first. |
 | `snapshot.max-volume` | `200000` | Max region volume a single snapshot may capture. |
-| `journal.enabled` | `true` | Journal every writing `mc_build`/`mc_repair`/`mc_restore` for selective undo (block states only). |
+| `journal.enabled` | `true` | Journal every writing `mc_build`/`mc_repair`/`mc_restore` for selective undo (block states, sign text and placed/removed decorative entities). |
 | `journal.max-entries` | `200` | Journal entries kept on disk (`plugins/Ashlar/journal/`); oldest idle entry is evicted first. |
 | `journal.max-total-cells` | `20000000` | Total changed cells across all entries. |
 | `journal.max-age-days` | `30` | Older entries are evicted. |
@@ -748,7 +749,7 @@ The tool layer lives entirely under `plugin/`: each `mc_*` tool is a Java class 
 **v1.1:**
 - Deterministic color tinting so blocks sharing a Minecraft map color (e.g. stone/stone bricks/cobblestone) are distinguishable in `mc_render`/`mc_survey` images.
 - `mc_inspect` slice: merge block types beyond the current 47-distinct-type limit, plus an optional `focus` parameter to highlight one block type.
-- Snapshots capture block entity contents (sign text, container items) so `mc_restore` does not lose them.
+- Snapshots capture container items so `mc_restore` does not lose them (sign text and decorative entities are captured since Step 17).
 - CIDR ranges in `server.allowed-ips` (exact IPs only today).
 
 **v2 (candidates, not committed):**

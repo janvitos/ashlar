@@ -4,6 +4,8 @@ package cc.wujm.ashlar.snapshot;
 import cc.wujm.ashlar.engine.Region;
 import cc.wujm.ashlar.engine.RegionData;
 
+import com.google.gson.JsonObject;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -20,7 +22,13 @@ import java.util.UUID;
  * {@link Region} (not a Bukkit {@code World}) plus the world's name as a
  * string, so this record (and therefore {@link SnapshotStore}) has no Bukkit
  * imports and its persisted JSON survives a server restart untouched by
- * loaded-world state.
+ * loaded-world state. {@code extras} holds the box's sign text and decorative
+ * entities ({@code {signs, entities}}, Step 17); {@code null} for older snapshots.
  */
-public record Snapshot(String id, String world, Region region, long volume, Instant createdAt, String label, RegionData data, UUID ownerUuid) {
+public record Snapshot(String id, String world, Region region, long volume, Instant createdAt, String label, RegionData data, UUID ownerUuid,
+        JsonObject extras) {
+    /** A snapshot without sign text or entities (taken before Step 17). */
+    public Snapshot(String id, String world, Region region, long volume, Instant createdAt, String label, RegionData data, UUID ownerUuid) {
+        this(id, world, region, volume, createdAt, label, data, ownerUuid, null);
+    }
 }

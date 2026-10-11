@@ -304,6 +304,33 @@ Branch: `feat/bulk-io`.
     - inline cells (stone then a torch in a later part), resume-token, conflict, mixing and name errors, the export volume cap and overwrite guard;
   - test region restored to pristine air, forceload removed, journal entries and test files deleted. No production changes.
 
+## Step 17 implementation and verification
+
+Branch: `feat/build-entities`.
+
+- Pure core: `EntitySpec` (one painting, item frame, glow item frame or armor stand as data, with JSON and an equality that ignores the placed tag), `EntityGeometry` (viewer's right, painting footprints and the vanilla anchor per size, lower-left from a mirrored lower-right cell, yaw under mirror and rotation), `EntityArgs` (`mc_build` parsing, per-type keys, transforms) and `JournalExtras` (sign text before/after, spawned, removed and changed entities).
+- Main-thread tasks: `EntityPlaceTask` (after the blocks; checks support and clearance per entity, verifies where a painting landed and removes it if vanilla moved it), `SnapshotExtrasTask` (capture after the block read, apply after the block restore) and `JournalExtrasUndoTask` (after the journal cells). Each waits up to 100 ticks for chunk entities to load. Registry lookups for variants and items run off the main thread before anything is queued.
+- Sign text is now journalled through `JournalCapture.signBefore`, including the text-only writes of `SparseTask` and `RepairTask`; journal extras live in `<id>.extra.json.gz` next to the cells.
+- `mc_inspect entities:true`; schema and instruction text no longer say snapshots and journals keep block states only.
+- Deviations from the plan:
+  - `entityMode` and `entityBox` are top-level `mc_build` keys instead of `entities.mode`, since `entities` is the array itself;
+  - the PDC tag value is `"1"`, not the journal id: the id does not exist yet when the entity is spawned, and journal records keep the entity UUIDs instead;
+  - marker armor stands are never read, listed, replaced or restored (they are usually other plugins' holograms);
+  - entities cannot be combined with `blueprint` or `cells` in one call;
+  - safe-mode undo reverts an entity or sign only while it still matches what the call left.
+- Context cost: tool schemas and instructions grow by about 4,700 characters (about 1,200 tokens), mostly the `mc_build` entity schema.
+- Verification:
+  - one plugin build: 818 tests passed (15 new), zero failures; adapter 8 tests passed;
+  - isolated-server smoke test `e2e-entities.mjs`, 40 checks:
+    - unknown variant/item and cells+entities rejected before any write; dry run lists 6 entities;
+    - one call placed 1x1, 2x1 and 4x3 paintings, a wall item frame with a clock, a floor glow frame and a posed, equipped armor stand; `mc_inspect` lists them, and the paintings' `block_pos` matches the computed vanilla anchors (2x1 on its left cell, 4x3 on the second column, middle row);
+    - repeating the call reports 6 unchanged; a painting without a wall is reported while the other entity is placed;
+    - journal undo removes the 6, undoing the undo respawns them identically; a text-only sign rewrite is undone;
+    - snapshot, kill every entity and change the sign, restore: sign text and all 6 entities are back;
+    - replace-in-box removes the Ashlar-placed armor stand and keeps a summoned one; a mirrored 2x1 painting lands on the same wall cells;
+    - after the force-load is dropped and the chunk unloads, all 8 entities read back unchanged;
+  - test region restored to pristine air, entities killed, forceload removed, journal entries deleted. No production changes.
+
 ## Fork activation
 
 User-approved deployment uses Paper 26.1.2 build 74, without a Paper upgrade. The fork now compiles against that exact API and declares minimum API 26.1. One build passed; an approved restart used a verified full 30-second in-game countdown before a graceful stop/install/start. Original artifact retained for rollback; plugin configuration/credentials unchanged. Pi points at the locally built fork adapter through the existing Docker network arrangement. Basic read-only deployment check confirmed plugin 0.4.9-dev, authenticated MCP, 13 tools and photo-reference instructions. No construction/terrain test writes or exhaustive regressions were performed on production. Pi needs `/reload` to refresh an existing session's connection and catalog.

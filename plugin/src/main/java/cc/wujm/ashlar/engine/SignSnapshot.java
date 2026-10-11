@@ -15,5 +15,12 @@ public record SignSnapshot(Face front, Face back, boolean waxed) {
     }
     public static SignSnapshot empty() { Face f=new Face(List.of("","","",""),"black",false); return new SignSnapshot(f,f,false); }
     public SignSnapshot patch(SignData p) { return new SignSnapshot(front.patch(p.front(),p),back.patch(p.back(),p),p.waxed()); }
+    public static SignSnapshot fromJson(JsonObject o) {
+        return new SignSnapshot(face(o.getAsJsonObject("front")), face(o.getAsJsonObject("back")), o.get("waxed").getAsBoolean());
+    }
+    private static Face face(JsonObject o) {
+        List<String> lines = new java.util.ArrayList<>(); o.getAsJsonArray("lines").forEach(e -> lines.add(e.getAsString()));
+        return new Face(lines, o.get("color").getAsString(), o.get("glowing").getAsBoolean());
+    }
     public JsonObject json() { JsonObject o=new JsonObject(); o.add("front",front.json()); o.add("back",back.json()); o.addProperty("waxed",waxed); return o; }
 }

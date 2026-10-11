@@ -230,12 +230,13 @@ public final class AshlarPlugin extends JavaPlugin {
         loadProtectedRegions();
         ProtectionGuard protection = new ProtectionGuard(protectedRegions, configHolder, operationLog, getLogger());
         CellFiles cellFiles = new CellFiles(dataFolder);
+        cc.wujm.ashlar.engine.EntityService entityService = new cc.wujm.ashlar.engine.EntityService(configHolder, executor);
         McBuild buildTool = new McBuild(snapshotCreateHandler, fillBatchHandler, setBlocksHandler, blueprintStore, () -> {
             var limits = configHolder.get().limits();
             return new BlueprintCompiler.Limits(limits.maxBlocksPerOperation(), limits.maxChunksPerOperation(),
                     limits.maxFlowingLiquidsPerOperation());
         }).withPreflight(preflight).withJournal(journalService).withProtection(protection)
-                .withCells(cellFiles, configHolder::get);
+                .withCells(cellFiles, configHolder::get).withEntities(entityService);
         VerificationService verification = new VerificationService(buildTool, preflight, executor, configHolder,
                 new VerificationStore(), snapshotCreateHandler);
         DiffService diffService = new DiffService(buildTool, preflight, executor, configHolder, new DiffStore(),
@@ -250,7 +251,7 @@ public final class AshlarPlugin extends JavaPlugin {
                 new McPlan(buildTool, preflight, renderExecutor),
                 new McVerify(buildTool, verification),
                 new McRepair(verification, diffService).withJournal(journalService).withProtection(protection),
-                new McInspect(readRegionHandler),
+                new McInspect(readRegionHandler).withEntities(entityService),
                 new McDiff(diffService),
                 new McRender(renderHandler).withFirstPerson(viewService, configHolder),
                 new McSightline(viewService, configHolder),
