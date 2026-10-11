@@ -39,6 +39,8 @@ try{
     check(()=>assert.match(t,/The game time is \d+/));check(()=>assert.doesNotMatch(t,/Ran as/));
     await checkA(async()=>assert.match(await rejected("mc_command",{command:"plugins",vanilla:true}),/no vanilla command "plugins"; nothing was run/));
     await checkA(async()=>assert.match(await rejected("mc_command",{command:"minecraft:time query gametime",vanilla:true}),/already names a namespace/));
+    // A vanilla syntax error comes back as text, not an internal error.
+    t=await command("time query daytime");check(()=>assert.match(t,/^Syntax error: .*minecraft:daytime/,t));
     t=await command("plugins");check(()=>assert.doesNotMatch(t,/vanilla:true/));
     // Blueprints with tags, in absolute coordinates inside the test region.
     const stamp=Date.now().toString(36);const mod=`e2e-${stamp}`;
