@@ -140,6 +140,57 @@ public final class JournalService {
     }
 
     record UndoArgs(String id, UndoRules.Mode mode, boolean dryRun, boolean allowBlockEntityReplacement, int samples) {
+        UndoArgs withId(String other) {
+            return new UndoArgs(other, mode, dryRun, allowBlockEntityReplacement, samples);
+        }
+    }
+
+    /**
+     * Undoes several entries newest first, so a later call that overlapped an earlier one is undone
+     * before it. Every id is looked up before anything is written; the first failure stops the run
+     * and the entries undone before it stay undone. Each undo is journalled on its own.
+     */
+    public CompletableFuture<String> undoAll(InvocationContext ctx, List<String> ids, UndoArgs a, ProtectionGuard.Gate gate) {
+        JournalStore.Viewer viewer = viewer(ctx);
+        return CompletableFuture.supplyAsync(() -> {
+            List<JournalStore.Entry> entries = new ArrayList<>();
+            for (String id : ids) entries.add(io(() -> store.get(id, viewer)));
+            entries.sort(java.util.Comparator.comparing(JournalStore.Entry::createdAt).thenComparing(JournalStore.Entry::id).reversed());
+            return entries;
+        }, store.io()).thenCompose(entries -> {
+            List<String> blocks = new ArrayList<>();
+            String[] failure = {null};
+            CompletableFuture<Void> chain = CompletableFuture.completedFuture(null);
+            for (JournalStore.Entry e : entries) {
+                chain = chain.thenCompose(v -> failure[0] != null ? CompletableFuture.completedFuture(null)
+                        : undo(ctx, a.withId(e.id()), gate, true).handle((text, t) -> {
+                            if (t == null) blocks.add(text);
+                            else failure[0] = "Stopped at " + e.id() + ": " + message(t);
+                            return null;
+                        }));
+            }
+            return chain.thenApply(v -> {
+                List<String> out = new ArrayList<>();
+                String what = (a.dryRun() ? "Dry run of undo for " : "Undid ") + blocks.size() + " of " + entries.size() + " journals, newest first";
+                out.add(failure[0] == null ? what + ":" : "PARTIAL: " + what + ":");
+                out.addAll(blocks);
+                if (failure[0] != null) {
+                    out.add(failure[0]);
+                    out.add(blocks.isEmpty() ? "Nothing was undone." : "The journals above stay undone; the rest were not touched.");
+                }
+                if (a.dryRun() && entries.size() > 1) {
+                    out.add("A dry run checks each journal against the world as it is now: cells a newer listed journal overwrote show as kept here,"
+                            + " but a real run undoes that journal first and restores them.");
+                }
+                if (!a.dryRun() && !blocks.isEmpty()) out.add("Each undo is journalled; undo one with mc_restore {\"journal\":\"<its undo journal>\"}.");
+                return String.join("\n", out);
+            });
+        });
+    }
+
+    private static String message(Throwable t) {
+        while (t instanceof CompletionException && t.getCause() != null) t = t.getCause();
+        return t.getMessage();
     }
 
     /** Undoes one entry cell by cell; the undo itself is journalled unless it is a dry run. */
@@ -152,6 +203,10 @@ public final class JournalService {
      * writes; a dry run only reports what the guard would do.
      */
     public CompletableFuture<String> undo(InvocationContext ctx, UndoArgs a, ProtectionGuard.Gate gate) {
+        return undo(ctx, a, gate, false);
+    }
+
+    private CompletableFuture<String> undo(InvocationContext ctx, UndoArgs a, ProtectionGuard.Gate gate, boolean inBatch) {
         JournalStore.Viewer viewer = viewer(ctx);
         return CompletableFuture.supplyAsync(() -> {
             JournalStore.Entry e = io(() -> store.get(a.id(), viewer));
@@ -223,13 +278,18 @@ public final class JournalService {
                             Throwable t = (Throwable) pair[1];
                             throw t instanceof CompletionException ce ? ce : new CompletionException(t);
                         }
-                        String text = undoText(e, a, ((JsonElement) pair[0]).getAsJsonObject(), commit);
+                        String text = undoText(e, a, ((JsonElement) pair[0]).getAsJsonObject(), commit, inBatch);
                         return protection.isEmpty() ? text : text + "\n" + String.join("\n", protection);
                     }, store.io()), store.io());
         });
     }
 
     static String undoText(JournalStore.Entry e, UndoArgs a, JsonObject r, Commit commit) {
+        return undoText(e, a, r, commit, false);
+    }
+
+    /** {@code inBatch}: the undo's own journal goes on one short line; the batch reply explains how to undo it. */
+    static String undoText(JournalStore.Entry e, UndoArgs a, JsonObject r, Commit commit, boolean inBatch) {
         List<String> out = new ArrayList<>();
         String verb = a.dryRun() ? "Dry run of undo" : "Undid";
         out.add(verb + " journal " + e.id() + " (" + e.tool() + (e.label() != null ? ", \"" + e.label() + "\"" : "") + ", mode "
@@ -255,7 +315,12 @@ public final class JournalService {
         }
         if (r.has("extras")) out.add(JournalExtrasUndoTask.text(r.getAsJsonObject("extras"), a.dryRun(), a.mode() == UndoRules.Mode.SAFE));
         if (e.undoneBy() != null) out.add("Note: this entry had already been undone by " + e.undoneBy() + ".");
-        out.addAll(commit.lines());
+        if (inBatch && commit.entry() != null) {
+            out.add("  undo journal: " + commit.entry().id());
+            if (commit.note() != null) out.add("  " + commit.note());
+        } else {
+            out.addAll(commit.lines());
+        }
         return String.join("\n", out);
     }
 
