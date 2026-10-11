@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- `mc_command`: when the first word is a plugin command that has taken over a vanilla name (EssentialsX `tp`, `give`, `kill`...), the reply ends with a note naming the plugin and the `minecraft:` form; `vanilla:true` sends `minecraft:<name>` instead and is rejected when no vanilla command has that name. The description now says the console is not a player (`@s`, `~`).
+- Blueprint tags: documents may hold `tags: {module, status: draft|built|approved, undo: <blueprint id>, note}`. `mc_blueprint list {tags}` filters on them, `tag {id, tags}` merges changes (null removes one) without resending the document, and `touches {from, to}` lists blueprints whose bounds intersect a box. Bounds are compiled without a project transform at save time and cached in `<id>.bounds.json` next to the document.
+- A blueprint `mc_build` reply ends with `Blueprint: <id> (module, status, undo); journal <id>.`
+- Added 10 focused unit tests and disposable `e2e-usability.mjs` (23 checks).
+
 - New read-only `mc_light`: counts the hostile-mob spawn spaces in a box (open feet and head cells over a floor with a full solid top; carpet, rails, pressure plates, water and bottom slabs prevent spawning) and the dark ones among them (block light at most `threshold`, default 0; sky light only with `includeSky`), with dark bounds, counts per feet y and samples; `spawnable:false` counts every open cell. `suggest` returns a greedy list of light positions ready for `mc_build cells` (`block` default the invisible light block, `level` default 11, `spacing`, `placement` hidden/floor/ceiling), estimated by spreading light inside the box. The main thread only copies chunk snapshots a few per tick; rules and planning run off-main.
 - `mc_survey` gains `type:"TOP_SOLID_IGNORE_DECOR"` (the ground under carpet, plants, torches, lanterns, rails, signs, heads and snow up to `snowLayers`, default 3) and `walkHeight:true` (per-column feet height a player stands at, e.g. 64.5 on a bottom slab; at most 4,096 columns).
 - Added 24 focused unit tests and disposable `e2e-light.mjs` (27 checks).

@@ -41,7 +41,8 @@ public final class BlueprintCompiler {
 
     /** Validate storage syntax even for unused components; material-role bindings may be supplied at build time. */
     public static void validate(JsonObject doc) {
-        fields(doc, Set.of("version", "description", "dimensions", "palette", "constraints", "components", "instances"), "blueprint");
+        fields(doc, Set.of("version", "description", "dimensions", "palette", "constraints", "components", "instances", "tags"), "blueprint");
+        if (ArgParse.has(doc, "tags")) tags(ArgParse.requireObject(doc.get("tags"), "tags"));
         if (!doc.has("version") || BuildTransform.strictInt(doc.get("version"), "version") != 1)
             throw new ToolArgError("blueprint.version: must be 1");
         String description = ArgParse.optString(doc, "description");
@@ -76,6 +77,46 @@ public final class BlueprintCompiler {
             palette(instance, "palette");
             count += repeatCount(instance);
             if (count > MAX_INSTANCES) throw new ToolArgError("blueprint: maximum " + MAX_INSTANCES + " expanded instances");
+        }
+    }
+
+    public static final List<String> TAG_KEYS = List.of("module", "status", "undo", "note");
+    public static final List<String> STATUSES = List.of("draft", "built", "approved");
+
+    /** Step 19 blueprint tags: {@code module} (1-64 characters), {@code status}, {@code undo} (a blueprint id), {@code note} (at most 500). */
+    static void tags(JsonObject tags) {
+        fields(tags, Set.copyOf(TAG_KEYS), "tags");
+        String module = ArgParse.optString(tags, "module");
+        if (module != null && (module.isBlank() || module.length() > 64)) throw new ToolArgError("tags.module: 1-64 characters");
+        ArgParse.optEnum(tags, "status", STATUSES, null);
+        if (ArgParse.has(tags, "undo")) name(ArgParse.requireString(tags, "undo"));
+        String note = ArgParse.optString(tags, "note");
+        if (note != null && note.length() > 500) throw new ToolArgError("tags.note: at most 500 characters");
+    }
+
+    /**
+     * World bounds {@code [min, max]} of the document built without a project transform (every role bound to stone,
+     * since materials do not move geometry), or null when it compiles to nothing or cannot be compiled on its own.
+     */
+    static int[][] bounds(JsonObject doc) {
+        try {
+            JsonObject palette = new JsonObject();
+            var roles = ROLE.matcher(doc.getAsJsonObject("components").toString());
+            while (roles.find()) palette.addProperty(roles.group(1), "minecraft:stone");
+            JsonObject selector = new JsonObject(), request = new JsonObject();
+            selector.addProperty("id", "bounds");
+            if (!palette.isEmpty()) selector.add("palette", palette);
+            request.add("blueprint", selector);
+            int[] min = {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE};
+            int[] max = {Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
+            for (McBuild.Part part : compile(doc, request, new Limits(Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE))) {
+                for (McBuild.FillOpArg f : part.args().fills()) { consider(min, max, f.from()); consider(min, max, f.to()); }
+                for (McBuild.SparseOpArg b : part.args().blocks()) consider(min, max, b.pos());
+                for (McBuild.TextArg t : part.args().text()) { consider(min, max, t.expanded().bboxMin()); consider(min, max, t.expanded().bboxMax()); }
+            }
+            return min[0] > max[0] ? null : new int[][] {min, max};
+        } catch (ToolArgError e) {
+            return null;
         }
     }
 

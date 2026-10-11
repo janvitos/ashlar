@@ -54,7 +54,7 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | `mc_walk` | Read-only reachability inside a box: a path from A to B with waypoints, or everything reachable from A, with unreachable doors/beds/stairs/positions and the reason (step too high, headroom, closed door, sideways stair, gap). |
 | `mc_light` | Read-only spawn-light check: dark hostile-mob spawn spaces in a box (counts, bounds, samples) and an optional greedy list of light positions ready for `mc_build cells` (invisible light blocks by default, or floor/ceiling lamps). |
 | `mc_build` | Places blocks in bulk (cuboid fills with modes replace/keep/outline/hollow/walls, individual blocks and sign text, plus lettering rendered by the plugin via `text`), and paintings, item frames and armor stands via `entities`. |
-| `mc_blueprint` | Optionally generate architectural parts or fit foundations/entrances to terrain; save/get/list/delete reusable designs. No world writes. |
+| `mc_blueprint` | Optionally generate architectural parts or fit foundations/entrances to terrain; save/get/list/delete reusable designs. No world writes. Tags (`module`, `status`, `undo`, `note`) mark progress; `list` filters by tag and `touches` finds blueprints overlapping a box. |
 | `mc_plan` | Read-only preflight and virtual-scene previews for direct builds or saved blueprints; collision/support/pairing diagnostics without placement. |
 | `mc_verify` | Freeze expected cells before building; compare actual states/sign values afterward with exact coordinate/property differences. |
 | `mc_repair` | Guarded repairs of mismatches from a fresh comparison, followed by full verification; no matching-cell or neighbor refresh writes. |
@@ -64,7 +64,7 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | `mc_snapshot` | Save a region before changing it, list snapshots, or list/delete build journal entries (`touches` finds the calls that changed an area). |
 | `mc_restore` | Roll a region back to a snapshot, or undo one journalled call selectively (safe/force, dry run). |
 | `mc_protect` | Add, list or remove protected regions that writing tools refuse to touch (or warn about) without an explicit per-call `override`. |
-| `mc_command` | Run a server console command and return its output (escape hatch; not checked against protected regions). |
+| `mc_command` | Run a server console command and return its output (escape hatch; not checked against protected regions). Notes when a plugin has taken over a vanilla command name; `vanilla:true` runs the vanilla one. |
 
 Default lightweight flow for substantial builds: `mc_players` only for player context/safety -> one `mc_survey` (reuse a recent relevant survey) -> `mc_build` -> one `mc_render` for appearance. Tiny edits can rely on build feedback. If a concrete issue appears, inspect/correct only that area and recheck it if needed; no repeated whole-build verification loops. Keep rollback protection when editing existing terrain/structures, preferably `mc_build snapshot:true` rather than a redundant separate call; snapshots do not cover NBT. Coordinates: X grows east, Z grows south, Y grows up; `from`/`to` corners are inclusive.
 

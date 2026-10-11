@@ -28,12 +28,14 @@ public final class McBlueprint implements Tool {
 
     @Override public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
         return ToolRunner.runText("mc_blueprint", () -> {
-            String action = ArgParse.requireEnum(args, "action", List.of("save", "get", "list", "delete", "generate", "fit", "stage", "finalize"));
+            String action = ArgParse.requireEnum(args, "action", List.of("save", "get", "list", "delete", "generate", "fit", "stage", "finalize", "tag", "touches"));
             Set<String> allowed = switch (action) {
                 case "save" -> Set.of("action", "id", "document", "overwrite");
                 case "generate" -> Set.of("action", "id", "generator", "overwrite");
                 case "fit" -> Set.of("action", "id", "site", "overwrite");
-                case "list" -> Set.of("action");
+                case "list" -> Set.of("action", "tags");
+                case "tag" -> Set.of("action", "id", "tags");
+                case "touches" -> Set.of("action", "from", "to");
                 case "stage" -> Set.of("action", "name", "cells", "reset");
                 case "finalize" -> Set.of("action", "name");
                 default -> Set.of("action", "id");
@@ -61,7 +63,17 @@ public final class McBlueprint implements Tool {
                         ArgParse.optBoolean(args, "overwrite", false)).toString();
                 case "generate" -> generate(args).toString();
                 case "get" -> store.get(ArgParse.requireString(args, "id")).toString();
-                case "list" -> store.list().toString();
+                case "list" -> {
+                    if (!ArgParse.has(args, "tags")) yield store.list().toString();
+                    JsonObject filter = ArgParse.requireObject(args.get("tags"), "tags");
+                    BlueprintCompiler.tags(filter);
+                    yield store.list(filter).toString();
+                }
+                case "tag" -> store.tag(ArgParse.requireString(args, "id"), ArgParse.requireObject(args.get("tags"), "tags")).toString();
+                case "touches" -> {
+                    var box = cc.wujm.ashlar.engine.Region.of(BuildTransform.strictCoords(args, "from"), BuildTransform.strictCoords(args, "to"));
+                    yield store.touches(new int[] {box.minX(), box.minY(), box.minZ()}, new int[] {box.maxX(), box.maxY(), box.maxZ()}).toString();
+                }
                 case "delete" -> {
                     String id = ArgParse.requireString(args, "id"); store.delete(id);
                     yield "Blueprint '" + id + "' deleted. World blocks are unchanged.";

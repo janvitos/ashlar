@@ -356,6 +356,28 @@ Branch: `feat/terrain-light-analysis`.
     - `snowLayers` without the decor type and an over-limit `walkHeight` area are rejected;
   - test region restored to pristine air, forceload removed, journal entries deleted, no non-player entities left. No production changes.
 
+## Step 19 implementation and verification
+
+Branch: `feat/usability-19`.
+
+- `CommandShadow` (pure) checks the first token against a command-map lookup; `McCommand` reads the console's command map on the main thread (`PluginIdentifiableCommand` gives the owning plugin, so Paper's brigadier plugin commands count too), then routes, notes or rewrites before `run_command`.
+- `BlueprintCompiler` validates `tags` and computes bounds by compiling the document with every role bound to stone (materials do not move geometry). `BlueprintStore` gains `list(filter)`, `tag`, `tags` and `touches`; `McBuild.traceLine` adds the blueprint line.
+- Deviations from the plan:
+  - bounds are cached in a `<id>.bounds.json` sidecar keyed by the document revision (recomputed if missing or stale), not inside the document, so `get` still returns exactly what was saved;
+  - new `mc_blueprint tag` action, so status changes do not require resending a whole document;
+  - bounds are in the frame the document is written in: world bounds for blueprints in absolute coordinates, local bounds for those built with a `transform`;
+  - the trace line is a separate last line, only for blueprint builds (not dry runs); it omits the note;
+  - the isolated server has no plugin that takes over a vanilla command, so override detection is covered by unit tests with a fake command map; the native check covers `vanilla:true` rewriting and rejection only.
+- Found, not changed: `run_command` reports a vanilla command syntax error (for example `time query daytime`, which 26.2 replaced with timelines) as an unhandled `CommandException` instead of the error text.
+- Context cost: tool schemas and instructions grow by about 2,800 characters (about 700 tokens), mostly `mc_blueprint`.
+- Verification:
+  - one plugin build: 852 tests passed (10 new), zero failures; one existing store test now ignores the bounds sidecar when counting files;
+  - isolated-server smoke test `e2e-usability.mjs`, 23 checks:
+    - `mc_command`: no note for vanilla `time` or Bukkit `plugins`; `vanilla:true` runs `minecraft:time`; `vanilla:true` is rejected for `plugins` (no vanilla command) and for an already namespaced command;
+    - two tagged blueprints save; `list {tags}` filters by module and status; `touches` finds the tower by its bounds and not the far wall; an invalid status and an unknown tag are rejected;
+    - building the tower ends with `Blueprint: <id> (module=..., status=draft); journal jrn-...` matching the journal line; a dry run has no trace line; after `tag` the line shows `status=built, undo=...` and `no journal` with `journal:false`;
+  - test region restored to pristine air, forceload removed, journal entries and test blueprints deleted. No production changes.
+
 ## Fork activation
 
 User-approved deployment uses Paper 26.1.2 build 74, without a Paper upgrade. The fork now compiles against that exact API and declares minimum API 26.1. One build passed; an approved restart used a verified full 30-second in-game countdown before a graceful stop/install/start. Original artifact retained for rollback; plugin configuration/credentials unchanged. Pi points at the locally built fork adapter through the existing Docker network arrangement. Basic read-only deployment check confirmed plugin 0.4.9-dev, authenticated MCP, 13 tools and photo-reference instructions. No construction/terrain test writes or exhaustive regressions were performed on production. Pi needs `/reload` to refresh an existing session's connection and catalog.
