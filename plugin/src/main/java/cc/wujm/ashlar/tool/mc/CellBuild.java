@@ -145,6 +145,7 @@ final class CellBuild {
         long[] sums = {0, 0};
         int[] failedAt = {0};
         String[] error = {null};
+        McBuild.DeferredWarnings deferred = new McBuild.DeferredWarnings();
         CompletableFuture<Void> chain = CompletableFuture.completedFuture(null);
         for (int k = plan.start(); k <= total; k++) {
             int part = k;
@@ -152,7 +153,7 @@ final class CellBuild {
             McBuild.Args a = plan.args().get(k - 1);
             chain = chain.thenCompose(v -> {
                 if (failedAt[0] != 0) return CompletableFuture.completedFuture(null);
-                return build.runPart(ctx, a).handle((text, t) -> {
+                return build.runPart(ctx, a, deferred).handle((text, t) -> {
                     if (t != null) {
                         failedAt[0] = part;
                         error[0] = message(t);
@@ -174,7 +175,9 @@ final class CellBuild {
                 });
             });
         }
-        return chain.thenApply(v -> {
+        // Parts check support as they go; a later part may hold up a block an earlier one flagged.
+        CompletableFuture<List<String>> warnings = chain.thenComposeAsync(v -> build.recheckedWarningLines(ctx, plan.args().getFirst().world(), deferred));
+        return warnings.thenApply(warningLines -> {
             int done = (failedAt[0] == 0 ? total : failedAt[0] - 1) - plan.start() + 1;
             List<String> out = new ArrayList<>();
             out.add((failedAt[0] == 0 ? "Built " : "PARTIAL: built ") + done + " of " + (total - plan.start() + 1) + " part(s): "
@@ -185,6 +188,7 @@ final class CellBuild {
                 out.add("Stopped at part " + failedAt[0] + "/" + total + ": " + error[0]);
                 out.add("Parts before it stay built. Fix the cause, then repeat this call with resume:\"" + plan.fingerprint() + ":" + failedAt[0] + "\".");
             }
+            out.addAll(warningLines);
             return String.join("\n", out);
         });
     }
