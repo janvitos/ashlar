@@ -18,6 +18,11 @@ import { PluginError } from "./errors.js";
  *   caller's promise; rejects with {@link PluginError} on `{"ok":false}`.
  * - Requests issued while disconnected wait up to `connectWaitMs`
  *   (default 10s) for a connection before failing.
+ * - Abandons an attempt that is not authenticated within `handshakeTimeoutMs`
+ *   (default 15s) and reconnects. A socket the server accepted but never
+ *   answers (e.g. while Paper is stopping or starting) otherwise stays
+ *   CONNECTING forever: Node's WebSocket has no handshake timeout, no close
+ *   event follows, and no reconnect is ever scheduled.
  * - Logs `progress` events to stderr, throttled to at most one line every
  *   2 seconds per request id (plan section 4.1).
  */
@@ -26,6 +31,7 @@ export class PluginClient {
     private readonly token: string;
     private readonly defaultTimeoutMs: number;
     private readonly connectWaitMs: number;
+    private readonly handshakeTimeoutMs: number;
     private readonly subscribeEvents: string[];
 
     // Included in every log line below so the two stdio instances a client
@@ -37,6 +43,7 @@ export class PluginClient {
     private closed = false;
     private reconnectDelayMs = 1000;
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    private handshakeTimer: ReturnType<typeof setTimeout> | null = null;
     private nextId = 1;
     private nextSubId = 1;
 
@@ -55,12 +62,14 @@ export class PluginClient {
         token: string;
         defaultTimeoutMs: number;
         connectWaitMs?: number;
+        handshakeTimeoutMs?: number;
         subscribeEvents?: string[];
     }) {
         this.url = opts.url;
         this.token = opts.token;
         this.defaultTimeoutMs = opts.defaultTimeoutMs;
         this.connectWaitMs = opts.connectWaitMs ?? 10_000;
+        this.handshakeTimeoutMs = opts.handshakeTimeoutMs ?? 15_000;
         this.subscribeEvents = opts.subscribeEvents ?? [];
     }
 
@@ -107,6 +116,7 @@ export class PluginClient {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = null;
         }
+        this.clearHandshakeTimer();
         if (this.ws) {
             try {
                 this.ws.close();
@@ -184,17 +194,32 @@ export class PluginClient {
             return;
         }
         this.ws = ws;
+        this.handshakeTimer = setTimeout(() => {
+            this.handshakeTimer = null;
+            if (this.ws !== ws || this.authenticated) return;
+            console.error(`${this.logTag} not authenticated within ${this.handshakeTimeoutMs}ms; abandoning this attempt`);
+            try {
+                ws.close();
+            } catch {
+                // ignore
+            }
+            this.handleDisconnect();
+        }, this.handshakeTimeoutMs);
 
+        // Events from an abandoned socket are ignored: this.ws already points elsewhere.
         ws.addEventListener("open", () => {
+            if (this.ws !== ws) return;
             console.error(`${this.logTag} connected, authenticating`);
             this.sendRaw({ id: "auth-1", method: "auth", params: { token: this.token } });
         });
 
         ws.addEventListener("message", ev => {
+            if (this.ws !== ws) return;
             this.onMessage(String(ev.data));
         });
 
         ws.addEventListener("close", ev => {
+            if (this.ws !== ws) return;
             console.error(`${this.logTag} disconnected (code=${ev.code}${ev.reason ? `, reason=${ev.reason}` : ""})`);
             this.handleDisconnect();
         });
@@ -204,7 +229,15 @@ export class PluginClient {
         });
     }
 
+    private clearHandshakeTimer(): void {
+        if (this.handshakeTimer) {
+            clearTimeout(this.handshakeTimer);
+            this.handshakeTimer = null;
+        }
+    }
+
     private handleDisconnect(): void {
+        this.clearHandshakeTimer();
         this.ws = null;
         this.authenticated = false;
         this.scheduleReconnect();
@@ -241,6 +274,7 @@ export class PluginClient {
 
         if (msg.id === "auth-1") {
             if (msg.ok) {
+                this.clearHandshakeTimer();
                 this.authenticated = true;
                 this.reconnectDelayMs = 1000;
                 console.error(`${this.logTag} authenticated`);
