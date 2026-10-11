@@ -378,6 +378,26 @@ Branch: `feat/usability-19`.
     - building the tower ends with `Blueprint: <id> (module=..., status=draft); journal jrn-...` matching the journal line; a dry run has no trace line; after `tag` the line shows `status=built, undo=...` and `no journal` with `journal:false`;
   - test region restored to pristine air, forceload removed, journal entries and test blueprints deleted. No production changes.
 
+## Step 20 implementation and verification
+
+Branch: `feat/render-fidelity`.
+
+- `BlockShapes` gains the new families with two orientation helpers (`rot` for horizontal facings, `toward` for six-way rods), `axis(state)` for pillars, `faceColors(state, base, mapColor)` and `entityPanel(type, facing)`. `ShapeRenderer.render` takes optional `Extras` (per-face colours, diff marks, placeholders); the old signature is unchanged, so `mc_plan` previews behave as before.
+- `RenderTask` (angled views only) resolves face colours on the main thread with the palette colours (two extra map-colour lookups per pillar state, one per grass-like state) and reads paintings and item frames once entities are loaded (waits at most 20 ticks, then reports `entitiesUnloaded`). `SnapshotDiff` maps only the snapshot cells inside the render box and runs on the render executor.
+- Deviations from the plan:
+  - Paper exposes one map colour per state, so "separate top/side colours" are derived: vanilla logs colour by axis (the `axis=y` state is the end colour), and a small table gives grass-like blocks their side block;
+  - walls already had post and side heights, and panes/bars were already thin; both are now covered by tests, and `_bars` also matches copper bars;
+  - `compareTo` works only for isometric/perspective, which is where before/after checks are useful; flat views reject it;
+  - `zoom` needed more than 16 px per block to be a real close-up, so angled views now accept `scale` up to 32 (flat views stay at 16; auto scale still caps at 16); the existing pixel and work budgets still apply;
+  - placeholders cover paintings and item frames only; armor stands are not drawn.
+- Context cost: tool schemas and instructions grow by about 1,600 characters (about 400 tokens), all in `mc_render`.
+- Verification:
+  - one plugin build: 874 tests passed (22 new), zero failures;
+  - isolated-server smoke test `e2e-render.mjs`, 16 checks: a gallery of every new family plus pillars on three axes, walls, a painting and an item frame renders with no cube fallbacks and 3 placeholder cells (isometric and perspective); `zoom` gives the expected cube at 32 px per block and rejects zoom with `from`/`to`; after one change, one removal and one addition, `compareTo` reports exactly 1/1/1 with nothing outside the snapshot, and every gallery block counts as added against the pristine snapshot; flat-view, unknown-snapshot and non-overlapping `compareTo` calls are rejected;
+  - the gallery, compare and zoom images were inspected: new shapes read correctly, the removed lantern shows as a red ghost, the changed basalt orange and the added block green;
+  - an earlier run with a grass floor counted 2 extra changes: grass under the gallery decayed to dirt between snapshot and render, which is correct; the test floor is now stone;
+  - test region restored to pristine air, forceload removed, no entities left, journal entries deleted. No production changes.
+
 ## Fork activation
 
 User-approved deployment uses Paper 26.1.2 build 74, without a Paper upgrade. The fork now compiles against that exact API and declares minimum API 26.1. One build passed; an approved restart used a verified full 30-second in-game countdown before a graceful stop/install/start. Original artifact retained for rollback; plugin configuration/credentials unchanged. Pi points at the locally built fork adapter through the existing Docker network arrangement. Basic read-only deployment check confirmed plugin 0.4.9-dev, authenticated MCP, 13 tools and photo-reference instructions. No construction/terrain test writes or exhaustive regressions were performed on production. Pi needs `/reload` to refresh an existing session's connection and catalog.

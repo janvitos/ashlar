@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- Render fidelity: angled `mc_render` views model lanterns (hanging/standing), chains, end and lightning rods, candles, bells, campfires, pointed dripstone, buttons, levers, flower pots and heads, and recognise copper bars. Pillars (logs, stems, basalt, quartz and purpur pillars, hay, bone, deepslate, froglights...) colour end faces apart from sides by `axis` (vanilla log colours, or lightened ends when both match); grass, podzol, mycelium, dirt paths and nylium use their side block's colour on the sides. Paintings and item frames are drawn as placeholder panels.
+- `mc_render compareTo:"<snapshot id>"` (angled views): cells that differ from the snapshot are tinted (changed orange, added green, removed as translucent red cubes) and counted in `geometry.diff`; the diff runs off the main thread. `zoom:{pos, radius}` replaces `from`/`to` with a close-up cube and defaults to 32 px per block; angled views accept `scale` up to 32.
+- Added 22 focused unit tests and disposable `e2e-render.mjs` (16 checks).
+
 - `mc_command`: when the first word is a plugin command that has taken over a vanilla name (EssentialsX `tp`, `give`, `kill`...), the reply ends with a note naming the plugin and the `minecraft:` form; `vanilla:true` sends `minecraft:<name>` instead and is rejected when no vanilla command has that name. The description now says the console is not a player (`@s`, `~`).
 - Blueprint tags: documents may hold `tags: {module, status: draft|built|approved, undo: <blueprint id>, note}`. `mc_blueprint list {tags}` filters on them, `tag {id, tags}` merges changes (null removes one) without resending the document, and `touches {from, to}` lists blueprints whose bounds intersect a box. Bounds are compiled without a project transform at save time and cached in `<id>.bounds.json` next to the document.
 - A blueprint `mc_build` reply ends with `Blueprint: <id> (module, status, undo); journal <id>.`

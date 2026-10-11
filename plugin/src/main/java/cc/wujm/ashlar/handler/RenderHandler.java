@@ -30,10 +30,33 @@ public final class RenderHandler implements RpcHandler {
 
     private final ConfigHolder configHolder;
     private final RenderService renderService;
+    private cc.wujm.ashlar.snapshot.SnapshotStore snapshots;
 
     public RenderHandler(ConfigHolder configHolder, RenderService renderService) {
         this.configHolder = configHolder;
         this.renderService = renderService;
+    }
+
+    /** Enables {@code compareTo} for angled views (Step 20). */
+    public RenderHandler withSnapshots(cc.wujm.ashlar.snapshot.SnapshotStore snapshots) {
+        this.snapshots = snapshots;
+        return this;
+    }
+
+    /** The snapshot named by {@code compareTo}, or null; checks view, world and overlap. */
+    cc.wujm.ashlar.snapshot.Snapshot compareTo(JsonObject params, String view, String worldName, Region region) {
+        if (!params.has("compareTo") || params.get("compareTo").isJsonNull()) return null;
+        if (!params.get("compareTo").isJsonPrimitive() || !params.getAsJsonPrimitive("compareTo").isString())
+            throw new RpcError(ErrorCode.BAD_REQUEST, "\"compareTo\" must be a snapshot id string");
+        if (!RenderCamera.angled(view)) throw new RpcError(ErrorCode.BAD_REQUEST, "\"compareTo\" works only with view \"isometric\" or \"perspective\"");
+        String id = params.get("compareTo").getAsString();
+        var snap = snapshots == null ? null : snapshots.get(id).orElse(null);
+        if (snap == null) throw new RpcError(ErrorCode.BAD_REQUEST, "no snapshot \"" + id + "\" (mc_snapshot list shows the stored ones)");
+        if (!snap.world().equals(worldName)) throw new RpcError(ErrorCode.BAD_REQUEST, "snapshot " + id + " is of world \"" + snap.world() + "\", not \"" + worldName + "\"");
+        Region s = snap.region();
+        if (s.maxX() < region.minX() || s.minX() > region.maxX() || s.maxY() < region.minY() || s.minY() > region.maxY() || s.maxZ() < region.minZ() || s.minZ() > region.maxZ())
+            throw new RpcError(ErrorCode.BAD_REQUEST, "snapshot " + id + " covers " + s.minX() + "," + s.minY() + "," + s.minZ() + " to " + s.maxX() + "," + s.maxY() + "," + s.maxZ() + ", which does not overlap the render bounds");
+        return snap;
     }
 
     @Override
@@ -69,7 +92,14 @@ public final class RenderHandler implements RpcHandler {
             if (RenderCamera.angled(validator.peekRenderView(params))) cap = Math.min(cap,200_000);
             Region region = validator.validateReadRegion(params, heights[0], heights[1], cap);
             RequestValidator.RenderParams renderParams = validator.validateRenderParams(params, region);
-            return renderService.renderRegion(world, region, renderParams, ctx);
+            if (!params.has("compareTo")) return renderService.renderRegion(world, region, renderParams, ctx);
+            return MainThread.call(world::getName).thenCompose(name -> {
+                try {
+                    return renderService.renderRegion(world, region, renderParams, compareTo(params, renderParams.view(), name, region), ctx);
+                } catch (RpcError e) {
+                    return CompletableFuture.failedFuture(e);
+                }
+            });
         } catch (RpcError e) {
             return CompletableFuture.failedFuture(e);
         }

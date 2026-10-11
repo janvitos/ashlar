@@ -404,7 +404,7 @@ public final class RequestValidator {
             boolean angled = cc.wujm.ashlar.render.RenderCamera.angled(view);
             int grid = angled && !params.has("grid") ? 0 : validateGrid(params);
             if (angled && grid != 0) throw new IllegalArgumentException("angled views require grid:0; flat views retain coordinate grids");
-            return new RenderParams(view, sliceAxis, sliceAt, validateScale(params), grid, camera);
+            return new RenderParams(view, sliceAxis, sliceAt, validateScale(params, angled ? cc.wujm.ashlar.render.ShapeRenderer.MAX_SCALE : 16), grid, camera);
         } catch (IllegalArgumentException e) { throw new RpcError(ErrorCode.BAD_REQUEST,e.getMessage()); }
     }
 
@@ -444,9 +444,13 @@ public final class RequestValidator {
     }
 
     private int validateScale(JsonObject params) {
+        return validateScale(params, 16);
+    }
+
+    private int validateScale(JsonObject params, int max) {
         int scale = optInt(params, "scale", 0);
-        if (scale < 0 || scale > 16) {
-            throw new RpcError(ErrorCode.BAD_REQUEST, "\"scale\" must be between 0 and 16, got " + scale);
+        if (scale < 0 || scale > max) {
+            throw new RpcError(ErrorCode.BAD_REQUEST, "\"scale\" must be between 0 and " + max + ", got " + scale);
         }
         return scale;
     }
