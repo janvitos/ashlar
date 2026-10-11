@@ -429,6 +429,27 @@ Branch: `fix/token-efficiency`.
   - on the isolated server, these e2e scripts pass: preflight, render, view, protect, verification, diff, walk, shapes, terrain-fit, generators and usability;
   - no production changes.
 
+## Fix: invalid-state errors
+
+Branch: `fix/invalid-state-errors`.
+
+- From the post-Step-20 review (item 3). A bad block state used to fail with `Could not parse data: <state>` (or `cannot parse block`), so the agent had to guess and retry.
+- The new pure `StateDiagnosis` reports one of:
+  - the parser's syntax reason;
+  - an unknown block, with up to 3 close names (edit distance or substring);
+  - an unknown property, with the block's properties;
+  - an invalid value, with the values the block accepts.
+- The Bukkit API has no property-value enumeration. Allowed values are therefore found by probing candidate values with `Bukkit.createBlockData` (a registry lookup), one property at a time, and the result is cached per block and property.
+  - The candidates are a vocabulary of vanilla property values plus 0-25 and the property's default.
+  - The vocabulary was checked against the vanilla 26.2 `blocks.json` report: it covers every value used.
+  - This runs only on the error path. In `BuildStateTransform` it runs on the main thread, once per failing call (at most a few hundred registry lookups).
+- `BuildStateTransform` errors drop the `transform:` prefix, which appeared even without a transform.
+- `mc_blueprint save` still does not validate states (they can contain `$role` bindings). They are checked, with the same diagnosis, when the blueprint is built.
+- Verification:
+  - one plugin build: 886 tests passed (5 new), zero failures;
+  - on the isolated server, `e2e-usability.mjs` passes 27 checks (3 new), and `e2e-transforms.mjs` and `e2e-blueprints.mjs` pass;
+  - no production changes.
+
 ## Fork activation
 
 User-approved deployment uses Paper 26.1.2 build 74, without a Paper upgrade. The fork now compiles against that exact API and declares minimum API 26.1. One build passed; an approved restart used a verified full 30-second in-game countdown before a graceful stop/install/start. Original artifact retained for rollback; plugin configuration/credentials unchanged. Pi points at the locally built fork adapter through the existing Docker network arrangement. Basic read-only deployment check confirmed plugin 0.4.9-dev, authenticated MCP, 13 tools and photo-reference instructions. No construction/terrain test writes or exhaustive regressions were performed on production. Pi needs `/reload` to refresh an existing session's connection and catalog.

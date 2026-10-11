@@ -42,6 +42,10 @@ try{
     // A vanilla syntax error comes back as text, not an internal error.
     t=await command("time query daytime");check(()=>assert.match(t,/^Syntax error: .*minecraft:daytime/,t));
     t=await command("plugins");check(()=>assert.doesNotMatch(t,/vanilla:true/));
+    // An invalid block state names the reason and what is allowed, before anything is written.
+    await checkA(async()=>assert.match(await rejected("mc_build",{blocks:[{pos:from,block:"minecraft:oak_stairs[facing=up]"}]}),/oak_stairs facing=up is invalid; facing: north\|east\|south\|west/));
+    await checkA(async()=>assert.match(await rejected("mc_build",{fills:[{from,to:from,block:"minecraft:oak_stair"}]}),/unknown block 'oak_stair'; did you mean oak_stairs/));
+    await checkA(async()=>assert.match(await rejected("mc_build",{cells:[[...from,"minecraft:stone[facing=north]"]]}),/stone has no properties/));
     // Blueprints with tags, in absolute coordinates inside the test region.
     const stamp=Date.now().toString(36);const mod=`e2e-${stamp}`;
     const tower={version:1,description:"usability e2e tower",tags:{module:mod,status:"draft",note:"e2e"},components:{t:{fills:[{from:[600,100,10],to:[602,104,12],block:"$wall",mode:"hollow"}]}},
