@@ -12,7 +12,9 @@ import org.bukkit.block.data.type.Stairs;
 import org.bukkit.block.data.type.Tripwire;
 import org.bukkit.block.data.type.Wall;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -50,7 +52,11 @@ import java.util.function.Supplier;
  * stone-facing side disconnected ({@code west=false}); additionally
  * re-touching the stone connected it ({@code west=true}). Hence the two
  * phases below: every tracked position gets the air-then-back treatment for
- * itself, then again for its four horizontal neighbors.
+ * itself, then again for its four horizontal neighbors. A neighbor that is
+ * itself a tracked position was already rewritten in the self phase, and a
+ * neighbor shared by several tracked positions needs only one rewrite, so
+ * the neighbor phase skips both (a solid stairs fill otherwise rewrote every
+ * cell about five times).
  *
  * <p><b>Neighbor safety.</b> The air-then-back round trip is only safe to
  * perform on a neighbor block that has no state worth losing during its
@@ -92,6 +98,8 @@ final class ConnectionPass {
     private int selfIndex = 0;
     private int neighborIndex = 0;
     private int neighborSide = 0;
+    /** Packed positions already rewritten: every tracked position, then each refreshed neighbor. */
+    private Set<Long> rewritten;
 
     ConnectionPass(World world, List<int[]> positions, boolean enabled, Supplier<JournalCapture> journal) {
         this.world = world;
@@ -142,11 +150,16 @@ final class ConnectionPass {
     }
 
     private boolean runNeighborPhase(long deadlineNanos) {
+        if (rewritten == null) {
+            rewritten = new HashSet<>(positions.size() * 2);
+            for (int[] pos : positions) rewritten.add(pack(pos[0], pos[1], pos[2]));
+        }
         int sinceCheck = 0;
         while (neighborIndex < positions.size()) {
             int[] pos = positions.get(neighborIndex);
             while (neighborSide < DX.length) {
-                refreshNeighborIfSafe(pos[0] + DX[neighborSide], pos[1], pos[2] + DZ[neighborSide]);
+                int nx = pos[0] + DX[neighborSide], nz = pos[2] + DZ[neighborSide];
+                if (rewritten.add(pack(nx, pos[1], nz))) refreshNeighborIfSafe(nx, pos[1], nz);
                 neighborSide++;
                 sinceCheck++;
                 if (sinceCheck >= DEADLINE_CHECK_INTERVAL) {
@@ -236,6 +249,11 @@ final class ConnectionPass {
             return; // Never destroy a block entity's data via the air round trip.
         }
         refresh(x, y, z);
+    }
+
+    /** Packs a block position into a long: 26 bits each for x and z, 12 bits for y. */
+    private static long pack(int x, int y, int z) {
+        return ((long) (x & 0x3FFFFFF) << 38) | ((long) (z & 0x3FFFFFF) << 12) | (y & 0xFFF);
     }
 
     /**
