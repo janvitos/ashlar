@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## Unreleased (fork)
+## 0.5.1 (fork)
 
 - The MCP server no longer stays disconnected after the plugin restarts. A connection attempt the server accepted but never answered (for example while Paper was stopping or starting) used to wait forever: Node's WebSocket has no handshake timeout, so no retry was ever scheduled. An attempt not authenticated within 15 seconds is now abandoned and retried with the usual backoff.
 - Added 1 unit test.
