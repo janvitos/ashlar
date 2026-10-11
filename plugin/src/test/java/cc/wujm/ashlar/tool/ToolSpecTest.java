@@ -72,7 +72,7 @@ class ToolSpecTest {
         var detailed = spec.inputSchema().getAsJsonObject("properties").getAsJsonObject("detailed");
         assertEquals("boolean", detailed.get("type").getAsString());
         assertFalse(detailed.get("default").getAsBoolean());
-        assertTrue(spec.description().contains("ALWAYS fills -> text -> blocks"));
+        assertTrue(spec.description().contains("ALWAYS fills -> shapes -> text -> blocks"));
         assertTrue(spec.description().contains("final minecraft:air entries"));
         String instructions = new ToolRegistry(List.of()).instructions();
         assertTrue(instructions.contains("sign text and decorative entities (paintings, item frames, armor stands), not container inventories"));

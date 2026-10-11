@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import cc.wujm.ashlar.engine.Region;
+import cc.wujm.ashlar.engine.ShapeExpand;
 import cc.wujm.ashlar.engine.text.FontRenderException;
 import cc.wujm.ashlar.engine.text.TextExpand;
 import cc.wujm.ashlar.protect.ProtectionCheck;
@@ -38,6 +39,7 @@ public final class McBuild implements Tool {
 
     private static final List<String> FILL_MODES = List.of("replace", "keep", "outline", "hollow", "walls");
     private static final List<String> LIQUIDS_MODES = List.of("static", "flow");
+    static final int MAX_SHAPES = 64;
 
     private final ToolSpec spec = ToolSpec.load("mc_build");
     private final RpcHandler snapshotHandler;
@@ -120,9 +122,10 @@ public final class McBuild implements Tool {
         List<FillOpArg> fills = new ArrayList<>();
         List<SparseOpArg> blocks = new ArrayList<>();
         List<TextArg> text = new ArrayList<>();
-        for (Args a : parts) { fills.addAll(a.fills()); blocks.addAll(a.blocks()); text.addAll(a.text()); }
+        List<ShapeArg> shapes = new ArrayList<>();
+        for (Args a : parts) { fills.addAll(a.fills()); blocks.addAll(a.blocks()); text.addAll(a.text()); shapes.addAll(a.shapes()); }
         Args first = parts.getFirst();
-        return new Args(first.world(), fills, blocks, text, first.snapshot(), first.connect(), first.liquids());
+        return new Args(first.world(), fills, blocks, text, shapes, first.snapshot(), first.connect(), first.liquids());
     }
 
     @Override
@@ -144,11 +147,20 @@ public final class McBuild implements Tool {
             String align, TextExpand.Result expanded) {
     }
 
-    record Args(String world, List<FillOpArg> fills, List<SparseOpArg> blocks, List<TextArg> text, boolean snapshot,
-            Boolean connect, String liquids) {
+    /** One {@code shapes} entry, plus its runs already expanded via {@link ShapeExpand#expand} (world coordinates) at parse time. */
+    record ShapeArg(String shape, String block, ShapeExpand.Result expanded) {
+    }
+
+    record Args(String world, List<FillOpArg> fills, List<SparseOpArg> blocks, List<TextArg> text, List<ShapeArg> shapes,
+            boolean snapshot, Boolean connect, String liquids) {
+        Args(String world, List<FillOpArg> fills, List<SparseOpArg> blocks, List<TextArg> text, boolean snapshot,
+                Boolean connect, String liquids) {
+            this(world, fills, blocks, text, List.of(), snapshot, connect, liquids);
+        }
+
         /** True for an entities-only call (Step 17): no block writes at all. */
         boolean isEmpty() {
-            return fills.isEmpty() && blocks.isEmpty() && text.isEmpty();
+            return fills.isEmpty() && blocks.isEmpty() && text.isEmpty() && shapes.isEmpty();
         }
 
         static Args parse(JsonObject o) {
@@ -215,15 +227,52 @@ public final class McBuild implements Tool {
                 }
             }
 
-            if (fills.isEmpty() && blocks.isEmpty() && text.isEmpty() && !EntityArgs.applies(o)) {
+            List<ShapeArg> shapes = new ArrayList<>();
+            if (ArgParse.has(o, "shapes")) {
+                JsonArray arr = ArgParse.requireArray(o, "shapes");
+                if (arr.size() > MAX_SHAPES) throw new ToolArgError("shapes: at most " + MAX_SHAPES + " entries");
+                for (int i = 0; i < arr.size(); i++) {
+                    shapes.add(parseShapeEntry(i, ArgParse.requireObject(arr.get(i), "shapes[" + i + "]"), local ? transform : null));
+                }
+            }
+
+            if (fills.isEmpty() && blocks.isEmpty() && text.isEmpty() && shapes.isEmpty() && !EntityArgs.applies(o)) {
                 throw new ToolArgError(
-                        "\"fills\", \"blocks\", \"text\" and/or \"entities\" must be provided, with at least one non-empty");
+                        "\"fills\", \"shapes\", \"blocks\", \"text\" and/or \"entities\" must be provided, with at least one non-empty");
             }
 
             boolean snapshot = ArgParse.optBoolean(o, "snapshot", false);
             Boolean connect = ArgParse.optBooleanNullable(o, "connect");
             String liquids = ArgParse.optEnum(o, "liquids", LIQUIDS_MODES, null);
-            return new Args(world, fills, blocks, text, snapshot, connect, liquids);
+            return new Args(world, fills, blocks, text, shapes, snapshot, connect, liquids);
+        }
+
+        /** Expands one shape in its own (local when {@code transform} is set) coordinates, then maps every run to world coordinates. */
+        private static ShapeArg parseShapeEntry(int i, JsonObject s, BuildTransform transform) {
+            String where = "shapes[" + i + "]";
+            String shape = ArgParse.requireEnum(s, "shape", ShapeExpand.SHAPES);
+            int[] from = BuildTransform.strictCoords(s, "from");
+            int[] to = BuildTransform.strictCoords(s, "to");
+            String block = ArgParse.requireString(s, "block");
+            if (block.isEmpty()) throw new ToolArgError(where + ".block: must contain at least 1 character(s)");
+            String axis = ArgParse.optEnum(s, "axis", ShapeExpand.AXES, "y");
+            int thickness = ArgParse.has(s, "thickness") ? BuildTransform.strictInt(s.get("thickness"), where + ".thickness") : 0;
+            ShapeExpand.Result r;
+            try {
+                r = ShapeExpand.expand(shape, from, to, axis, thickness);
+            } catch (IllegalArgumentException e) {
+                throw new ToolArgError(where + "." + e.getMessage());
+            }
+            if (transform != null) {
+                List<ShapeExpand.Run> runs = new ArrayList<>(r.runs().size());
+                for (ShapeExpand.Run run : r.runs()) {
+                    int[][] b = transform.bounds(run.from(), run.to());
+                    runs.add(new ShapeExpand.Run(b[0], b[1]));
+                }
+                int[][] box = transform.bounds(r.min(), r.max());
+                r = new ShapeExpand.Result(List.copyOf(runs), box[0], box[1], r.blocks());
+            }
+            return new ShapeArg(shape, block, r);
         }
 
         private static TextArg parseTextEntry(int i, JsonObject t, boolean local) {
@@ -287,6 +336,7 @@ public final class McBuild implements Tool {
         String snapshotLine;
         boolean detailed;
         List<String> fillsSection;
+        List<String> shapesSection;
         List<String> textSection;
         String blocksLine;
         String entitiesLine;
@@ -298,8 +348,8 @@ public final class McBuild implements Tool {
     /** Shared direct/blueprint compilation; planning never invokes the execution path. */
     CompletableFuture<Args> prepare(JsonObject args, boolean validateIdentity) {
         if (ArgParse.has(args, "blueprint")) {
-            for (String kind : List.of("fills", "blocks", "text")) if (ArgParse.has(args, kind))
-                throw new ToolArgError("blueprint cannot be combined with direct fills, blocks or text");
+            for (String kind : List.of("fills", "shapes", "blocks", "text")) if (ArgParse.has(args, kind))
+                throw new ToolArgError("blueprint cannot be combined with direct fills, shapes, blocks or text");
             if (blueprintStore == null) throw new ToolArgError("blueprint store is unavailable");
             JsonObject selector = ArgParse.requireObject(args.get("blueprint"), "blueprint selector");
             JsonObject document = blueprintStore.get(ArgParse.requireString(selector, "id"));
@@ -453,6 +503,9 @@ public final class McBuild implements Tool {
         if (!a.fills().isEmpty()) {
             step = step.thenCompose(ignored -> fillStep(ctx, a, state));
         }
+        if (!a.shapes().isEmpty()) {
+            step = step.thenCompose(ignored -> shapeStep(ctx, a, state));
+        }
         if (!a.text().isEmpty()) {
             step = step.thenCompose(ignored -> textStep(ctx, a, state));
         }
@@ -464,7 +517,10 @@ public final class McBuild implements Tool {
         }
 
         return step.thenApply(ignored -> {
-            String text = ToolText.buildResultText(state.snapshotLine, state.fillsSection, state.textSection, state.blocksLine,
+            List<String> fillsAndShapes = state.shapesSection == null ? state.fillsSection
+                    : state.fillsSection == null ? state.shapesSection
+                    : java.util.stream.Stream.concat(state.fillsSection.stream(), state.shapesSection.stream()).toList();
+            String text = ToolText.buildResultText(state.snapshotLine, fillsAndShapes, state.textSection, state.blocksLine,
                     state.chestsPaired, state.warnings, state.warningsTruncated);
             if (state.entitiesLine == null) return text;
             return text.isEmpty() ? state.entitiesLine : text + "\n" + state.entitiesLine;
@@ -491,7 +547,7 @@ public final class McBuild implements Tool {
     }
 
     private CompletableFuture<Void> snapshotStep(InvocationContext ctx, Args a, EntityArgs ents, BuildState state) {
-        int[][] box = boundingBox(a.fills(), a.blocks(), a.text());
+        int[][] box = boundingBox(a);
         if (ents != null) {
             Region e = ents.bounds();
             consider(box[0], box[1], new int[]{e.minX(), e.minY(), e.minZ()});
@@ -622,6 +678,51 @@ public final class McBuild implements Tool {
         });
     }
 
+    /** Like {@link #textStep}: every shape's runs in one {@code fill_batch} call, reported per shape. */
+    private CompletableFuture<Void> shapeStep(InvocationContext ctx, Args a, BuildState state) {
+        JsonObject params = new JsonObject();
+        if (a.world() != null) {
+            params.addProperty("world", a.world());
+        }
+        JsonArray ops = new JsonArray();
+        for (ShapeArg s : a.shapes()) {
+            for (ShapeExpand.Run run : s.expanded().runs()) ops.add(runJson(run, s.block()));
+        }
+        params.add("ops", ops);
+        if (a.connect() != null) {
+            params.addProperty("connect", a.connect());
+        }
+        if (a.liquids() != null) {
+            params.addProperty("liquids", a.liquids());
+        }
+        return fillBatchHandler.handle(ctx, params).thenAccept(el -> {
+            JsonObject r = el.getAsJsonObject();
+            JsonArray opsResult = r.getAsJsonArray("ops");
+            List<ToolText.ShapeEntryLine> lines = new ArrayList<>();
+            int cursor = 0;
+            for (int i = 0; i < a.shapes().size(); i++) {
+                ShapeArg s = a.shapes().get(i);
+                long changed = 0;
+                for (int k = 0; k < s.expanded().runs().size(); k++) changed += opsResult.get(cursor + k).getAsJsonObject().get("changed").getAsLong();
+                cursor += s.expanded().runs().size();
+                lines.add(new ToolText.ShapeEntryLine(i, s.shape(), s.expanded().min(), s.expanded().max(), changed, s.expanded().blocks()));
+            }
+            state.shapesSection = state.detailed
+                    ? ToolText.shapesSection(lines, r.get("totalChanged").getAsLong(), r.get("totalVolume").getAsLong(), r.get("elapsedMs").getAsLong())
+                    : ToolText.compactSection("Shapes", r.get("totalChanged").getAsLong(), r.get("totalVolume").getAsLong(), r.get("elapsedMs").getAsLong());
+            collectChestsPaired(state, r);
+            collectWarnings(state, r);
+        });
+    }
+
+    static JsonObject runJson(ShapeExpand.Run run, String block) {
+        JsonObject o = new JsonObject();
+        o.add("from", intArray(run.from()));
+        o.add("to", intArray(run.to()));
+        o.addProperty("block", block);
+        return o;
+    }
+
     private CompletableFuture<Void> blockStep(InvocationContext ctx, Args a, BuildState state) {
         JsonObject params = new JsonObject();
         if (a.world() != null) {
@@ -704,6 +805,15 @@ public final class McBuild implements Tool {
             o.add("sign", s);
         }
         return o;
+    }
+
+    static int[][] boundingBox(Args a) {
+        int[][] box = boundingBox(a.fills(), a.blocks(), a.text());
+        for (ShapeArg s : a.shapes()) {
+            consider(box[0], box[1], s.expanded().min());
+            consider(box[0], box[1], s.expanded().max());
+        }
+        return box;
     }
 
     static int[][] boundingBox(List<FillOpArg> fills, List<SparseOpArg> blocks, List<TextArg> text) {

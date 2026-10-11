@@ -7,7 +7,7 @@ mc_render   - one visual PNG check: isometric/perspective schematic views, top/f
 mc_sightline - can an eye or player see given blocks, or a coarse cone of the view; read-only
 mc_walk     - can a player walk from A to B, or reach every door/bed/stair in a box; read-only
 mc_light    - dark mob-spawn spaces in a box and optional light positions; read-only
-mc_build    - primary construction tool: fills, blocks with sign text, `text` lettering, `cells`/`cellsFile`, blueprints, decorative `entities`
+mc_build    - primary construction tool: fills, curved `shapes` (cylinders, domes, cones...), blocks with sign text, `text` lettering, `cells`/`cellsFile`, blueprints, decorative `entities`
 mc_plan     - validate and preview a build without placing blocks (collisions, overlaps, pairing, support)
 mc_verify   - opt-in exact verification: prepare BEFORE building, then check; not part of routine builds
 mc_repair   - repair only mismatches from a fresh mc_verify comparison or mc_diff receipt

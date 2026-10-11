@@ -197,6 +197,8 @@ public final class ProtectionGuard {
     static Consumer<ProtectionCheck> targets(McBuild.Args a) {
         return check -> {
             for (McBuild.FillOpArg f : a.fills()) check.box(Region.of(f.from(), f.to()), shape(f.mode()));
+            for (McBuild.ShapeArg s : a.shapes())
+                for (cc.wujm.ashlar.engine.ShapeExpand.Run run : s.expanded().runs()) check.box(Region.of(run.from(), run.to()), ProtectionCheck.Shape.SOLID);
             for (McBuild.TextArg t : a.text()) {
                 if (t.background() != null) check.box(Region.of(t.expanded().bboxMin(), t.expanded().bboxMax()), ProtectionCheck.Shape.SOLID);
                 for (TextExpand.Run run : t.expanded().inkRuns()) check.box(Region.of(run.from(), run.to()), ProtectionCheck.Shape.SOLID);

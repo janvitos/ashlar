@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- `mc_build` takes `shapes`: cylinders, spheres, domes, cones and pyramids, each inscribed in an inclusive `from`/`to` box (odd or even sizes; unequal sides give ellipses). `axis` (`y` default, `x`, `z`, or `-y`/`-x`/`-z`) orients them, so `-y` gives a bowl or an upside-down cone. `thickness` (1-16) makes a watertight shell with open base faces: a hollow cylinder is a ring wall, a hollow dome has no floor. The plugin computes the cells off the main thread and merges them into as few fill runs as possible. Shapes go through the same validation, protection, snapshots, journal, `transform`, `dryRun`/`mc_plan` and blueprint components (with `$role` blocks) as fills. Execution order is now fills -> shapes -> text -> blocks -> entities. Example: a 9-wide round tower with a dome and a spire is one call with three short entries instead of hundreds of hand-listed cells.
+- Added 9 unit tests and a new `e2e-curves.mjs` (21 checks).
+
 - Invalid block states now explain themselves in one line, on every path that parses them (`mc_build` blocks/fills/text/cells/cellsFile, blueprints at build time, `mc_plan`, `mc_verify`, `mc_repair`):
   - `oak_stairs facing=up is invalid; facing: north|east|south|west`;
   - `oak_stairs has no property 'facin'; properties: facing, half, shape, waterlogged`;

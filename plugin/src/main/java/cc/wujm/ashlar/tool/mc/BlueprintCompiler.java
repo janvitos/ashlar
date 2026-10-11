@@ -22,7 +22,7 @@ public final class BlueprintCompiler {
     public static final int MAX_EXPANDED_OPS = 100000;
     private static final Pattern NAME = Pattern.compile("[a-z][a-z0-9_-]{0,63}");
     private static final Pattern ROLE = Pattern.compile("\\$([a-z][a-z0-9_-]{0,63})(\\[[^\\[\\]]*\\])?");
-    private static final List<String> KINDS = List.of("fills", "blocks", "text");
+    private static final List<String> KINDS = List.of("fills", "shapes", "blocks", "text");
 
     private BlueprintCompiler() {}
 
@@ -57,7 +57,7 @@ public final class BlueprintCompiler {
         for (var entry : components.entrySet()) {
             name(entry.getKey());
             JsonObject component = ArgParse.requireObject(entry.getValue(), "component " + entry.getKey());
-            fields(component, Set.of("palette", "fills", "blocks", "text"), "component " + entry.getKey());
+            fields(component, Set.of("palette", "fills", "shapes", "blocks", "text"), "component " + entry.getKey());
             palette(component, "palette");
             for (String kind : KINDS) if (ArgParse.has(component, kind)) rawOps += ArgParse.requireArray(component, kind).size();
             if (rawOps > MAX_RAW_OPS) throw new ToolArgError("blueprint: maximum " + MAX_RAW_OPS + " raw operations");
@@ -113,6 +113,7 @@ public final class BlueprintCompiler {
                 for (McBuild.FillOpArg f : part.args().fills()) { consider(min, max, f.from()); consider(min, max, f.to()); }
                 for (McBuild.SparseOpArg b : part.args().blocks()) consider(min, max, b.pos());
                 for (McBuild.TextArg t : part.args().text()) { consider(min, max, t.expanded().bboxMin()); consider(min, max, t.expanded().bboxMax()); }
+                for (McBuild.ShapeArg sh : part.args().shapes()) { consider(min, max, sh.expanded().min()); consider(min, max, sh.expanded().max()); }
             }
             return min[0] > max[0] ? null : new int[][] {min, max};
         } catch (ToolArgError e) {
@@ -173,6 +174,12 @@ public final class BlueprintCompiler {
                         if (liquid(t.background())) flow = Math.addExact(flow, volume(t.expanded().bboxMin(), t.expanded().bboxMax()));
                         operations = Math.addExact(operations, t.expanded().inkRuns().size() + (t.background() != null ? 1 : 0));
                         consider(min, max, t.expanded().bboxMin()); consider(min, max, t.expanded().bboxMax());
+                    }
+                    for (McBuild.ShapeArg sh : args.shapes()) {
+                        volume = Math.addExact(volume, sh.expanded().blocks());
+                        if (liquid(sh.block())) flow = Math.addExact(flow, sh.expanded().blocks());
+                        operations = Math.addExact(operations, sh.expanded().runs().size());
+                        consider(min, max, sh.expanded().min()); consider(min, max, sh.expanded().max());
                     }
                 } catch (ArithmeticException e) { throw new ToolArgError("blueprint: expanded volume overflow"); }
                 if (volume > limits.blocks()) throw new ToolArgError("blueprint: expanded requested volume " + volume + " exceeds limit " + limits.blocks());
@@ -252,6 +259,7 @@ public final class BlueprintCompiler {
                 fields(op, switch (kind) {
                     case "fills" -> Set.of("from", "to", "block", "mode", "filter");
                     case "blocks" -> Set.of("pos", "block", "sign");
+                    case "shapes" -> Set.of("shape", "from", "to", "block", "axis", "thickness");
                     default -> Set.of("text", "pos", "block", "background", "facing", "align", "scale", "spacing");
                 }, "component." + kind);
                 if (kind.equals("text")) for (String number : List.of("scale", "spacing"))

@@ -36,6 +36,7 @@ final class BuildStateTransform {
             args.fills().forEach(f -> { collect(states, f.block(), part.transform()); collect(states, f.filter(), part.transform()); });
             args.blocks().forEach(b -> collect(states, b.block(), part.transform()));
             args.text().forEach(t -> { collect(states, t.block(), part.transform()); collect(states, t.background(), part.transform()); });
+            args.shapes().forEach(sh -> collect(states, sh.block(), part.transform()));
         }
         return batch(new ArrayList<>(states.keySet()), states, 0).thenApply(ignored -> {
             List<McBuild.Args> prepared = new ArrayList<>();
@@ -49,6 +50,7 @@ final class BuildStateTransform {
                         args.blocks().stream().map(b -> new McBuild.SparseOpArg(b.pos(), state(states, b.block(), transform), b.sign())).toList(),
                         args.text().stream().map(t -> new McBuild.TextArg(t.text(), t.pos(), state(states, t.block(), transform),
                                 state(states, t.background(), transform), t.facing(), t.scale(), t.spacing(), t.align(), t.expanded())).toList(),
+                        args.shapes().stream().map(sh -> new McBuild.ShapeArg(sh.shape(), state(states, sh.block(), transform), sh.expanded())).toList(),
                         args.snapshot(), args.connect(), args.liquids()));
             }
             return McBuild.combine(prepared);
