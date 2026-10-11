@@ -110,24 +110,6 @@ public final class McWalk implements Tool {
         return p[0] >= b.minX() && p[0] <= b.maxX() && p[1] >= b.minY() && p[1] <= b.maxY() && p[2] >= b.minZ() && p[2] <= b.maxZ();
     }
 
-    /** Splits the box into x/z tiles of at most {@code maxRead} cells each, full height. */
-    static List<Region> tiles(Region box, long maxRead) {
-        int sy = box.maxY() - box.minY() + 1, sz = box.maxZ() - box.minZ() + 1;
-        if (sy > maxRead) throw new ToolArgError("box: too tall to read (" + sy + " blocks; max-read-volume is " + maxRead + ")");
-        int wz = (int) Math.min(sz, Math.max(1, maxRead / sy));
-        int wx = (int) Math.max(1, maxRead / ((long) sy * wz));
-        List<Region> out = new ArrayList<>();
-        for (int x = box.minX(); x <= box.maxX(); x += wx) {
-            for (int z = box.minZ(); z <= box.maxZ(); z += wz) {
-                out.add(new Region(x, box.minY(), z, Math.min(box.maxX(), x + wx - 1), box.maxY(), Math.min(box.maxZ(), z + wz - 1)));
-            }
-        }
-        return out;
-    }
-
-    /** Box cells as palette indexes in RegionData order, merged from the tiles. */
-    record Cells(int[] ids, List<String> palette, String world) {}
-
     @Override
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
         return ToolRunner.runText("mc_walk", () -> {
@@ -137,45 +119,11 @@ public final class McWalk implements Tool {
                 throw new ToolArgError("box: " + a.box().volume() + " blocks is over the walk limit of " + maxRead * READ_MULTIPLIER
                         + " (4 x limits.max-read-volume); use a tighter box around the walkable area");
             }
-            List<Region> tiles = tiles(a.box(), maxRead);
-            Region box = a.box();
-            int sx = box.maxX() - box.minX() + 1, sz = box.maxZ() - box.minZ() + 1;
-            int[] ids = new int[(int) box.volume()];
-            List<String> palette = new ArrayList<>();
-            Map<String, Integer> index = new HashMap<>();
-            String[] world = new String[1];
-            CompletableFuture<Void> chain = CompletableFuture.completedFuture(null);
-            for (Region t : tiles) {
-                chain = chain.thenCompose(v -> {
-                    JsonObject params = new JsonObject();
-                    if (a.world() != null) params.addProperty("world", a.world());
-                    params.add("from", JsonUtil.intArray(t.minX(), t.minY(), t.minZ()));
-                    params.add("to", JsonUtil.intArray(t.maxX(), t.maxY(), t.maxZ()));
-                    return readRegionHandler.handle(ctx, params).thenAcceptAsync(el -> {
-                        JsonObject r = el.getAsJsonObject();
-                        if (r.has("world") && r.get("world").isJsonPrimitive()) world[0] = r.get("world").getAsString();
-                        RegionData d = RegionData.fromJson(r);
-                        Iterator<String> it = d.iterator();
-                        for (int y = t.minY(); y <= t.maxY(); y++) {
-                            for (int z = t.minZ(); z <= t.maxZ(); z++) {
-                                for (int x = t.minX(); x <= t.maxX(); x++) {
-                                    String s = it.next();
-                                    int id = index.computeIfAbsent(s, k -> {
-                                        palette.add(k);
-                                        return palette.size() - 1;
-                                    });
-                                    ids[((y - box.minY()) * sz + (z - box.minZ())) * sx + (x - box.minX())] = id;
-                                }
-                            }
-                        }
-                    }, compute);
-                });
-            }
-            return chain.thenApplyAsync(v -> run(a, new Cells(ids, palette, world[0] != null ? world[0] : a.world())), compute);
+            return BoxRead.read(readRegionHandler, ctx, a.world(), a.box(), maxRead, compute).thenApplyAsync(c -> run(a, c), compute);
         });
     }
 
-    static String run(Args a, Cells c) {
+    static String run(Args a, BoxRead.Cells c) {
         Walker w = new Walker(a.box(), c.ids(), c.palette(), a.rules());
         int start = w.nodeAt(a.from()[0], a.from()[1], a.from()[2]);
         if (start < 0) {

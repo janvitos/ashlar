@@ -21,19 +21,36 @@ public final class McBlueprint implements Tool {
 
     public McBlueprint(BlueprintStore store) { this(store,null); }
     public McBlueprint(BlueprintStore store,TerrainFitService terrain) { this.store = store; this.terrain=terrain; }
+    private CellFiles cellFiles;
+    /** Enables {@code stage}/{@code finalize} uploads for {@code mc_build cellsFile} (Step 16). */
+    public McBlueprint withCells(CellFiles files) { this.cellFiles = files; return this; }
     @Override public ToolSpec spec() { return spec; }
 
     @Override public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
         return ToolRunner.runText("mc_blueprint", () -> {
-            String action = ArgParse.requireEnum(args, "action", List.of("save", "get", "list", "delete", "generate", "fit"));
+            String action = ArgParse.requireEnum(args, "action", List.of("save", "get", "list", "delete", "generate", "fit", "stage", "finalize"));
             Set<String> allowed = switch (action) {
                 case "save" -> Set.of("action", "id", "document", "overwrite");
                 case "generate" -> Set.of("action", "id", "generator", "overwrite");
                 case "fit" -> Set.of("action", "id", "site", "overwrite");
                 case "list" -> Set.of("action");
+                case "stage" -> Set.of("action", "name", "cells", "reset");
+                case "finalize" -> Set.of("action", "name");
                 default -> Set.of("action", "id");
             };
             BlueprintCompiler.fields(args, allowed, "mc_blueprint");
+            if (action.equals("stage") || action.equals("finalize")) {
+                if (cellFiles == null) throw new cc.wujm.ashlar.tool.ToolArgError("cell staging is unavailable");
+                String name = ArgParse.requireString(args, "name");
+                if (action.equals("stage")) {
+                    var st = cellFiles.stage(name, ArgParse.requireArray(args, "cells"), ArgParse.optBoolean(args, "reset", false), CellBuild.MAX_CELLS);
+                    return CompletableFuture.completedFuture("Staged upload '" + st.name() + "': " + st.cells() + " cells in " + st.calls()
+                            + " call(s). Add more with further stage calls, then action \"finalize\". Nothing is built yet.");
+                }
+                var st = cellFiles.finalizeStage(name, CellBuild.MAX_CELLS);
+                return CompletableFuture.completedFuture("Staged file '" + st.name() + "' is ready: " + st.cells()
+                        + " cells checked. Build it with mc_build {cellsFile:\"" + st.name() + "\"} or compare with mc_diff {against:{expectedFile:\"" + st.name() + "\"}}.");
+            }
             if(action.equals("fit")) {
                 if(terrain==null)throw new cc.wujm.ashlar.tool.ToolArgError("terrain fitting service is unavailable");
                 return terrain.fit(ctx,args,store);

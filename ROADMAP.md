@@ -280,6 +280,30 @@ Branch: `feat/walk-check`.
   - test region restored to pristine air, forceload removed, probe entities killed, journal entries deleted. No production changes.
   - The plan's acceptance case (Titanic Module 9 doors and the iceberg path) needs the production world and was not run.
 
+## Step 16 implementation and verification
+
+Branch: `feat/bulk-io`.
+
+- Pure core in `cc.wujm.ashlar.tool.mc`:
+  - `CellSet`: cells in primitive arrays sorted y, z, x with a sorted palette, so the same cells in any order give the same set; equal duplicates collapse, conflicting ones are rejected; states are checked and namespaced;
+  - `CellMerge`: phase classification (solid, air, late), greedy box merge (at most 128 in x and z, within the per-call block and snapshot limits), and packing of boxes by phase and 128-block tile into parts within the block, chunk, flowing-liquid and snapshot-envelope limits;
+  - `CellFiles`: chunked staging (one gzip member per call), lenient finalize to `<name>.json.gz`, atomic export writes, streamed reading of cells, `{cells}` and palette-rle files, name and symlink checks, retention.
+- Tools: `mc_build` `cells`/`cellsFile`/`resume` (`CellBuild`), `mc_blueprint` `stage`/`finalize`, new `mc_export` (tiled read through `read_region`, encoding on the render executor), `mc_diff expectedFile` also reads staged uploads and exports.
+- Deviations from the plan:
+  - cells cannot be combined with `preflight`, fills, blocks, text, blueprints or transforms: every part still gets the normal structural validation and protection checks;
+  - parts are also capped at 256 chunks each so one part never touches more of the main thread than a typical build;
+  - at most 2,000,000 cells and 1,000 parts per call; a journal entry over `journal.max-cells-per-entry` is skipped as before;
+  - no delete action for staged uploads or exports; retention prunes the oldest beyond 20 files per directory;
+  - the smoke patch is 54,701 cells (the isolated test region holds 144,342), and the 500k export round trip uses a 515,200-cell box around it.
+- Verification:
+  - one plugin build: 803 tests passed (9 new), zero failures;
+  - isolated-server smoke test `e2e-bulk.mjs`, 28 checks:
+    - a 54,701-cell terrain patch staged in two calls, finalized, dry-run, then built: 2,905 boxes in 3 parts (solid, air, late) in under 1.5 s; `mc_diff` against the same file reports no differences;
+    - exports in both formats (91,854 cells), `mc_diff` against each reports no differences; the region was restored to air, rebuilt from the palette-rle export, and matched the sparse export;
+    - a 515,200-cell export round trip (export, then diff) reports no differences;
+    - inline cells (stone then a torch in a later part), resume-token, conflict, mixing and name errors, the export volume cap and overwrite guard;
+  - test region restored to pristine air, forceload removed, journal entries and test files deleted. No production changes.
+
 ## Fork activation
 
 User-approved deployment uses Paper 26.1.2 build 74, without a Paper upgrade. The fork now compiles against that exact API and declares minimum API 26.1. One build passed; an approved restart used a verified full 30-second in-game countdown before a graceful stop/install/start. Original artifact retained for rollback; plugin configuration/credentials unchanged. Pi points at the locally built fork adapter through the existing Docker network arrangement. Basic read-only deployment check confirmed plugin 0.4.9-dev, authenticated MCP, 13 tools and photo-reference instructions. No construction/terrain test writes or exhaustive regressions were performed on production. Pi needs `/reload` to refresh an existing session's connection and catalog.

@@ -52,6 +52,39 @@ public final class McBuild implements Tool {
     private ProtectionGuard protection;
 
     public McBuild withProtection(ProtectionGuard guard) { this.protection = guard; return this; }
+    private CellFiles cellFiles;
+    private java.util.function.Supplier<cc.wujm.ashlar.config.PluginConfig> settings;
+
+    /** Enables {@code cells}/{@code cellsFile} builds (Step 16). */
+    public McBuild withCells(CellFiles files, java.util.function.Supplier<cc.wujm.ashlar.config.PluginConfig> settings) {
+        this.cellFiles = files;
+        this.settings = settings;
+        return this;
+    }
+
+    /** Structural validation of one cells part, without writing. */
+    CompletableFuture<Void> validatePart(Args a) {
+        return preflight == null ? CompletableFuture.completedFuture(null) : preflight.validate(a).thenApply(v -> null);
+    }
+
+    /** Protected-region warnings for one cells part; throws when a deny region is hit. */
+    List<String> protect(InvocationContext ctx, Args a, List<String> override) {
+        return protection == null ? List.of() : protection.enforce(ctx, "mc_build", a.world(), override, ProtectionGuard.targets(a));
+    }
+
+    /** Builds one already validated cells part. */
+    CompletableFuture<String> runPart(InvocationContext ctx, Args a) {
+        return validatePart(a).thenCompose(v -> execute(ctx, a, false));
+    }
+
+    /** Runs all parts of a cells build under one journal entry. */
+    CompletableFuture<String> journalledCells(InvocationContext outer, JsonObject rawArgs,
+            java.util.function.Function<InvocationContext, CompletableFuture<String>> body) {
+        if (journals == null) return body.apply(outer);
+        JournalArgs j = JournalArgs.parse(rawArgs);
+        return journals.journalled(outer, j.journal(), "mc_build", j.label(), body,
+                (text, commit) -> commit.lines().isEmpty() ? text : text + "\n" + String.join("\n", commit.lines()));
+    }
 
     /** Protected-region overlaps of a prepared request and its {@code override}; {@code null} without a guard. */
     ProtectionGuard.Verdict protection(JsonObject raw, Args a) {
@@ -276,6 +309,10 @@ public final class McBuild implements Tool {
     @Override
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
         return ToolRunner.runText("mc_build", () -> {
+            if (CellBuild.applies(args)) {
+                if (settings == null) throw new ToolArgError("cells builds are unavailable");
+                return CellBuild.run(this, ctx, args, settings.get(), cellFiles);
+            }
             List<String> override = ProtectionGuard.parseOverride(args);
             return prepare(args, preflight != null).thenCompose(a -> {
                 boolean dryRun = ArgParse.optBoolean(args, "dryRun", false);

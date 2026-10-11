@@ -24,7 +24,7 @@ try{
     await client.connect(transport);const health=await plugin.request("health",{});assert.equal(health.onlinePlayers,0);assert.equal(health.queuedOperations,0);
     const base=await plugin.request("read_region",{from,to});assert.ok(base.palette.every(s=>s==="minecraft:air"),"Region must be pristine air");
     snapshot=(await plugin.request("snapshot",{from,to,label:"view acceptance pristine region"})).id;
-    const catalog=await client.listTools();check(()=>assert.equal(catalog.tools.length,17));
+    const catalog=await client.listTools();check(()=>assert.equal(catalog.tools.length,18));
     check(()=>assert.equal(catalog.tools.find(t=>t.name==="mc_sightline").annotations.readOnlyHint,true));
     // No players online, so keep the test area loaded explicitly (removed in finally).
     await tool("mc_command",{command:`forceload add ${from[0]} ${from[2]} ${to[0]} ${to[2]}`});forced=true;

@@ -97,7 +97,7 @@
           "expectedFile": {
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-            "description": "Name of plugins/Ashlar/expected/<name>.json(.gz) without extension."
+            "description": "Name without extension of plugins/Ashlar/expected/<name>.json(.gz), else a finished staged upload or an mc_export file."
           },
           "blueprint": {
             "type": "object",

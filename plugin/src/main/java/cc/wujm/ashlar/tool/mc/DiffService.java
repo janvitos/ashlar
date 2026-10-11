@@ -19,14 +19,9 @@ import cc.wujm.ashlar.snapshot.SnapshotStore;
 import cc.wujm.ashlar.tool.ToolArgError;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
-import com.google.gson.JsonParser;
 import org.bukkit.World;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -38,7 +33,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.UnaryOperator;
-import java.util.zip.GZIPInputStream;
 
 /** {@code mc_diff} orchestration and the {@code mc_repair diffId} path. Continuations run off the main thread. */
 public final class DiffService {
@@ -173,28 +167,38 @@ public final class DiffService {
         return ref;
     }
 
-    /** Reads {@code plugins/Ashlar/expected/<name>.json} or {@code .json.gz}: {@code [[x,y,z,"state"],...]} or {@code {"cells":[...]}}. */
+    private CellFiles cellFiles;
+
+    /** Lets {@code expectedFile} also name finished staged uploads and exports (Step 16). */
+    public DiffService withCells(CellFiles files) {
+        this.cellFiles = files;
+        return this;
+    }
+
+    /**
+     * Reads {@code plugins/Ashlar/expected/<name>.json} or {@code .json.gz}, else a finished staged
+     * upload or export of that name: {@code [[x,y,z,"state"],...]}, {@code {"cells":[...]}} or a
+     * palette-rle export. Streams the file, so no JSON tree of the whole file is built.
+     */
     private List<McDiff.Cell> readExpectedFile(String name) {
         Path plain = expectedDir.resolve(name + ".json"), gz = expectedDir.resolve(name + ".json.gz");
         Path file = Files.isRegularFile(gz, LinkOption.NOFOLLOW_LINKS) ? gz : plain;
-        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS))
-            throw new ToolArgError("expected file '" + name + "' not found as plugins/Ashlar/expected/" + name + ".json(.gz) (symlinks are not followed)");
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) file = cellFiles == null ? null : cellFiles.find(name);
+        if (file == null)
+            throw new ToolArgError("expected file '" + name + "' not found as plugins/Ashlar/expected/" + name + ".json(.gz), a finished staged upload or an export (symlinks are not followed)");
         try {
-            if (Files.size(file) > MAX_EXPECTED_FILE_BYTES) throw new ToolArgError("expected file '" + name + "' is larger than 64 MiB");
-            JsonElement root;
-            try (InputStream in = file == gz ? new GZIPInputStream(Files.newInputStream(file)) : Files.newInputStream(file);
-                 InputStreamReader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
-                root = JsonParser.parseReader(reader);
-            }
-            var arr = root.isJsonObject() && root.getAsJsonObject().has("cells") && root.getAsJsonObject().get("cells").isJsonArray()
-                    ? root.getAsJsonObject().getAsJsonArray("cells") : root.isJsonArray() ? root.getAsJsonArray() : null;
-            if (arr == null) throw new ToolArgError("expected file '" + name + "' must be a JSON array of [x,y,z,\"state\"] or {\"cells\":[...]}");
-            long cap = config.get().limits().maxDiffVolume();
-            if (arr.size() > cap) throw new ToolArgError("expected file '" + name + "' has " + arr.size() + " cells, more than limits.max-diff-volume " + cap);
-            return McDiff.cells(arr, "expected file '" + name + "'");
-        } catch (IOException | JsonParseException e) {
-            throw new ToolArgError("expected file '" + name + "' could not be read as JSON: " + e.getClass().getSimpleName());
+            if (Files.size(file) > MAX_EXPECTED_FILE_BYTES && file.startsWith(expectedDir)) throw new ToolArgError("expected file '" + name + "' is larger than 64 MiB");
+        } catch (IOException e) {
+            throw new ToolArgError("expected file '" + name + "' could not be read: " + e.getClass().getSimpleName());
         }
+        long cap = config.get().limits().maxDiffVolume();
+        List<McDiff.Cell> cells = new ArrayList<>();
+        CellFiles.read(file, "expected file '" + name + "'", (x, y, z, state) -> {
+            if (cells.size() >= cap) throw new ToolArgError("expected file '" + name + "' has more than limits.max-diff-volume " + cap + " cells");
+            if (state.isBlank()) throw new ToolArgError("expected file '" + name + "' has a blank block state");
+            cells.add(new McDiff.Cell(x, y, z, state));
+        });
+        return cells;
     }
 
     // ------------------------------------------------------------------ repair

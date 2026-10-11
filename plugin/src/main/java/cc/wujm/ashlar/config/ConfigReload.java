@@ -72,7 +72,8 @@ public final class ConfigReload {
                 oldConfig.limits().maxQueuedOperations(), // cold: TickBudgetExecutor#submit
                 newConfig.limits().maxChunksPerOperation(),
                 newConfig.limits().maxFlowingLiquidsPerOperation(),
-                newConfig.limits().maxDiffVolume());
+                newConfig.limits().maxDiffVolume(),
+                newConfig.limits().maxExportVolume());
 
         PluginConfig.AgentConfig mergedAgent = new PluginConfig.AgentConfig(
                 oldConfig.agent().mode(), // mode-derived: cold
