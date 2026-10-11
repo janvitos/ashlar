@@ -60,7 +60,7 @@
         ]
       },
       "matrix": {
-        "description": "Append the per-block height matrix (about one token per cell). Default: off for images; for text, on up to 40x40. Useful over a small area, e.g. to fill a hole to the surrounding height.",
+        "description": "Append the per-block height matrix (about one token per cell). Default: off. Useful over a small area, e.g. to fill a hole to the surrounding height.",
         "type": "boolean"
       },
       "snowLayers": {

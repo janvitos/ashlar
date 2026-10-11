@@ -79,6 +79,10 @@ final class DiffAccumulator {
     private final BitSet airBits;
     final Map<String, Long> anomalyCounts = new LinkedHashMap<>();
     final Map<String, List<AnomalyHit>> anomalyHits = new LinkedHashMap<>();
+    /** Enclosed air grouped into 6-connected pockets, largest first. */
+    final List<Pocket> pockets = new ArrayList<>();
+
+    record Pocket(long cells, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {}
 
     DiffAccumulator(DiffReference ref, DiffReference baseline, Settings settings, Function<String, String> canon, Predicate<String> ignore) {
         this.box = ref.box;
@@ -194,11 +198,32 @@ final class DiffAccumulator {
         enclosed.andNot(open);
         long count = enclosed.cardinality();
         anomalyCounts.merge("enclosedAir", count, Long::sum);
-        List<AnomalyHit> list = anomalyHits.computeIfAbsent("enclosedAir", k -> new ArrayList<>());
-        for (int i = enclosed.nextSetBit(0); i >= 0 && list.size() < settings.samples(); i = enclosed.nextSetBit(i + 1)) {
-            list.add(new AnomalyHit("enclosedAir", box.minX() + i % dx, box.minY() + i / (dx * dz), box.minZ() + (i / dx) % dz,
-                    "air", "air pocket not connected to the box boundary"));
+        // Group the cells into pockets: one report line per sealed space instead of per cell.
+        for (int s = enclosed.nextSetBit(0); s >= 0; s = enclosed.nextSetBit(s + 1)) {
+            enclosed.clear(s);
+            head = 0; tail = 0; queue[tail++] = s;
+            int[] b = {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
+            while (head < tail) {
+                int i = queue[head++];
+                int x = i % dx, z = (i / dx) % dz, y = i / (dx * dz);
+                b[0] = Math.min(b[0], x); b[1] = Math.min(b[1], y); b[2] = Math.min(b[2], z);
+                b[3] = Math.max(b[3], x); b[4] = Math.max(b[4], y); b[5] = Math.max(b[5], z);
+                if (x > 0) tail = take(i - 1, enclosed, queue, tail);
+                if (x < dx - 1) tail = take(i + 1, enclosed, queue, tail);
+                if (z > 0) tail = take(i - dx, enclosed, queue, tail);
+                if (z < dz - 1) tail = take(i + dx, enclosed, queue, tail);
+                if (y > 0) tail = take(i - dx * dz, enclosed, queue, tail);
+                if (y < dy - 1) tail = take(i + dx * dz, enclosed, queue, tail);
+            }
+            pockets.add(new Pocket(tail, box.minX() + b[0], box.minY() + b[1], box.minZ() + b[2],
+                    box.minX() + b[3], box.minY() + b[4], box.minZ() + b[5]));
         }
+        pockets.sort(Comparator.comparingLong(Pocket::cells).reversed());
+    }
+
+    private static int take(int j, BitSet remaining, int[] queue, int tail) {
+        if (remaining.get(j)) { remaining.clear(j); queue[tail++] = j; }
+        return tail;
     }
 
     private int visit(int j, BitSet open, int[] queue, int tail) {
@@ -274,9 +299,22 @@ final class DiffAccumulator {
         List<String> out = new ArrayList<>();
         if (anomalyCounts.isEmpty()) return out;
         List<String> parts = new ArrayList<>();
-        for (String k : ANOMALY_ORDER) if (anomalyCounts.containsKey(k)) parts.add(k + " " + anomalyCounts.get(k));
+        for (String k : ANOMALY_ORDER) {
+            if (!anomalyCounts.containsKey(k)) continue;
+            String pocketNote = k.equals("enclosedAir") && !pockets.isEmpty()
+                    ? " cells in " + pockets.size() + (pockets.size() == 1 ? " pocket" : " pockets") : "";
+            parts.add(k + " " + anomalyCounts.get(k) + pocketNote);
+        }
         out.add("Anomalies: " + String.join(", ", parts));
         for (String k : ANOMALY_ORDER) {
+            if (k.equals("enclosedAir")) {
+                for (Pocket p : pockets.subList(0, Math.min(perKind, pockets.size()))) {
+                    out.add("  enclosedAir pocket " + pos(p.minX(), p.minY(), p.minZ()) + ".." + pos(p.maxX(), p.maxY(), p.maxZ())
+                            + ": " + p.cells() + (p.cells() == 1 ? " air cell" : " air cells") + " not connected to the box boundary");
+                }
+                if (pockets.size() > perKind) out.add("  (" + (pockets.size() - perKind) + " more pockets)");
+                continue;
+            }
             List<AnomalyHit> hits = anomalyHits.getOrDefault(k, List.of());
             for (AnomalyHit h : hits.subList(0, Math.min(perKind, hits.size()))) {
                 out.add("  " + k + " " + pos(h.x(), h.y(), h.z()) + " " + shortState(h.state()) + " (" + h.reason() + ")");

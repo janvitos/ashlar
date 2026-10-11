@@ -38,12 +38,15 @@ public final class McPlayers implements Tool {
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
         return ToolRunner.runText("mc_players", () -> playersHandler.handle(ctx, params(args)).thenApply(el -> {
             JsonObject r = el.getAsJsonObject();
-            if (r.get("count").getAsInt() == 0) {
+            int count = r.get("count").getAsInt();
+            if (count == 0) {
                 return "No players online.";
             }
+            String name = nameFilter(args);
             List<String> lines = new ArrayList<>();
             for (JsonElement pe : r.getAsJsonArray("players")) {
                 JsonObject p = pe.getAsJsonObject();
+                if (name != null && !p.get("name").getAsString().equalsIgnoreCase(name)) continue;
                 JsonArray pos = p.getAsJsonArray("pos");
                 JsonArray front = p.getAsJsonArray("inFront");
                 lines.add(p.get("name").getAsString() + "  " + p.get("world").getAsString() + "  pos x=" + pos.get(0).getAsInt()
@@ -53,6 +56,9 @@ public final class McPlayers implements Tool {
                         + eyeSuffix(p)
                         + lookingAtSuffix(p));
             }
+            if (lines.isEmpty()) {
+                return "No online player named " + name + " (" + count + " online).";
+            }
             return String.join("\n", lines);
         }));
     }
@@ -60,7 +66,7 @@ public final class McPlayers implements Tool {
     static JsonObject params(JsonObject args) {
         JsonObject params = new JsonObject();
         for (String k : args.keySet()) {
-            if (!k.equals("lookRange")) throw new ToolArgError("unknown parameter: " + k);
+            if (!k.equals("lookRange") && !k.equals("name")) throw new ToolArgError("unknown parameter: " + k);
         }
         if (ArgParse.has(args, "lookRange")) {
             int r = BuildTransform.strictInt(args.get("lookRange"), "lookRange");
@@ -69,7 +75,15 @@ public final class McPlayers implements Tool {
             }
             params.addProperty("lookRange", r);
         }
+        nameFilter(args);
         return params;
+    }
+
+    /** The optional player name to report (case-insensitive), or null for everyone. */
+    static String nameFilter(JsonObject args) {
+        String name = ArgParse.optString(args, "name");
+        if (name != null && name.isBlank()) throw new ToolArgError("name: must not be blank");
+        return name;
     }
 
     private static String eyeSuffix(JsonObject p) {

@@ -30,7 +30,9 @@ export function logUsage(name: string, startedAt: number, content: ContentBlock[
         }
     }
     const elapsedMs = Date.now() - startedAt;
-    console.error(`[tool ${process.pid}] ${name}: ${elapsedMs} ms, ${parts.join(" + ")} = ~${tokens} tokens`);
+    // A single block already shows its own estimate; only add the total for several.
+    const total = parts.length === 1 ? "" : ` = ~${tokens} tokens`;
+    console.error(`[tool ${process.pid}] ${name}: ${elapsedMs} ms, ${parts.join(" + ")}${total}`);
     appendUsageFile({ ts: new Date().toISOString(), pid: process.pid, tool: name, ms: elapsedMs, tokens, detail: parts.join(" + ") });
 }
 

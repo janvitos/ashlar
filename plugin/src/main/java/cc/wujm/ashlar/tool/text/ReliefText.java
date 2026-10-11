@@ -24,9 +24,6 @@ public final class ReliefText {
     public static final int CLASS_LIQUID = 1;
     public static final int CLASS_VEGETATION = 2;
 
-    /** Areas up to this many cells get the numeric matrix by default (40x40). */
-    public static final int MATRIX_AUTO_CELLS = 1600;
-
     /** Mirrors relief.ts's {@code ReliefInput}. {@code matrix} is {@code null} for "unset" (TS {@code undefined}). */
     public record ReliefInput(
             int[] from, // [x1, z1]
@@ -366,11 +363,10 @@ public final class ReliefText {
             downsampleNote.add("");
         }
 
-        boolean includeMatrix = input.matrix() != null ? input.matrix() : (long) width * depth <= MATRIX_AUTO_CELLS;
-        List<String> matrixLines = includeMatrix
+        // Opt-in, as for images: the matrix costs about one token per cell and the summary already gives the heights.
+        List<String> matrixLines = Boolean.TRUE.equals(input.matrix())
                 ? renderMatrix(heights, x1, z1, step)
-                : List.of("Height matrix omitted for this " + width + "x" + depth + " area (" + (width * depth) + " cells); "
-                    + "pass matrix: true if you need exact per-block heights, or survey a smaller area.");
+                : List.of("Height matrix omitted; pass matrix: true for exact per-block heights (about one token per cell).");
 
         List<String> all = new ArrayList<>();
         all.add(summary);
