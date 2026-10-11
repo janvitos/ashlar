@@ -42,14 +42,38 @@ public final class McCommand implements Tool {
         return spec;
     }
 
+    static final int MAX_COMMANDS = 64;
+
+    /** Lines of feedback kept per command in a {@code commands} batch. */
+    static final int BATCH_LINES = 3;
+
     record Args(String command, boolean vanilla) {
         static Args parse(JsonObject o) {
+            if (ArgParse.has(o, "commands")) throw new ToolArgError("pass either command or commands, not both");
             String command = ArgParse.requireString(o, "command");
             if (command.isEmpty()) {
                 throw new ToolArgError("command: must contain at least 1 character(s)");
             }
             return new Args(command, ArgParse.optBoolean(o, "vanilla", false));
         }
+    }
+
+    /** {@code commands}: 1-64 non-empty strings, each run like {@code command} with the same {@code vanilla}. */
+    static List<Args> parseBatch(JsonObject o) {
+        if (ArgParse.has(o, "command")) throw new ToolArgError("pass either command or commands, not both");
+        if (!o.get("commands").isJsonArray()) throw new ToolArgError("commands must be an array of strings");
+        JsonArray arr = o.getAsJsonArray("commands");
+        if (arr.isEmpty() || arr.size() > MAX_COMMANDS) throw new ToolArgError("commands: 1 to " + MAX_COMMANDS + " commands");
+        boolean vanilla = ArgParse.optBoolean(o, "vanilla", false);
+        List<Args> out = new ArrayList<>();
+        for (int i = 0; i < arr.size(); i++) {
+            JsonElement el = arr.get(i);
+            if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isString() || el.getAsString().isEmpty()) {
+                throw new ToolArgError("commands[" + i + "] must be a non-empty string");
+            }
+            out.add(new Args(el.getAsString(), vanilla));
+        }
+        return out;
     }
 
     /** The console's command map (main thread). */
@@ -91,40 +115,98 @@ public final class McCommand implements Tool {
 
     @Override
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
+        if (ArgParse.has(args, "commands")) {
+            return ToolRunner.runText("mc_command", () -> {
+                List<Args> batch = parseBatch(args);
+                // Route every command first, so a bad vanilla:true name rejects the call before anything runs.
+                return MainThread.call(() -> {
+                    List<Routed> routed = new ArrayList<>();
+                    for (int i = 0; i < batch.size(); i++) {
+                        try {
+                            routed.add(route(batch.get(i), BUKKIT));
+                        } catch (ToolArgError e) {
+                            throw new ToolArgError("commands[" + i + "]: " + e.getMessage());
+                        }
+                    }
+                    return routed;
+                }).thenCompose(routed -> runBatch(ctx, routed));
+            });
+        }
         return ToolRunner.runText("mc_command", () -> {
             Args a = Args.parse(args);
             return MainThread.call(() -> route(a, BUKKIT)).thenCompose(routed -> run(ctx, routed));
         });
     }
 
+    /** Runs the commands in order; each gets a short result, and notes about plugin overrides are listed once. */
+    private CompletableFuture<String> runBatch(InvocationContext ctx, List<Routed> routed) {
+        List<String> lines = new ArrayList<>();
+        java.util.Set<String> notes = new java.util.LinkedHashSet<>();
+        int[] problems = {0};
+        CompletableFuture<Void> chain = CompletableFuture.completedFuture(null);
+        for (int i = 0; i < routed.size(); i++) {
+            int index = i;
+            Routed one = routed.get(i);
+            chain = chain.thenCompose(v -> {
+                JsonObject params = new JsonObject();
+                params.addProperty("command", one.command());
+                return runCommandHandler.handle(ctx, params).thenAccept(el -> {
+                    JsonObject r = el.getAsJsonObject();
+                    List<String> result = resultLines(r, new Routed(one.command(), null));
+                    boolean problem = r.has("syntaxError") || !r.get("dispatched").getAsBoolean();
+                    if (problem) problems[0]++;
+                    List<String> body = String.join("\n", result).lines().toList();
+                    String head = "[" + index + "] " + one.command() + ": ";
+                    if (body.size() == 1) {
+                        lines.add(head + body.getFirst());
+                    } else {
+                        lines.add(head.stripTrailing());
+                        int keep = problem ? body.size() : Math.min(BATCH_LINES, body.size());
+                        for (int k = 0; k < keep; k++) lines.add("  " + body.get(k));
+                        if (body.size() > keep) lines.add("  (+" + (body.size() - keep) + " more lines)");
+                    }
+                    if (one.note() != null) notes.add(one.note());
+                });
+            });
+        }
+        return chain.thenApply(v -> {
+            List<String> out = new ArrayList<>();
+            out.add("Ran " + routed.size() + " command(s)" + (problems[0] > 0 ? "; " + problems[0] + " failed or were not dispatched" : "") + ":");
+            out.addAll(lines);
+            out.addAll(notes);
+            return String.join("\n", out);
+        });
+    }
+
     private CompletableFuture<String> run(InvocationContext ctx, Routed routed) {
         JsonObject params = new JsonObject();
         params.addProperty("command", routed.command());
-        return runCommandHandler.handle(ctx, params).thenApply(el -> {
-            JsonObject r = el.getAsJsonObject();
-            List<String> lines = new ArrayList<>();
-            JsonArray output = r.getAsJsonArray("output");
-            if (output.size() > 0) {
-                List<String> outLines = new ArrayList<>();
-                for (JsonElement o : output) {
-                    outLines.add(o.getAsString());
-                }
-                lines.add(String.join("\n", outLines));
-            } else {
-                lines.add("(command produced no feedback)");
+        return runCommandHandler.handle(ctx, params).thenApply(el -> String.join("\n", resultLines(el.getAsJsonObject(), routed)));
+    }
+
+    private static List<String> resultLines(JsonObject r, Routed routed) {
+        List<String> lines = new ArrayList<>();
+        JsonArray output = r.getAsJsonArray("output");
+        if (output.size() > 0) {
+            List<String> outLines = new ArrayList<>();
+            for (JsonElement o : output) {
+                outLines.add(o.getAsString());
             }
-            if (r.has("syntaxError")) {
-                String err = "Syntax error: " + r.get("syntaxError").getAsString();
-                if (output.isEmpty()) lines.set(0, err); else lines.add(err);
-            } else if (!r.get("dispatched").getAsBoolean()) {
-                lines.add("Warning: command \"" + r.get("command").getAsString()
-                        + "\" was not dispatched (rejected by the server's command dispatcher).");
-            }
-            if (r.has("truncated") && r.get("truncated").getAsBoolean()) {
-                lines.add("[output truncated]");
-            }
-            if (routed.note() != null) lines.add(routed.note());
-            return String.join("\n", lines);
-        });
+            lines.add(String.join("\n", outLines));
+        } else {
+            lines.add("(command produced no feedback)");
+        }
+        if (r.has("syntaxError")) {
+            String err = "Syntax error: " + r.get("syntaxError").getAsString();
+            if (output.isEmpty()) lines.set(0, err); else lines.add(err);
+        } else if (!r.get("dispatched").getAsBoolean()) {
+            lines.add("Warning: command \"" + r.get("command").getAsString()
+                    + "\" was not dispatched (rejected by the server's command dispatcher).");
+        }
+        if (r.has("truncated") && r.get("truncated").getAsBoolean()) {
+            lines.add("[output truncated]");
+        }
+        if (routed.note() != null) lines.add(routed.note());
+        return lines;
     }
 }

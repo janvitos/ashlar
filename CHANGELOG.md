@@ -11,6 +11,8 @@ All notable changes to this project are documented in this file.
 - Added 3 unit tests.
 - `mc_inspect format:"exterior"`: what a finished build shows outside. Air is flooded in from the box's sides and top (the bottom layer counts as ground). The reply counts the non-air blocks next to that air by material, the air sealed off from outside, and detached pieces: groups of blocks not connected to the bottom layer, smallest first, which catches stray blocks and leftover scaffolding. A test house with one stray plank: "242 of 290 non-air blocks are seen from outside. Exterior materials: stone_bricks 168 (69.4%), stone 73 (30.2%), oak_planks 1 (0.4%)" and "1x oak_planks [453,47,404]..[453,47,404]". A 200,000-block box takes about 0.3 s. It is an option on an existing tool, so the tool count stays at 19.
 - Added 3 unit tests.
+- `mc_command` takes `commands`: up to 64 console commands run in order in one call, such as one `/item` per chest when furnishing a build (32 chests: 1 call instead of 32). Every command is routed before any runs, so a bad `vanilla:true` name rejects the call with nothing run. The reply has one entry per command (up to 3 feedback lines each; failures in full), counts failed or undispatched commands, and lists plugin-override notes once. A failing command does not stop the rest. Container contents stay outside the journal and snapshots, as before.
+- Added 1 unit test.
 
 ## 0.5.1 (fork)
 

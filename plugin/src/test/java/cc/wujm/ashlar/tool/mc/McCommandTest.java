@@ -6,8 +6,11 @@ import com.google.gson.JsonParser;
 import cc.wujm.ashlar.tool.ToolArgError;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Argument parsing tests for {@link McCommand}, mirroring mc-command.ts's zod schema. */
 class McCommandTest {
@@ -37,5 +40,20 @@ class McCommandTest {
     @Test
     void nonStringCommandThrows() {
         assertThrows(ToolArgError.class, () -> McCommand.Args.parse(obj("{\"command\":123}")));
+    }
+
+    @Test
+    void commandListParsesAndRejectsBadInput() {
+        List<McCommand.Args> batch = McCommand.parseBatch(obj("{\"commands\":[\"weather clear\",\"/time set day\"],\"vanilla\":true}"));
+        assertEquals(2, batch.size());
+        assertEquals("/time set day", batch.get(1).command());
+        assertTrue(batch.get(0).vanilla());
+        for (String bad : List.of("{\"commands\":[]}", "{\"commands\":\"weather clear\"}", "{\"commands\":[\"\"]}", "{\"commands\":[1]}",
+                "{\"commands\":[\"weather clear\"],\"command\":\"weather clear\"}")) {
+            assertThrows(ToolArgError.class, () -> McCommand.parseBatch(obj(bad)), bad);
+        }
+        JsonObject tooMany = obj("{\"commands\":[]}");
+        for (int i = 0; i <= McCommand.MAX_COMMANDS; i++) tooMany.getAsJsonArray("commands").add("weather clear");
+        assertThrows(ToolArgError.class, () -> McCommand.parseBatch(tooMany));
     }
 }
