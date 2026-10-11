@@ -405,6 +405,14 @@ Branch: `fix/command-syntax-errors`.
 - `run_command` catches the `CommandException` Paper throws around a brigadier `CommandSyntaxException` (vanilla commands do not tell the sender) and returns `dispatched:false` with `syntaxError`; `mc_command` replies `Syntax error: <message>`. Any other exception from a command still fails the call and is logged as before. The check is by class name, so Ashlar needs no brigadier dependency.
 - Verification: one plugin build, 876 tests passed (2 new), zero failures; on the isolated server `time query daytime` and `weather query` return their syntax messages with nothing logged, and `e2e-usability.mjs` passes 24 checks (one new). No production changes.
 
+## Fix: angled render legend
+
+Branch: `fix/angled-render-legend`.
+
+- Found in the post-Step-20 review: angled `mc_render` replies dropped the colour legend that the plugin already computes (top and facade views and `mc_plan` previews keep theirs), and carried about 1 KB of fixed text per call. The new pure `AngledRenderText` builds the reply: top-20 legend with canonical states, geometry without `projection`, screen vectors, `requestedScale`, `estimatedIntersectionWork`, `transparentLayerLimit`, `assumptions`, `*Truncated` flags, `diff.tints` and zero/false/empty fields; camera angles rounded to 0.01; samples capped at 10. The raw `render` RPC and `mc_plan` previews are unchanged; first-person replies are unchanged.
+- `e2e-render.mjs` reads missing fallback counts as 0 and checks the legend; `e2e-shapes.mjs` checks the legend instead of `estimatedIntersectionWork`, which the tool reply no longer carries.
+- Verification: one plugin build, 878 tests passed (2 new), zero failures; on the isolated server `e2e-render.mjs` passes 17 checks (one new) and `e2e-shapes.mjs` 71. No production changes.
+
 ## Fork activation
 
 User-approved deployment uses Paper 26.1.2 build 74, without a Paper upgrade. The fork now compiles against that exact API and declares minimum API 26.1. One build passed; an approved restart used a verified full 30-second in-game countdown before a graceful stop/install/start. Original artifact retained for rollback; plugin configuration/credentials unchanged. Pi points at the locally built fork adapter through the existing Docker network arrangement. Basic read-only deployment check confirmed plugin 0.4.9-dev, authenticated MCP, 13 tools and photo-reference instructions. No construction/terrain test writes or exhaustive regressions were performed on production. Pi needs `/reload` to refresh an existing session's connection and catalog.

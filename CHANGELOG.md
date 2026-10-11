@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased (fork)
 
+- `mc_render` isometric/perspective replies now include a colour legend (`legend: {state: "#rrggbb"}`, the 20 most visible blocks, `legendMore` counts the rest), so colours in angled images can be matched to blocks. The reply is shorter: block states are canonical (no `minecraft:`, no default properties), at most 10 fallback samples are listed, and the fixed assumptions text, unit vectors, internal work estimates and zero/false/empty fields are left out. The same air-only render went from 1,150 to 197 characters. Added 2 unit tests and one `e2e-render.mjs` check.
+
 - `mc_command` / `run_command`: a vanilla command syntax error (for example `time query daytime` on 26.2) is returned as `Syntax error: <message>` (`syntaxError` in the RPC result) instead of failing with an internal error and a logged stack trace. Added 2 unit tests and one `e2e-usability.mjs` check.
 
 - Render fidelity: angled `mc_render` views model lanterns (hanging/standing), chains, end and lightning rods, candles, bells, campfires, pointed dripstone, buttons, levers, flower pots and heads, and recognise copper bars. Pillars (logs, stems, basalt, quartz and purpur pillars, hay, bone, deepslate, froglights...) colour end faces apart from sides by `axis` (vanilla log colours, or lightened ends when both match); grass, podzol, mycelium, dirt paths and nylium use their side block's colour on the sides. Paintings and item frames are drawn as placeholder panels.
