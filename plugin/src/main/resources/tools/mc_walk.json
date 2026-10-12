@@ -1,7 +1,7 @@
 {
   "name": "mc_walk",
   "title": "Walk reachability",
-  "description": "Checks where a player can walk inside a box under real movement rules, and names the blocking cell and reason when they cannot. Read-only.\n\nWHEN TO USE: \"can a player walk from A to B?\" (mode path: move count and waypoints) or \"can every door, bed or staircase be reached from the entrance?\" (mode reach with targets), after building stairs, decks, corridors, ledges or paths over snow. Failures give the nearest reachable place and why the next move fails: step too high (with the rise), headroom (the block overhead), closed door, stair approached from the side or back, gap, water, hazard or the box edge.\nWHEN NOT TO USE: for line of sight (mc_sightline) or block lists (mc_inspect). It does not simulate entities, sprint jumps, ice, slime, elytra or boats; doors keep their current state unless rules.doors is \"any\".\n\nPARAMETERS: from/to are FEET positions (the air cell the player stands in); a place matches when the feet are within half a block of y, so a slab or snow floor at y-1 still counts. box {from,to} must contain from, to and targets and reach at least 2 blocks above the highest floor (cells above count as air; columns outside are never entered); at most 4 x limits.max-read-volume. Collision heights: snow (layers-1)/8, carpet 1/16, bottom slab 0.5, bed 9/16, fences, walls and closed gates 1.5; a bottom stair is a 0.5 step only when walked onto toward its facing. Moves are the four horizontal directions. targets \"doors\" checks each lower door half (reachable when both sides are), \"beds\" standing on or beside it, \"stairs\" standing on each bottom stair.\n\nSIDE EFFECTS: read-only; the box is read like mc_inspect (it can load chunks) and searched off the main thread.",
+  "description": "Checks where a player can walk inside a box under real movement rules, and names the blocking cell and reason when they cannot. Read-only.\n\nWHEN TO USE: \"can a player walk from A to B?\" (mode path: move count and waypoints) or \"can every door, bed or staircase be reached from the entrance?\" (mode reach with targets), after building stairs, decks, corridors, ledges or paths over snow. Failures give the nearest reachable place and why the next move fails: step too high (with the rise), headroom (the block overhead), closed door, stair approached from the side or back, gap, water, hazard or the box edge.\nWHEN NOT TO USE: for line of sight (mc_sightline) or block lists (mc_inspect). It does not simulate entities, sprint jumps, ice, slime, elytra or boats; doors keep their current state unless rules.doors is \"any\".\n\nPARAMETERS: from/to are FEET positions (the air cell the player stands in); a place matches when the feet are within half a block of y, so a slab or snow floor at y-1 still counts. box {from,to} must contain from, to and targets and reach at least 2 blocks above the highest floor (cells above count as air; columns outside are never entered); at most 4 x limits.max-read-volume. For a long or diagonal trail give waypoints instead of box: each leg gets its own box within that limit. Collision heights: snow (layers-1)/8, carpet 1/16, bottom slab 0.5, bed 9/16, fences, walls and closed gates 1.5; a bottom stair is a 0.5 step only when walked onto toward its facing. Moves are the four horizontal directions. targets \"doors\" checks each lower door half (reachable when both sides are), \"beds\" standing on or beside it, \"stairs\" standing on each bottom stair.\n\nSIDE EFFECTS: read-only; the box is read like mc_inspect (it can load chunks) and searched off the main thread.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -64,6 +64,19 @@
           }
         ]
       },
+      "waypoints": {
+        "description": "Route mode, instead of box/to/mode/targets/samples: feet positions visited in order after from (the last is the destination), up to 32. Each leg is searched in its own box around its two ends (margin sideways, 4 below, 4 above); the reply gives one line per leg and stops at the first leg that is not walkable.",
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 32,
+        "items": {"type": "array", "items": {"type": "integer"}, "minItems": 3, "maxItems": 3}
+      },
+      "margin": {
+        "description": "Route mode: blocks added sideways around each leg, 1-32. Default 6; raise it when a leg needs a detour.",
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 32
+      },
       "samples": {
         "description": "Most waypoints / unreachable targets listed, 1-200. Default 50.",
         "type": "integer",
@@ -71,7 +84,7 @@
         "maximum": 200
       }
     },
-    "required": ["from", "box"],
+    "required": ["from"],
     "$schema": "https://json-schema.org/draft/2020-12/schema"
   },
   "annotations": {
