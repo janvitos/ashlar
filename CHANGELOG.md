@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 - `mc_command` refuses `/locate` (also `minecraft:locate`, with or without a leading "/", and after `execute ... run`), alone or anywhere in a `commands` batch, before anything runs. Locate searches on the main thread and cannot be interrupted: on 2026-10-12 one far `/locate biome` ran past Paper's 60 s watchdog and crashed the server. Find biomes and structures offline from the world's region files instead.
 - Added 1 unit test.
+- `tools/findsite.py`: finds the largest untouched areas of one biome by reading the world's region files offline, read-only and at low priority, so it never touches the running server. Samples one chunk every 64 blocks; options for the biome, minimum biome sections, maximum player time per chunk, a centre point and maximum distance. The `mc_command` locate refusal and README point to it. On the test server's superflat world it read 13 regions (480 sampled chunks) in about a second.
 
 ## 0.5.4 (fork)
 
