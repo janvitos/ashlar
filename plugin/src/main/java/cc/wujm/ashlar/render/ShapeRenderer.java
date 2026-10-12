@@ -11,7 +11,9 @@ import java.util.List;
 /** Pure off-main schematic ray renderer. No world reads, textures, physics or verification passes. */
 public final class ShapeRenderer {
     private ShapeRenderer() {}
-    private static final long MAX_PIXELS=1_000_000,MAX_WORK=64_000_000;
+    private static final long MAX_PIXELS=1_000_000,MAX_WORK=64_000_000,BASE_VOLUME=200_000,MAX_CELLS=16_000_000;
+    /** Intersection budget: MAX_WORK up to 200,000 cells, then doubled per doubling of volume (scale halves in the same steps). */
+    static long workBudget(long volume){long parts=(volume+BASE_VOLUME-1)/BASE_VOLUME;return parts<=1?MAX_WORK:MAX_WORK*Long.highestOneBit(parts-1)*2;}
     private static final int MAX_LAYERS=8,PADDING=8;
     /** Explicit angled scales go up to 32 px per block for close-ups (auto stays at most 16). */
     public static final int MAX_SCALE=32;
@@ -49,7 +51,7 @@ public final class ShapeRenderer {
     public static Output render(RegionData data,int[] colors,String view,RenderCamera camera,int scale,Extras extras){
         if(!RenderCamera.angled(view))throw new IllegalArgumentException("shape view must be isometric or perspective");
         if(scale<0||scale>MAX_SCALE)throw new IllegalArgumentException("scale must be 0-"+MAX_SCALE);
-        var r=data.region();long volume=r.volume();if(volume<1||volume>200_000||data.volume()!=volume)throw new IllegalArgumentException("shape region must contain 1-200000 valid cells");
+        var r=data.region();long volume=r.volume();if(volume<1||volume>MAX_CELLS||data.volume()!=volume)throw new IllegalArgumentException("shape region must contain 1-"+MAX_CELLS+" valid cells");
         int dx=r.maxX()-r.minX()+1,dy=r.maxY()-r.minY()+1,dz=r.maxZ()-r.minZ()+1;
         if(colors.length!=data.palette().size())throw new IllegalArgumentException("palette colors do not match");
         int[] flat=new int[(int)volume];int pos=0;int[] ids=data.runIndex(),lengths=data.runLength();
@@ -89,13 +91,13 @@ public final class ShapeRenderer {
             double u=c.dot(right)*q,v=c.dot(up)*q;u0=Math.min(u0,u);u1=Math.max(u1,u);v0=Math.min(v0,v);v1=Math.max(v1,v);
         }
         double wide=u1-u0,tall=v1-v0;int requested=scale==0?Math.max(1,Math.min(16,(int)Math.floor(1008/Math.max(wide,tall)))):scale,eff=requested;
-        int width,height;long work;
+        int width,height;long work,budget=workBudget(volume);
         while(true){
             long w=(long)Math.ceil(wide*eff)+2*PADDING,h=(long)Math.ceil(tall*eff)+2*PADDING;
             if(w>Integer.MAX_VALUE||h>Integer.MAX_VALUE)throw new BudgetExceededException("projected image dimensions overflow");
             width=(int)w;height=(int)h;long pixels=w*h;
             work=pixels>MAX_PIXELS ? Long.MAX_VALUE : pixels*((long)dx+dy+dz+3)*maxBoxes;
-            if(pixels<=MAX_PIXELS&&work<=MAX_WORK)break;
+            if(pixels<=MAX_PIXELS&&work<=budget)break;
             if(eff==1)throw new BudgetExceededException("shape image exceeds pixel/intersection budget at scale=1; use smaller 3D bounds");eff=Math.max(1,eff/2);
         }
         int[] pixels=new int[width*height];long[] visible=new long[palette+3];int capped=0;

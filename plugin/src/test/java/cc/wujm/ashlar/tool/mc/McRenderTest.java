@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Argument parsing tests for {@link McRender}, mirroring mc-render.ts's zod schema and body-level checks. */
 class McRenderTest {
@@ -120,6 +121,14 @@ class McRenderTest {
     @Test
     void volumeOverLimitThrows() {
         assertThrows(ToolArgError.class, () -> McRender.checkVolume(200_001));
+    }
+
+    @Test
+    void angledVolumeUsesItsOwnLimit() {
+        assertDoesNotThrow(() -> McRender.checkVolume(new int[] {0, 0, 0}, new int[] {159, 79, 155}, 2_000_000, " for angled views"));
+        ToolArgError e = assertThrows(ToolArgError.class, () -> McRender.checkVolume(new int[] {0, 0, 0}, new int[] {159, 79, 159}, 2_000_000, " for angled views"));
+        assertTrue(e.getMessage().startsWith("mc_render region volume 2048000 exceeds the 2,000,000-block limit for angled views. "), e.getMessage());
+        assertThrows(ToolArgError.class, () -> McRender.checkVolume(new int[] {0, 0, 0}, new int[] {99, 20, 99}));
     }
 
     @Test

@@ -107,6 +107,12 @@ limits:
   # at most max-read-volume cells each, under the tick budget.
   max-export-volume: 4000000
 
+  # Reload: /ashlar reload applies it.
+  # Maximum box volume of an isometric/perspective mc_render (other views keep max-read-volume). The
+  # box is read under the tick budget; ray tracing runs off the main thread and the image detail
+  # budget grows with the volume, so a 2,000,000-block view takes about 2 s.
+  max-render-volume: 2000000
+
 # Reload: /ashlar reload applies it (every key in this section).
 world:
   # Default world name used when a request omits "world".
