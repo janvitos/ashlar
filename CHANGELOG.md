@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## Unreleased
+## 0.5.5 (fork)
 
 - `mc_command` refuses `/locate` (also `minecraft:locate`, with or without a leading "/", and after `execute ... run`), alone or anywhere in a `commands` batch, before anything runs. Locate searches on the main thread and cannot be interrupted: on 2026-10-12 one far `/locate biome` ran past Paper's 60 s watchdog and crashed the server. Find biomes and structures offline from the world's region files instead.
 - Added 1 unit test.
