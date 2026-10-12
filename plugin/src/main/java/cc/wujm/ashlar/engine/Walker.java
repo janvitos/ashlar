@@ -161,14 +161,23 @@ public final class Walker {
         return new int[]{colStart[c], colStart[c + 1]};
     }
 
-    /** The node in column (x, z) whose feet height is closest to {@code y}, within half a block; -1 if none. */
+    /**
+     * The node in column (x, z) whose feet height is closest to {@code y}, within half a block; -1 if
+     * none. A valid standing place wins over a closer one with a problem: for a bottom slab at y, feet
+     * height y (under the slab, blocked by it) is closer than y + 0.5 (on top of it).
+     */
     public int nodeAt(int x, int y, int z) {
         if (!inside(x, z)) return -1;
         int[] r = range(x, z);
         int best = -1;
         for (int i = r[0]; i < r[1]; i++) {
             double d = Math.abs(nodeH[i] - y);
-            if (d <= .5 + EPS && (best < 0 || d < Math.abs(nodeH[best] - y))) best = i;
+            if (d > .5 + EPS) continue;
+            if (best >= 0) {
+                boolean valid = nodeProblem[i] == null;
+                if (valid != (nodeProblem[best] == null) ? !valid : d >= Math.abs(nodeH[best] - y)) continue;
+            }
+            best = i;
         }
         return best;
     }

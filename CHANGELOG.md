@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+- `mc_walk` accepts a start or end point on a bottom slab given as the slab's own block y. Two standing heights were within half a block of that y: on the block under the slab (blocked by the slab itself) and on top of the slab (64.5 for a slab at 64). The closer, blocked one won, so the call failed with "not a standing place: headroom" naming the slab. A valid standing place now wins over a closer blocked one.
+- Added 1 unit test.
+- When a call changes too many cells to keep a journal, the reply no longer suggests snapshots (capped at 200,000 blocks, so no help at that size). It says mc_restore cannot undo the call, and that next time the work can be split into calls under `journal.max-cells-per-entry`, or the area exported with `mc_export` first and rebuilt with `mc_build cellsFile` to undo.
+
 ## 0.5.2 (fork)
 
 - `mc_build` no longer reports false support warnings when a later part of the same call supplies the support, for example a hanging lantern in `fills` under a ceiling in `blocks`. Each phase (fills, shapes, text, blocks, and each `cells` part) still checks support right after its own writes, but the warned positions are now checked again once the whole call has written, and only the ones still unsupported are reported. Agents are told to fix every warning, so a false one cost extra calls.

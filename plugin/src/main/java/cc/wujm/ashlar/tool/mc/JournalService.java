@@ -123,7 +123,9 @@ public final class JournalService {
             JournalRecorder r = capture.recorder();
             if (r.overflowed()) {
                 return new Commit(null, "Journal: not kept - this call changed more than " + r.maxCells()
-                        + " cells (journal.max-cells-per-entry); use snapshots for calls this large.");
+                        + " cells (journal.max-cells-per-entry), so mc_restore cannot undo it. Next time split the work"
+                        + " into calls under that limit (each keeps its own journal), or mc_export the area first and"
+                        + " rebuild it with mc_build cellsFile to undo.");
             }
             if (capture.mixedWorlds()) return new Commit(null, "Journal: not kept - this call wrote to more than one world.");
             JournalCells cells = r.toCells();
