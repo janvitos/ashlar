@@ -54,7 +54,27 @@ public final class McCommand implements Tool {
             if (command.isEmpty()) {
                 throw new ToolArgError("command: must contain at least 1 character(s)");
             }
+            refuseLocate(command);
             return new Args(command, ArgParse.optBoolean(o, "vanilla", false));
+        }
+    }
+
+    /**
+     * Refuses {@code /locate}, also namespaced or after {@code execute ... run}. It searches on the
+     * main thread and cannot be interrupted; one far biome search outran Paper's 60 s watchdog and
+     * crashed the server.
+     */
+    static void refuseLocate(String command) {
+        String[] tokens = command.strip().toLowerCase(java.util.Locale.ROOT).split("\\s+");
+        tokens[0] = tokens[0].startsWith("/") ? tokens[0].substring(1) : tokens[0];
+        boolean execute = tokens[0].equals("execute") || tokens[0].equals("minecraft:execute");
+        for (int i = 0; i < tokens.length; i++) {
+            if (i > 0 && !(execute && tokens[i - 1].equals("run"))) continue;
+            String t = tokens[i];
+            if (t.equals("locate") || t.equals("minecraft:locate")) {
+                throw new ToolArgError("locate is blocked: it searches on the main thread and a long search can freeze the server until"
+                        + " the watchdog kills it. Nothing was run. Find biomes and structures offline from the world's region files instead.");
+            }
         }
     }
 
@@ -70,6 +90,11 @@ public final class McCommand implements Tool {
             JsonElement el = arr.get(i);
             if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isString() || el.getAsString().isEmpty()) {
                 throw new ToolArgError("commands[" + i + "] must be a non-empty string");
+            }
+            try {
+                refuseLocate(el.getAsString());
+            } catch (ToolArgError e) {
+                throw new ToolArgError("commands[" + i + "]: " + e.getMessage());
             }
             out.add(new Args(el.getAsString(), vanilla));
         }
