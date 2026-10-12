@@ -66,6 +66,14 @@ public final class McBuild implements Tool {
         return this;
     }
 
+    private RpcHandler heightmapHandler;
+
+    /** Enables {@code heightfield} builds, which read each column's ground first. */
+    public McBuild withHeightfield(RpcHandler heightmap) {
+        this.heightmapHandler = heightmap;
+        return this;
+    }
+
     private cc.wujm.ashlar.engine.EntityService entities;
 
     /** Enables {@code entities} (Step 17). */
@@ -439,6 +447,12 @@ public final class McBuild implements Tool {
                 if (ArgParse.has(args, "blueprint")) throw new ToolArgError("entities cannot be combined with a blueprint; place them in a separate mc_build call");
                 if (CellBuild.applies(args)) throw new ToolArgError("entities cannot be combined with cells or cellsFile; place them in a separate mc_build call");
                 if (entities == null) throw new ToolArgError("entity builds are unavailable");
+            }
+            if (Heightfield.applies(args)) {
+                if (ents != null) throw new ToolArgError("entities cannot be combined with a heightfield; place them in a separate mc_build call");
+                if (CellBuild.applies(args)) throw new ToolArgError("give either heightfield or cells/cellsFile, not both");
+                if (settings == null || heightmapHandler == null) throw new ToolArgError("heightfield builds are unavailable");
+                return Heightfield.run(this, ctx, args, settings.get(), heightmapHandler);
             }
             if (CellBuild.applies(args)) {
                 if (settings == null) throw new ToolArgError("cells builds are unavailable");
