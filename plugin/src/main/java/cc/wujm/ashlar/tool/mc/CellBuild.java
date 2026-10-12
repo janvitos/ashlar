@@ -76,8 +76,11 @@ final class CellBuild {
             builder = new CellSet.Builder(MAX_CELLS, "cellsFile '" + name + "'");
             CellFiles.read(p, "cellsFile '" + name + "'", builder::add);
         }
-        CellSet set = builder.build();
+        return planCells(args, cfg, builder.build());
+    }
 
+    /** Merges and splits a cell set built by the caller (cells, cellsFile or a heightfield); no world access. */
+    static Plan planCells(JsonObject args, PluginConfig cfg, CellSet set) {
         boolean snapshot = ArgParse.optBoolean(args, "snapshot", false);
         JsonObject options = new JsonObject();
         if (ArgParse.has(args, "liquids")) options.add("liquids", args.get("liquids"));
@@ -114,7 +117,15 @@ final class CellBuild {
     }
 
     static CompletableFuture<String> run(McBuild build, InvocationContext ctx, JsonObject args, PluginConfig cfg, CellFiles files) {
-        Plan plan = plan(args, cfg, files);
+        return run(build, ctx, args, cfg, plan(args, cfg, files), null, null);
+    }
+
+    /**
+     * Validates, protection-checks and builds a plan. {@code intro} is an extra first reply line, or
+     * null; {@code retry} replaces the resume advice after a failed part, or null for the resume token.
+     */
+    static CompletableFuture<String> run(McBuild build, InvocationContext ctx, JsonObject args, PluginConfig cfg, Plan plan, String intro,
+            String retry) {
         int total = plan.parts().size();
         List<String> override = ProtectionGuard.parseOverride(args);
         long cells = 0;
@@ -128,13 +139,13 @@ final class CellBuild {
         return checks.thenCompose(v -> {
             Set<String> protection = new LinkedHashSet<>();
             for (int k = plan.start(); k <= total; k++) protection.addAll(build.protect(ctx, plan.args().get(k - 1), override));
-            String head = summary(plan);
+            String head = intro == null ? summary(plan) : intro + "\n" + summary(plan);
             if (ArgParse.optBoolean(args, "dryRun", false)) {
                 List<String> lines = new ArrayList<>(List.of(head, "Dry run: every part passed validation; nothing was written."));
                 lines.addAll(protection);
                 return CompletableFuture.completedFuture(String.join("\n", lines));
             }
-            return build.journalledCells(ctx, args, jctx -> parts(build, jctx, plan)).thenApply(text -> {
+            return build.journalledCells(ctx, args, jctx -> parts(build, jctx, plan, retry)).thenApply(text -> {
                 List<String> lines = new ArrayList<>(List.of(head, text));
                 lines.addAll(protection);
                 return String.join("\n", lines);
@@ -142,7 +153,7 @@ final class CellBuild {
         });
     }
 
-    private static CompletableFuture<String> parts(McBuild build, InvocationContext ctx, Plan plan) {
+    private static CompletableFuture<String> parts(McBuild build, InvocationContext ctx, Plan plan, String retry) {
         int total = plan.parts().size();
         List<String> lines = new ArrayList<>();
         long[] sums = {0, 0};
@@ -189,7 +200,8 @@ final class CellBuild {
             if (done > lines.size()) out.add("... and " + (done - lines.size()) + " more part(s).");
             if (failedAt[0] != 0) {
                 out.add("Stopped at part " + failedAt[0] + "/" + total + ": " + error[0]);
-                out.add("Parts before it stay built. Fix the cause, then repeat this call with resume:\"" + plan.fingerprint() + ":" + failedAt[0] + "\".");
+                out.add(retry != null ? "Parts before it stay built. " + retry
+                        : "Parts before it stay built. Fix the cause, then repeat this call with resume:\"" + plan.fingerprint() + ":" + failedAt[0] + "\".");
             }
             out.addAll(warningLines);
             return String.join("\n", out);

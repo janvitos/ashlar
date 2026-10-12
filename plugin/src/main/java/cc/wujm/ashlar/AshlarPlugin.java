@@ -237,7 +237,7 @@ public final class AshlarPlugin extends JavaPlugin {
             return new BlueprintCompiler.Limits(limits.maxBlocksPerOperation(), limits.maxChunksPerOperation(),
                     limits.maxFlowingLiquidsPerOperation());
         }).withPreflight(preflight).withJournal(journalService).withProtection(protection)
-                .withCells(cellFiles, configHolder::get).withEntities(entityService)
+                .withCells(cellFiles, configHolder::get).withHeightfield(heightmapHandler).withEntities(entityService)
                 .withSupportRecheck(new cc.wujm.ashlar.engine.SupportRecheck(configHolder, executor));
         VerificationService verification = new VerificationService(buildTool, preflight, executor, configHolder,
                 new VerificationStore(), snapshotCreateHandler);
