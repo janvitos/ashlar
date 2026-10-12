@@ -30,11 +30,16 @@ import java.util.concurrent.Executor;
 /** {@code mc_walk}: read-only player-movement reachability inside a box (Step 15). */
 public final class McWalk implements Tool {
 
-    private static final Set<String> KEYS = Set.of("from", "to", "box", "world", "mode", "rules", "targets", "samples");
+    private static final Set<String> KEYS = Set.of("from", "to", "box", "world", "mode", "rules", "targets", "samples", "waypoints", "margin");
+    private static final Set<String> ROUTE_KEYS = Set.of("from", "waypoints", "margin", "world", "rules");
     private static final Set<String> RULE_KEYS = Set.of("jump", "stepHeight", "allowLadders", "allowWater", "doors", "maxDrop");
     static final int READ_MULTIPLIER = 4;
     static final int MAX_LIST_TARGETS = 256;
     static final int MAX_FOUND_TARGETS = 2000;
+    static final int MAX_WAYPOINTS = 32;
+    static final int DEFAULT_MARGIN = 6;
+    /** Leg boxes reach this far below the lower end and above the higher end of the leg. */
+    static final int LEG_BELOW = 4, LEG_ABOVE = 4;
 
     private final ToolSpec spec = ToolSpec.load("mc_walk");
     private final RpcHandler readRegionHandler;
@@ -58,6 +63,7 @@ public final class McWalk implements Tool {
             for (String k : o.keySet()) if (!KEYS.contains(k)) throw new ToolArgError("unknown parameter: " + k);
             int[] from = ArgParse.requireCoords3(o, "from");
             int[] to = ArgParse.has(o, "to") ? ArgParse.requireCoords3(o, "to") : null;
+            if (!ArgParse.has(o, "box")) throw new ToolArgError("box: required, or give waypoints for a route checked leg by leg");
             JsonObject b = ArgParse.requireObject(o.get("box"), "box");
             for (String k : b.keySet()) if (!k.equals("from") && !k.equals("to")) throw new ToolArgError("unknown box field: " + k);
             Region box = Region.of(ArgParse.requireCoords3(b, "from"), ArgParse.requireCoords3(b, "to"));
@@ -106,6 +112,104 @@ public final class McWalk implements Tool {
         }
     }
 
+    /** {@code waypoints} mode: a route from {@code from} through each waypoint, every leg searched in its own box. */
+    record Route(int[] from, List<int[]> waypoints, int margin, String world, Walker.Rules rules) {
+        static boolean applies(JsonObject o) {
+            return ArgParse.has(o, "waypoints");
+        }
+
+        static Route parse(JsonObject o) {
+            for (String k : o.keySet()) {
+                if (!ROUTE_KEYS.contains(k)) {
+                    throw new ToolArgError("with waypoints, mc_walk accepts only " + String.join(", ", ROUTE_KEYS.stream().sorted().toList())
+                            + "; got " + k + " (each leg gets its own box)");
+                }
+            }
+            int[] from = ArgParse.requireCoords3(o, "from");
+            JsonArray a = ArgParse.requireArray(o, "waypoints");
+            if (a.isEmpty() || a.size() > MAX_WAYPOINTS) throw new ToolArgError("waypoints: 1-" + MAX_WAYPOINTS + " positions; the last is the destination");
+            List<int[]> points = new ArrayList<>();
+            for (JsonElement e : a) {
+                if (!e.isJsonArray() || e.getAsJsonArray().size() != 3) throw new ToolArgError("waypoints: each must be [x,y,z]");
+                int[] p = new int[3];
+                for (int i = 0; i < 3; i++) p[i] = BuildTransform.strictInt(e.getAsJsonArray().get(i), "waypoints");
+                points.add(p);
+            }
+            int margin = ArgParse.has(o, "margin") ? ArgParse.requireInt(o, "margin") : DEFAULT_MARGIN;
+            if (margin < 1 || margin > 32) throw new ToolArgError("margin: must be 1-32");
+            Walker.Rules rules = ArgParse.has(o, "rules") ? Args.rules(ArgParse.requireObject(o.get("rules"), "rules")) : Walker.Rules.DEFAULT;
+            return new Route(from, points, margin, ArgParse.optString(o, "world"), rules);
+        }
+
+        int[] start(int leg) {
+            return leg == 0 ? from : waypoints.get(leg - 1);
+        }
+
+        /** The box searched for leg {@code leg} (0-based): both ends, {@code margin} sideways, a few blocks below and above. */
+        Region box(int leg) {
+            int[] s = start(leg), e = waypoints.get(leg);
+            return new Region(Math.min(s[0], e[0]) - margin, Math.min(s[1], e[1]) - LEG_BELOW, Math.min(s[2], e[2]) - margin,
+                    Math.max(s[0], e[0]) + margin, Math.max(s[1], e[1]) + LEG_ABOVE, Math.max(s[2], e[2]) + margin);
+        }
+
+        /** Every leg box within {@code cap}, checked before anything is read. */
+        void checkLegs(long cap) {
+            for (int leg = 0; leg < waypoints.size(); leg++) {
+                long v = box(leg).volume();
+                if (v <= cap) continue;
+                int[] s = start(leg), e = waypoints.get(leg);
+                int[] mid = {(s[0] + e[0]) >> 1, (s[1] + e[1]) >> 1, (s[2] + e[2]) >> 1};
+                throw new ToolArgError("leg " + (leg + 1) + " " + pos(s) + " -> " + pos(e) + ": its box is " + v + " blocks, over the walk limit of "
+                        + cap + "; add a waypoint in between (about " + pos(mid) + ", at a standing height) or lower margin");
+            }
+        }
+    }
+
+    /** Runs the legs one after another; stops at the first leg that is not walkable. */
+    private CompletableFuture<String> route(InvocationContext ctx, Route r, long maxRead) {
+        List<String> lines = new ArrayList<>();
+        int[] moves = {0};
+        int legs = r.waypoints().size();
+        CompletableFuture<Boolean> chain = CompletableFuture.completedFuture(true);
+        for (int i = 0; i < legs; i++) {
+            int leg = i;
+            chain = chain.thenComposeAsync(ok -> !ok ? CompletableFuture.completedFuture(false)
+                    : BoxRead.read(readRegionHandler, ctx, r.world(), r.box(leg), maxRead, compute).thenApplyAsync(c -> {
+                        Leg l = leg(r, leg, c);
+                        lines.add(l.line());
+                        moves[0] += Math.max(0, l.moves());
+                        return l.moves() >= 0;
+                    }, compute), compute);
+        }
+        return chain.thenApply(ok -> {
+            String head = "Route from " + pos(r.from()) + " through " + legs + " waypoint(s): "
+                    + (ok ? "walkable, " + moves[0] + " moves in total." : "NOT walkable; stopped at leg " + lines.size() + " of " + legs + ".");
+            return head + "\n" + String.join("\n", lines) + "\nRules: " + rules(r.rules()) + "; margin " + r.margin() + ".";
+        });
+    }
+
+    /** One leg's line; {@code moves} is -1 when the leg is not walkable. */
+    record Leg(int moves, String line) {}
+
+    static Leg leg(Route r, int leg, BoxRead.Cells c) {
+        int[] s = r.start(leg), e = r.waypoints().get(leg);
+        String head = "Leg " + (leg + 1) + " " + pos(s) + " -> " + pos(e) + ": ";
+        Walker w = new Walker(r.box(leg), c.ids(), c.palette(), r.rules());
+        int start = w.nodeAt(s[0], s[1], s[2]);
+        if (start < 0 || w.problem(start) != null) {
+            return new Leg(-1, head + "NOT walkable: the start is not a standing place"
+                    + (start < 0 ? " (on " + w.state(s[0], s[1] - 1, s[2]).replace("minecraft:", "") + ")" : ": " + describe(w.problem(start))) + ".");
+        }
+        int goal = w.nodeAt(e[0], e[1], e[2]);
+        int[] parent = w.search(start, goal);
+        List<Integer> path = Walker.path(parent, goal);
+        if (!path.isEmpty()) return new Leg(path.size() - 1, head + "reachable in " + (path.size() - 1) + " moves.");
+        StringBuilder sb = new StringBuilder(head).append("NOT reachable. ");
+        if (goal >= 0 && w.problem(goal) != null) sb.append("The waypoint is not a standing place: ").append(describe(w.problem(goal))).append(". ");
+        sb.append(diagnosis(w, w.diagnose(parent, e[0], e[1], e[2]))).append('.');
+        return new Leg(-1, sb.toString());
+    }
+
     static boolean contains(Region b, int[] p) {
         return p[0] >= b.minX() && p[0] <= b.maxX() && p[1] >= b.minY() && p[1] <= b.maxY() && p[2] >= b.minZ() && p[2] <= b.maxZ();
     }
@@ -113,8 +217,13 @@ public final class McWalk implements Tool {
     @Override
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
         return ToolRunner.runText("mc_walk", () -> {
-            Args a = Args.parse(args);
             long maxRead = config.get().limits().maxReadVolume();
+            if (Route.applies(args)) {
+                Route r = Route.parse(args);
+                r.checkLegs(maxRead * READ_MULTIPLIER);
+                return route(ctx, r, maxRead);
+            }
+            Args a = Args.parse(args);
             if (a.box().volume() > maxRead * READ_MULTIPLIER) {
                 throw new ToolArgError("box: " + a.box().volume() + " blocks is over the walk limit of " + maxRead * READ_MULTIPLIER
                         + " (4 x limits.max-read-volume); use a tighter box around the walkable area");

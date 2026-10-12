@@ -78,4 +78,49 @@ class WalkArgsTest {
         assertTrue(doors.contains("east side unreachable"), doors);
         assertThrows(ToolArgError.class, () -> McWalk.run(McWalk.Args.parse(json("{\"from\":[0,66,0],\"box\":{\"from\":[0,63,0],\"to\":[9,67,9]}}")), cells));
     }
+
+    /** Cells for {@code box}: a stone floor at y=63 (feet 64), plus a 3-high stone wall along x={@code wallX} when it is >= 0. */
+    private static BoxRead.Cells floor(Region box, int wallX) {
+        int sx = box.maxX() - box.minX() + 1, sz = box.maxZ() - box.minZ() + 1, sy = box.maxY() - box.minY() + 1;
+        int[] ids = new int[sx * sy * sz];
+        for (int y = box.minY(); y <= box.maxY(); y++) for (int z = box.minZ(); z <= box.maxZ(); z++) for (int x = box.minX(); x <= box.maxX(); x++) {
+            boolean stone = y == 63 || x == wallX && y >= 64 && y <= 66;
+            ids[((y - box.minY()) * sz + (z - box.minZ())) * sx + (x - box.minX())] = stone ? 1 : 0;
+        }
+        return new BoxRead.Cells(ids, List.of("minecraft:air", "minecraft:stone"), "world");
+    }
+
+    @Test
+    void routeLegsGetTheirOwnBoxes() {
+        var r = McWalk.Route.parse(json("{\"from\":[0,64,0],\"waypoints\":[[100,64,100],[100,70,140]]}"));
+        assertEquals(6, r.margin());
+        assertEquals(new Region(-6, 60, -6, 106, 68, 106), r.box(0));
+        assertEquals(new Region(94, 60, 94, 106, 74, 146), r.box(1));
+        r.checkLegs(800_000);
+        // A 300x300 diagonal in one leg is far over the limit; the error names the leg and a midpoint.
+        var far = McWalk.Route.parse(json("{\"from\":[0,64,0],\"waypoints\":[[10,64,10],[310,64,310]]}"));
+        var e = assertThrows(ToolArgError.class, () -> far.checkLegs(800_000));
+        assertTrue(e.getMessage().startsWith("leg 2 [10,64,10] -> [310,64,310]") && e.getMessage().contains("about [160,64,160]"), e.getMessage());
+        assertThrows(ToolArgError.class, () -> McWalk.Route.parse(json("{\"from\":[0,64,0],\"waypoints\":[[1,64,1]]," + BOX + "}")));
+        assertThrows(ToolArgError.class, () -> McWalk.Route.parse(json("{\"from\":[0,64,0],\"waypoints\":[]}")));
+        assertThrows(ToolArgError.class, () -> McWalk.Route.parse(json("{\"from\":[0,64,0],\"waypoints\":[[1,64,1]],\"margin\":0}")));
+        var missing = assertThrows(ToolArgError.class, () -> McWalk.Args.parse(json("{\"from\":[0,64,0]}")));
+        assertTrue(missing.getMessage().contains("waypoints"), missing.getMessage());
+    }
+
+    @Test
+    void routeLegLines() {
+        var r = McWalk.Route.parse(json("{\"from\":[0,64,0],\"waypoints\":[[10,64,0],[10,64,10]],\"margin\":2}"));
+        McWalk.Leg ok = McWalk.leg(r, 0, floor(r.box(0), -1000));
+        assertEquals(10, ok.moves());
+        assertEquals("Leg 1 [0,64,0] -> [10,64,0]: reachable in 10 moves.", ok.line());
+        // A 3-high wall at x=5 across the whole leg box: the diagnosis names it.
+        var walled = McWalk.Route.parse(json("{\"from\":[0,64,0],\"waypoints\":[[10,64,0]],\"margin\":2}"));
+        McWalk.Leg blocked = McWalk.leg(walled, 0, floor(walled.box(0), 5));
+        assertEquals(-1, blocked.moves());
+        assertTrue(blocked.line().startsWith("Leg 1 [0,64,0] -> [10,64,0]: NOT reachable.") && blocked.line().contains("at 5,64,"), blocked.line());
+        // With the wall on the start column the start itself is inside stone.
+        McWalk.Leg badStart = McWalk.leg(walled, 0, floor(walled.box(0), 0));
+        assertTrue(badStart.line().contains("the start is not a standing place"), badStart.line());
+    }
 }
