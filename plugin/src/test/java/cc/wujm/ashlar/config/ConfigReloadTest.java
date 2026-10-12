@@ -84,7 +84,7 @@ class ConfigReloadTest {
         PluginConfig oldConfig = baseConfig();
         PluginConfig newConfig = new PluginConfig(
                 new PluginConfig.ServerConfig(true, "0.0.0.0", 8765, "0123456789abcdef", List.of("9.9.9.9")),
-                new PluginConfig.LimitsConfig(999, 999, 20, 16, 999, 999, 999),
+                new PluginConfig.LimitsConfig(999, 999, 20, 16, 999, 999, 999, 999, 999),
                 new PluginConfig.WorldConfig("nether", List.of("nether"),
                         new PluginConfig.WorldConfig.BuildRegion(true, -1, -1, 1, 1)),
                 new PluginConfig.SnapshotConfig(false, 5, 5),
@@ -107,6 +107,7 @@ class ConfigReloadTest {
         assertEquals(999, applied.limits().maxChunksPerOperation());
         assertEquals(999, applied.limits().maxFlowingLiquidsPerOperation());
         assertEquals(999, applied.limits().maxDiffVolume());
+        assertEquals(999, applied.limits().maxRenderVolume());
         assertEquals(newConfig.world(), applied.world());
         assertEquals(newConfig.snapshot(), applied.snapshot());
         assertEquals(newConfig.logging(), applied.logging());

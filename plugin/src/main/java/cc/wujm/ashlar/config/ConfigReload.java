@@ -73,7 +73,8 @@ public final class ConfigReload {
                 newConfig.limits().maxChunksPerOperation(),
                 newConfig.limits().maxFlowingLiquidsPerOperation(),
                 newConfig.limits().maxDiffVolume(),
-                newConfig.limits().maxExportVolume());
+                newConfig.limits().maxExportVolume(),
+                newConfig.limits().maxRenderVolume());
 
         PluginConfig.AgentConfig mergedAgent = new PluginConfig.AgentConfig(
                 oldConfig.agent().mode(), // mode-derived: cold

@@ -13,6 +13,8 @@ All notable changes to this project are documented in this file.
 - Added 3 unit tests.
 - `mc_command` takes `commands`: up to 64 console commands run in order in one call, such as one `/item` per chest when furnishing a build (32 chests: 1 call instead of 32). Every command is routed before any runs, so a bad `vanilla:true` name rejects the call with nothing run. The reply has one entry per command (up to 3 feedback lines each; failures in full), counts failed or undispatched commands, and lists plugin-override notes once. A failing command does not stop the rest. Container contents stay outside the journal and snapshots, as before.
 - Added 1 unit test.
+- Isometric and perspective `mc_render` views take boxes up to 2,000,000 blocks (was 200,000), set by the new hot-reloadable `limits.max-render-volume`. A whole district fits in one picture instead of ten. The image keeps its detail: the ray-tracing budget doubles with each doubling of volume above 200,000 blocks, so renders up to 200,000 blocks are unchanged (405x506 before and after). On the test server (5 ms tick budget, 1.5 GB heap) a 160x78x160 city rendered at 922x794 in 2.3 s (isometric) and 977x780 in 3.3 s (perspective), with no "Can't keep up" warnings. Flat maps, facades, slices, heightmaps and `mc_plan` previews keep their limits.
+- Added 3 unit tests.
 
 ## 0.5.1 (fork)
 

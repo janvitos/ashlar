@@ -88,8 +88,8 @@ public final class RenderHandler implements RpcHandler {
     private CompletableFuture<JsonElement> startRender(RequestValidator validator, World world, JsonObject params,
             int[] heights, InvocationContext ctx) {
         try {
-            long cap = configHolder.get().limits().maxReadVolume();
-            if (RenderCamera.angled(validator.peekRenderView(params))) cap = Math.min(cap,200_000);
+            var limits = configHolder.get().limits();
+            long cap = RenderCamera.angled(validator.peekRenderView(params)) ? limits.maxRenderVolume() : limits.maxReadVolume();
             Region region = validator.validateReadRegion(params, heights[0], heights[1], cap);
             RequestValidator.RenderParams renderParams = validator.validateRenderParams(params, region);
             if (!params.has("compareTo")) return renderService.renderRegion(world, region, renderParams, ctx);

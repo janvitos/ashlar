@@ -214,14 +214,27 @@ public final class McRender implements Tool {
     }
 
     static void checkVolume(int[] lo, int[] hi) {
+        checkVolume(lo, hi, MAX_VOLUME, "");
+    }
+
+    /** {@code max} is {@link #MAX_VOLUME}, or limits.max-render-volume for isometric/perspective views. */
+    static void checkVolume(int[] lo, int[] hi, long max, String which) {
         long volume = cc.wujm.ashlar.engine.PlanGeometry.checkedVolume(new cc.wujm.ashlar.engine.Region(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]));
-        if (volume > MAX_VOLUME) checkVolume(volume, SplitBoxes.hint(lo, hi, MAX_VOLUME, "calls"));
+        if (volume > max) checkVolume(volume, max, which, SplitBoxes.hint(lo, hi, max, "calls"));
     }
 
     private static void checkVolume(long volume, String advice) {
-        if (volume > MAX_VOLUME) {
-            throw new ToolArgError("mc_render region volume " + volume + " exceeds the 200,000-block limit. " + advice);
+        checkVolume(volume, MAX_VOLUME, "", advice);
+    }
+
+    private static void checkVolume(long volume, long max, String which, String advice) {
+        if (volume > max) {
+            throw new ToolArgError("mc_render region volume " + volume + " exceeds the " + String.format(java.util.Locale.ROOT, "%,d", max) + "-block limit" + which + ". " + advice);
         }
+    }
+
+    private long angledMaxVolume() {
+        return config == null ? cc.wujm.ashlar.config.PluginConfig.LimitsConfig.DEFAULT_MAX_RENDER_VOLUME : config.get().limits().maxRenderVolume();
     }
 
     static void checkSliceRequired(String resolvedView, SliceArg slice) {
@@ -250,6 +263,8 @@ public final class McRender implements Tool {
 
             if (resolvedView.equals("heightmap") || resolvedView.equals("top")) {
                 checkArea(resolvedView, new int[] {x1, z1}, new int[] {x2, z2});
+            } else if (cc.wujm.ashlar.render.RenderCamera.angled(resolvedView)) {
+                checkVolume(new int[] {x1, y1, z1}, new int[] {x2, y2, z2}, angledMaxVolume(), " for angled views");
             } else {
                 checkVolume(new int[] {x1, y1, z1}, new int[] {x2, y2, z2});
             }
