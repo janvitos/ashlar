@@ -54,7 +54,7 @@ public final class McCommand implements Tool {
             if (command.isEmpty()) {
                 throw new ToolArgError("command: must contain at least 1 character(s)");
             }
-            refuseBlocked(command);
+            refuseBlocked(command, ArgParse.optBoolean(o, "allowLocate", false), ArgParse.optBoolean(o, "allowSave", false));
             return new Args(command, ArgParse.optBoolean(o, "vanilla", false));
         }
     }
@@ -65,22 +65,25 @@ public final class McCommand implements Tool {
      * interrupted; one far biome search outran Paper's 60 s watchdog and crashed the server. The save
      * commands write or re-enable saving for every loaded world, including worlds a plugin keeps
      * unsaved on purpose; one save-all flush wrote a duel arena mid-match and broke it.
+     * {@code allowLocate} / {@code allowSave} let a caller who has read the risk run them anyway.
      */
-    static void refuseBlocked(String command) {
+    static void refuseBlocked(String command, boolean allowLocate, boolean allowSave) {
         String[] tokens = command.strip().toLowerCase(java.util.Locale.ROOT).split("\\s+");
         tokens[0] = tokens[0].startsWith("/") ? tokens[0].substring(1) : tokens[0];
         boolean execute = tokens[0].equals("execute") || tokens[0].equals("minecraft:execute");
         for (int i = 0; i < tokens.length; i++) {
             if (i > 0 && !(execute && tokens[i - 1].equals("run"))) continue;
             String t = tokens[i].startsWith("minecraft:") ? tokens[i].substring("minecraft:".length()) : tokens[i];
-            if (t.equals("locate")) {
+            if (t.equals("locate") && !allowLocate) {
                 throw new ToolArgError("locate is blocked: it searches on the main thread and a long search can freeze the server until"
-                        + " the watchdog kills it. Nothing was run. To find a biome, run tools/findsite.py from the Ashlar repo on the server host: it reads the region files offline.");
+                        + " the watchdog kills it. Nothing was run. To find a biome, run tools/findsite.py from the Ashlar repo on the server host: it reads the region files offline."
+                        + " Only if a locate is really needed and its search stays short (a nearby structure, not a far biome), pass allowLocate:true.");
             }
-            if (t.equals("save-all") || t.equals("save-on") || t.equals("save-off")) {
+            if ((t.equals("save-all") || t.equals("save-on") || t.equals("save-off")) && !allowSave) {
                 throw new ToolArgError(t + " is blocked: it changes saving for every loaded world, including worlds a plugin keeps"
                         + " unsaved on purpose (a save-all once wrote a duel arena mid-match and broke it). Nothing was run. To read"
-                        + " live blocks use mc_inspect, mc_survey saveAs or mc_export instead of flushing and reading region files.");
+                        + " live blocks use mc_inspect, mc_survey saveAs or mc_export instead of flushing and reading region files."
+                        + " Only if it is really needed and no plugin-managed world (such as a duel arena) is in use, pass allowSave:true.");
             }
         }
     }
@@ -92,6 +95,8 @@ public final class McCommand implements Tool {
         JsonArray arr = o.getAsJsonArray("commands");
         if (arr.isEmpty() || arr.size() > MAX_COMMANDS) throw new ToolArgError("commands: 1 to " + MAX_COMMANDS + " commands");
         boolean vanilla = ArgParse.optBoolean(o, "vanilla", false);
+        boolean allowLocate = ArgParse.optBoolean(o, "allowLocate", false);
+        boolean allowSave = ArgParse.optBoolean(o, "allowSave", false);
         List<Args> out = new ArrayList<>();
         for (int i = 0; i < arr.size(); i++) {
             JsonElement el = arr.get(i);
@@ -99,7 +104,7 @@ public final class McCommand implements Tool {
                 throw new ToolArgError("commands[" + i + "] must be a non-empty string");
             }
             try {
-                refuseBlocked(el.getAsString());
+                refuseBlocked(el.getAsString(), allowLocate, allowSave);
             } catch (ToolArgError e) {
                 throw new ToolArgError("commands[" + i + "]: " + e.getMessage());
             }

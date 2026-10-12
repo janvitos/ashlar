@@ -56,6 +56,19 @@ class McCommandTest {
     }
 
     @Test
+    void overridesRunBlockedCommandsOnlyWhenAsked() {
+        assertEquals("save-all flush", McCommand.Args.parse(obj("{\"command\":\"save-all flush\",\"allowSave\":true}")).command());
+        assertEquals("locate structure village", McCommand.Args.parse(obj("{\"command\":\"locate structure village\",\"allowLocate\":true}")).command());
+        assertEquals(2, McCommand.parseBatch(obj("{\"commands\":[\"save-off\",\"save-on\"],\"allowSave\":true}")).size());
+        ToolArgError e = assertThrows(ToolArgError.class,
+                () -> McCommand.Args.parse(obj("{\"command\":\"save-all\",\"allowLocate\":true}")));
+        assertTrue(e.getMessage().contains("pass allowSave:true"), e.getMessage());
+        e = assertThrows(ToolArgError.class,
+                () -> McCommand.parseBatch(obj("{\"commands\":[\"save-all\",\"locate biome desert\"],\"allowSave\":true}")));
+        assertTrue(e.getMessage().startsWith("commands[1]: locate is blocked") && e.getMessage().contains("pass allowLocate:true"), e.getMessage());
+    }
+
+    @Test
     void missingCommandThrows() {
         ToolArgError e = assertThrows(ToolArgError.class, () -> McCommand.Args.parse(obj("{}")));
         assertEquals("command: required, must be a string", e.getMessage());
