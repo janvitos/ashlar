@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+- `mc_command` refuses `/save-all`, `/save-on` and `/save-off` (also namespaced, with or without a leading "/", and after `execute ... run`), alone or anywhere in a `commands` batch, before anything runs. They change saving for every loaded world, including worlds a plugin deliberately keeps unsaved: on 2026-10-10 a `save-all flush`, sent so region files could be read offline, wrote a pooled duel arena to disk mid-match, and the pool quarantined it until it was rebuilt. Read live blocks with `mc_inspect`, `mc_survey saveAs` or `mc_export` instead.
+- Added 1 unit test.
+
 ## 0.5.5 (fork)
 
 - `mc_command` refuses `/locate` (also `minecraft:locate`, with or without a leading "/", and after `execute ... run`), alone or anywhere in a `commands` batch, before anything runs. Locate searches on the main thread and cannot be interrupted: on 2026-10-12 one far `/locate biome` ran past Paper's 60 s watchdog and crashed the server. Find biomes and structures offline from the world's region files instead.
