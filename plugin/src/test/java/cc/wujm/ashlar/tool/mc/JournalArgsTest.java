@@ -46,4 +46,17 @@ class JournalArgsTest {
         assertFalse(McBuild.JournalArgs.parse(json("{\"journal\":false}")).journal());
         assertThrows(ToolArgError.class, () -> McBuild.JournalArgs.parse(json("{\"label\":\"" + "x".repeat(101) + "\"}")));
     }
+
+    @Test void journalledBuildsLargerThanOneEntryAreRefusedUpFront() {
+        var c = cc.wujm.ashlar.config.PluginConfig.JournalConfig.DEFAULT;
+        assertEquals(4_000_000, c.maxCellsPerEntry());
+        var on = McBuild.JournalArgs.parse(json("{}"));
+        on.requireFits(c, 4_000_000, "this build");
+        var e = assertThrows(ToolArgError.class, () -> on.requireFits(c, 4_000_001, "this cells build"));
+        assertTrue(e.getMessage().startsWith("this cells build writes up to 4,000,001 cells"), e.getMessage());
+        assertTrue(e.getMessage().contains("Nothing was written") && e.getMessage().contains("journal:false"), e.getMessage());
+        // Without a journal there is nothing to fit: journal:false, or journalling disabled in config.
+        McBuild.JournalArgs.parse(json("{\"journal\":false}")).requireFits(c, 9_000_000, "this build");
+        on.requireFits(new cc.wujm.ashlar.config.PluginConfig.JournalConfig(false, 200, 40_000_000, 30, 4_000_000), 9_000_000, "this build");
+    }
 }

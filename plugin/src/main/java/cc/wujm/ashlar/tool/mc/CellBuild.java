@@ -117,6 +117,9 @@ final class CellBuild {
         Plan plan = plan(args, cfg, files);
         int total = plan.parts().size();
         List<String> override = ProtectionGuard.parseOverride(args);
+        long cells = 0;
+        for (int k = plan.start(); k <= total; k++) cells += plan.parts().get(k - 1).volume();
+        McBuild.JournalArgs.parse(args).requireFits(cfg.journal(), cells, total > 1 ? "this cells build" : "this build");
         CompletableFuture<Void> checks = CompletableFuture.completedFuture(null);
         for (int k = plan.start(); k <= total; k++) {
             McBuild.Args a = plan.args().get(k - 1);

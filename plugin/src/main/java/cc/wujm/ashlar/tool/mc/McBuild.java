@@ -417,6 +417,18 @@ public final class McBuild implements Tool {
             }
             return new JournalArgs(label == null ? null : label.trim(), ArgParse.optBoolean(o, "journal", true));
         }
+
+        /**
+         * Refuses, before anything is written, a journalled call declaring more cells than one journal
+         * entry keeps; such a call would otherwise build and only then report it cannot be undone.
+         */
+        void requireFits(cc.wujm.ashlar.config.PluginConfig.JournalConfig c, long cells, String what) {
+            if (!journal || c == null || !c.enabled() || cells <= c.maxCellsPerEntry()) return;
+            throw new ToolArgError(String.format(java.util.Locale.ROOT, "%s writes up to %,d cells, more than one journal keeps"
+                    + " (journal.max-cells-per-entry %,d), so mc_restore could not undo it. Nothing was written. Split it into"
+                    + " calls of at most %,d cells, or pass journal:false to build without undo (mc_export the area first to"
+                    + " keep a way back).", what, cells, c.maxCellsPerEntry(), c.maxCellsPerEntry()));
+        }
     }
 
     @Override
@@ -458,6 +470,7 @@ public final class McBuild implements Tool {
                     return guarded(ctx, a, ents, override, detailed, args);
                 }
                 return preflight.validate(a).thenCompose(validated -> {
+                    if (journals != null) JournalArgs.parse(args).requireFits(validated.settings().journal(), validated.volume(), "this build");
                     if (dryRun || siteCheck) return preflight.analyze(ctx,validated,null).thenCompose(result -> {
                         JsonObject report = result.report();
                         if (dryRun) {
