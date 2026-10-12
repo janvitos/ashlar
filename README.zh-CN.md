@@ -339,6 +339,8 @@ ashlar simulate 100 64 -200 south build a small stone cottage
 | `snapshot.max-volume` | `200000` | 单次快照最多可捕获的区域体积。 |
 | `logging.log-operations` | `true` | 是否把已执行的操作追加到 `operations.log`。 |
 | `run-command.enabled` | `true` | 是否提供 `run_command`/`mc_command` 这个应急出口。 |
+| `run-command.allow-locate` | `false` | `mc_command` 是否执行 `/locate`（包括 `execute ... run`）。长时间的搜索会卡住服务器直到看门狗把它杀掉；只在需要时打开。工具参数无法覆盖它。 |
+| `run-command.allow-save` | `false` | `mc_command` 是否执行 `/save-all`、`/save-on` 和 `/save-off`，它们会改变所有已加载世界的保存，包括插件故意不保存的世界。工具参数无法覆盖它。 |
 | `engine.connect-blocks` | `true` | 写入后是否执行仅改变形状的连接处理（玻璃板/栅栏/墙/铁栏杆/楼梯与相邻方块连接）。可通过 `mc_build` 的 `connect` 字段按请求覆盖。 |
 | `engine.support-warnings` | `true` | 写入后是否检查失去支撑的悬挂方块（作为警告报告，不会自动修复任何东西）。不支持按请求覆盖。 |
 | `engine.text-font-file` | `""` | `mc_build` 的 `text` 条目用于非 ASCII（中日韩）文字的 `.ttf`/`.otf`/`.ttc` 字体文件路径，替代这个 JVM 的系统字体。留空保持现有行为；相对路径相对于插件数据目录解析。路径无效时只会记录一条警告并回退到系统字体，绝不会导致服务器无法启动。 |

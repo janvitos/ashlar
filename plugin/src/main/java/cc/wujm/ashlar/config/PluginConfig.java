@@ -125,7 +125,15 @@ public record PluginConfig(
     public record LoggingConfig(boolean logOperations) {
     }
 
-    public record RunCommandConfig(boolean enabled) {
+    /**
+     * {@code run-command.*}. {@code allowLocate} / {@code allowSave}: whether {@code mc_command} runs
+     * {@code /locate} and {@code /save-all}, {@code /save-on}, {@code /save-off}; only the
+     * administrator can turn them on, no tool argument does.
+     */
+    public record RunCommandConfig(boolean enabled, boolean allowLocate, boolean allowSave) {
+        public RunCommandConfig(boolean enabled) {
+            this(enabled, false, false);
+        }
     }
 
     /**
@@ -285,6 +293,8 @@ public record PluginConfig(
 
         boolean logOperations = fc.getBoolean("logging.log-operations", true);
         boolean runCommandEnabled = fc.getBoolean("run-command.enabled", true);
+        boolean allowLocate = fc.getBoolean("run-command.allow-locate", false);
+        boolean allowSave = fc.getBoolean("run-command.allow-save", false);
         boolean connectBlocks = fc.getBoolean("engine.connect-blocks", true);
         boolean supportWarnings = fc.getBoolean("engine.support-warnings", true);
         String textFontFile = fc.getString("engine.text-font-file", "");
@@ -328,7 +338,7 @@ public record PluginConfig(
                 new SnapshotConfig(snapshotEnabled, maxSnapshots, maxVolume),
                 journal,
                 new LoggingConfig(logOperations),
-                new RunCommandConfig(runCommandEnabled),
+                new RunCommandConfig(runCommandEnabled, allowLocate, allowSave),
                 new EngineConfig(connectBlocks, supportWarnings, textFontFile == null ? "" : textFontFile.trim()),
                 new AgentConfig(agentMode, agentCooldownSeconds, agentMaxMessageLength, agentEchoToMonitors,
                         agentEveryoneCanUse,
