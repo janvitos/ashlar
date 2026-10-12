@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## Unreleased
+## 0.5.3 (fork)
 
 - `mc_walk` accepts a start or end point on a bottom slab given as the slab's own block y. Two standing heights were within half a block of that y: on the block under the slab (blocked by the slab itself) and on top of the slab (64.5 for a slab at 64). The closer, blocked one won, so the call failed with "not a standing place: headroom" naming the slab. A valid standing place now wins over a closer blocked one.
 - Added 1 unit test.
