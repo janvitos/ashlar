@@ -26,6 +26,22 @@ class McCommandTest {
     }
 
     @Test
+    void locateIsRefusedInEveryForm() {
+        for (String c : List.of("locate biome minecraft:desert", "/locate structure village", "minecraft:locate biome desert",
+                "LOCATE biome desert", "execute positioned 0 0 0 run locate biome minecraft:desert",
+                "execute in minecraft:overworld run minecraft:locate poi bed")) {
+            ToolArgError e = assertThrows(ToolArgError.class, () -> McCommand.Args.parse(obj("{\"command\":\"" + c + "\"}")), c);
+            assertTrue(e.getMessage().startsWith("locate is blocked"), e.getMessage());
+        }
+        ToolArgError e = assertThrows(ToolArgError.class,
+                () -> McCommand.parseBatch(obj("{\"commands\":[\"time set day\",\"locate biome minecraft:desert\"]}")));
+        assertTrue(e.getMessage().startsWith("commands[1]: locate is blocked"), e.getMessage());
+        assertEquals("say run locate", McCommand.Args.parse(obj("{\"command\":\"say run locate\"}")).command());
+        assertEquals("say locate the desert", McCommand.Args.parse(obj("{\"command\":\"say locate the desert\"}")).command());
+        assertEquals("tellraw @a \"run locate\"", McCommand.Args.parse(obj("{\"command\":\"tellraw @a \\\"run locate\\\"\"}")).command());
+    }
+
+    @Test
     void missingCommandThrows() {
         ToolArgError e = assertThrows(ToolArgError.class, () -> McCommand.Args.parse(obj("{}")));
         assertEquals("command: required, must be a string", e.getMessage());
