@@ -154,6 +154,21 @@ class WalkerTest {
     }
 
     @Test
+    void startOnABottomSlabGivenAsItsBlockY() {
+        // A slab floor at y=64: feet rest at 64.5. Giving y=64 (the slab's own block) must pick that
+        // place, not the closer feet height 64 under the slab, whose only obstruction is the slab.
+        Grid g = new Grid();
+        for (int x = 0; x < 10; x++) for (int z = 0; z < 10; z++) g.set(x, 64, z, "minecraft:stone_slab[type=bottom,waterlogged=false]");
+        Walker w = g.walker();
+        int s = w.nodeAt(2, 64, 2);
+        assertTrue(s >= 0);
+        assertNull(w.problem(s));
+        assertEquals(64.5, w.h(s), 1e-9);
+        assertEquals(64.5, w.h(w.nodeAt(2, 65, 2)), 1e-9);
+        assertTrue(reaches(w, new int[]{0, 64, 0}, new int[]{9, 64, 9}));
+    }
+
+    @Test
     void laddersWaterAndDrops() {
         // A 3-high ledge at x>=6 with a ladder against it at x=5.
         Grid g = new Grid();
