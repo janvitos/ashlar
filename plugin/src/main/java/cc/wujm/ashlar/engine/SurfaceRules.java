@@ -44,6 +44,19 @@ public final class SurfaceRules {
     }
 
     /**
+     * True when the ground reading of a saved survey keeps scanning down past this block: what
+     * {@link #skip} passes, plus tree parts (logs, wood, stems, mushroom caps, mangrove roots, bee
+     * nests) and liquids, so a forest or a lake reads as the soil or bed below it.
+     */
+    public static boolean groundSkip(String state, int snowLayers) {
+        if (skip(state, snowLayers)) return true;
+        String m = WalkShapes.material(state);
+        return m.endsWith("_log") || m.endsWith("_wood") || m.endsWith("_stem") || m.endsWith("_hyphae") || m.endsWith("_mushroom_block")
+                || m.equals("mangrove_roots") || m.equals("muddy_mangrove_roots") || m.equals("bee_nest")
+                || m.equals("water") || m.equals("lava") || m.equals("bubble_column");
+    }
+
+    /**
      * Where feet rest on this block, relative to its own y: its collision top (1 for a cube, 0.5 for
      * a bottom slab, 1.5 for a fence, 1/16 for carpet), 1 for the surface of water or lava, or
      * {@code NaN} when it has no collision (or is leaves) and the scan continues below.

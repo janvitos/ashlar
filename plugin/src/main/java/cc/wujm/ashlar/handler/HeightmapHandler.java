@@ -50,7 +50,9 @@ public final class HeightmapHandler implements RpcHandler {
             RequestValidator.HeightmapArea area = validator.validateHeightmapArea(params, configHolder.get().limits().maxReadVolume());
             int decorSnow = HeightmapTypes.ignoresDecor(typeName) ? validator.validateSnowLayers(params) : -1;
             boolean walk = params.has("walk") && params.get("walk").isJsonPrimitive() && params.get("walk").getAsBoolean();
-            return heightmapService.heightmap(world, area.x1(), area.z1(), area.x2(), area.z2(), heightMap, typeName, decorSnow, walk, ctx);
+            boolean columns = params.has("columns") && params.get("columns").isJsonPrimitive() && params.get("columns").getAsBoolean();
+            return heightmapService.heightmap(world, area.x1(), area.z1(), area.x2(), area.z2(), heightMap, typeName, decorSnow, walk, columns,
+                    ctx);
         } catch (RpcError e) {
             return CompletableFuture.failedFuture(e);
         }

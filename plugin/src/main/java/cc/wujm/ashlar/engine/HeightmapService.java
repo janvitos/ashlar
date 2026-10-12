@@ -32,9 +32,15 @@ public final class HeightmapService {
     /** Step 18: {@code decorSnow >= 0} for {@code TOP_SOLID_IGNORE_DECOR}; {@code walk} adds per-column feet heights. */
     public CompletableFuture<JsonElement> heightmap(World world, int x1, int z1, int x2, int z2,
             HeightMap heightMap, String typeName, int decorSnow, boolean walk, InvocationContext ctx) {
+        return heightmap(world, x1, z1, x2, z2, heightMap, typeName, decorSnow, walk, false, ctx);
+    }
+
+    /** {@code columns}: also each column's ground and top block, for mc_survey saveAs. */
+    public CompletableFuture<JsonElement> heightmap(World world, int x1, int z1, int x2, int z2,
+            HeightMap heightMap, String typeName, int decorSnow, boolean walk, boolean columns, InvocationContext ctx) {
         MainThread.assertNotPrimary("HeightmapService.heightmap");
         Region region = new Region(x1, 0, z1, x2, 0, z2);
-        HeightmapTask task = new HeightmapTask(region, world, x1, z1, x2, z2, heightMap, typeName, decorSnow, walk);
+        HeightmapTask task = new HeightmapTask(region, world, x1, z1, x2, z2, heightMap, typeName, decorSnow, walk, columns);
         return executor.submit(task, ctx);
     }
 }

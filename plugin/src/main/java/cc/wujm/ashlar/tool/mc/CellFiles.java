@@ -235,6 +235,12 @@ public final class CellFiles {
                 boolean sawCells = false;
                 while (r.hasNext()) {
                     switch (r.nextName()) {
+                        case "format" -> {
+                            if (r.peek() != JsonToken.STRING) r.skipValue();
+                            else if (r.nextString().equals("surface")) {
+                                throw new ToolArgError(what + " is an mc_survey surface file (heights and top blocks per column), not cells");
+                            }
+                        }
                         case "cells" -> {
                             cells(r, what, sink);
                             sawCells = true;

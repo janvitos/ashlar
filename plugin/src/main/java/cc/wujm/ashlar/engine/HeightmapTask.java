@@ -44,6 +44,7 @@ public final class HeightmapTask extends BuildTask {
     private final String typeName;
     private final int decorSnow;
     private final double[][] walk; // [zi][xi] feet y, or null when not requested
+    private final Columns columns; // mc_survey saveAs: ground and top readings per column, or null
 
     private final int[][] heights; // [zi][xi]
     private final int[][] classes; // [zi][xi]: SurfaceClass.code() (0 ground, 1 liquid, 2 vegetation)
@@ -59,9 +60,17 @@ public final class HeightmapTask extends BuildTask {
         this(region, world, x1, z1, x2, z2, heightMap, typeName, -1, false);
     }
 
-    /** {@code decorSnow >= 0}: {@code TOP_SOLID_IGNORE_DECOR} with that many snow layers ignored; {@code walk}: also read feet heights. */
     public HeightmapTask(Region region, World world, int x1, int z1, int x2, int z2, HeightMap heightMap, String typeName, int decorSnow,
             boolean walk) {
+        this(region, world, x1, z1, x2, z2, heightMap, typeName, decorSnow, walk, false);
+    }
+
+    /**
+     * {@code decorSnow >= 0}: {@code TOP_SOLID_IGNORE_DECOR} with that many snow layers ignored; {@code walk}: also read feet
+     * heights; {@code columns}: also read each column's ground and top block (see {@link Columns}).
+     */
+    public HeightmapTask(Region region, World world, int x1, int z1, int x2, int z2, HeightMap heightMap, String typeName, int decorSnow,
+            boolean walk, boolean columns) {
         super(region);
         this.world = world;
         this.x1 = x1;
@@ -74,6 +83,66 @@ public final class HeightmapTask extends BuildTask {
         this.walk = walk ? new double[z2 - z1 + 1][x2 - x1 + 1] : null;
         this.heights = new int[z2 - z1 + 1][x2 - x1 + 1];
         this.classes = new int[z2 - z1 + 1][x2 - x1 + 1];
+        this.columns = columns ? new Columns((x2 - x1 + 1) * (z2 - z1 + 1)) : null;
+    }
+
+    /**
+     * Per column, row-major (z, then x): "top" is the first non-air block from above, "ground" the
+     * block below it that {@link SurfaceRules#groundSkip} stops at (through plants, trees and
+     * liquids). Blocks are indices into one palette of block-state strings.
+     */
+    private static final class Columns {
+        /** Most blocks the ground scan steps down through: tall jungle trees over deep water stay well inside it. */
+        static final int MAX_GROUND_SCAN = 256;
+        final int[] topY, top, groundY, ground;
+        final java.util.List<String> palette = new java.util.ArrayList<>();
+        final Map<BlockData, Integer> index = new java.util.HashMap<>();
+
+        Columns(int n) {
+            topY = new int[n];
+            top = new int[n];
+            groundY = new int[n];
+            ground = new int[n];
+        }
+
+        int id(BlockData d) {
+            return index.computeIfAbsent(d, k -> {
+                palette.add(k.getAsString());
+                return palette.size() - 1;
+            });
+        }
+
+        void read(World w, int x, int z, int i) {
+            int min = w.getMinHeight();
+            int y = w.getHighestBlockYAt(x, z, HeightMap.WORLD_SURFACE);
+            if (y > min && w.getBlockAt(x, y, z).getType().isAir()) y--;
+            BlockData d = w.getBlockAt(x, y, z).getBlockData();
+            topY[i] = y;
+            top[i] = id(d);
+            for (int s = 0; s < MAX_GROUND_SCAN && y > min && SurfaceRules.groundSkip(palette.get(id(d)), SurfaceRules.DEFAULT_SNOW_LAYERS); s++) {
+                d = w.getBlockAt(x, --y, z).getBlockData();
+            }
+            groundY[i] = y;
+            ground[i] = id(d);
+        }
+
+        JsonObject json() {
+            JsonObject o = new JsonObject();
+            JsonArray p = new JsonArray();
+            for (String s : palette) p.add(s);
+            o.add("palette", p);
+            o.add("topY", ints(topY));
+            o.add("top", ints(top));
+            o.add("groundY", ints(groundY));
+            o.add("ground", ints(ground));
+            return o;
+        }
+
+        private static JsonArray ints(int[] a) {
+            JsonArray out = new JsonArray(a.length);
+            for (int v : a) out.add(v);
+            return out;
+        }
     }
 
     @Override
@@ -112,6 +181,7 @@ public final class HeightmapTask extends BuildTask {
             int y = SurfaceReader.surfaceY(world, cursorX, cursorZ, heightMap, decorSnow);
             heights[cursorZ - z1][cursorX - x1] = y;
             if (walk != null) walk[cursorZ - z1][cursorX - x1] = SurfaceReader.walkY(world, cursorX, cursorZ);
+            if (columns != null) columns.read(world, cursorX, cursorZ, (cursorZ - z1) * (x2 - x1 + 1) + (cursorX - x1));
 
             BlockData data = world.getBlockAt(cursorX, y, cursorZ).getBlockData();
             boolean waterlogged = data instanceof Waterlogged w && w.isWaterlogged();
@@ -166,6 +236,7 @@ public final class HeightmapTask extends BuildTask {
         }
         result.add("classes", classesJson);
         if (decorSnow >= 0) result.addProperty("snowLayers", decorSnow);
+        if (columns != null) result.add("columns", columns.json());
         if (walk != null) {
             JsonArray walkJson = new JsonArray();
             for (double[] row : walk) {

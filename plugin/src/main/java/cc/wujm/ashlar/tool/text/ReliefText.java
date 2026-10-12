@@ -262,6 +262,13 @@ public final class ReliefText {
     }
 
     /** Renders the full text block: summary line, ASCII map, legend, numeric matrix. Pure ASCII. */
+    /** The first line of {@link #renderRelief}: area, height range and median, surface materials and the largest flat zone. */
+    public static String summaryLine(ReliefInput input) {
+        String text = renderRelief(input);
+        int nl = text.indexOf('\n');
+        return nl < 0 ? text : text.substring(0, nl);
+    }
+
     public static String renderRelief(ReliefInput input) {
         int x1 = input.from()[0], z1 = input.from()[1];
         int x2 = input.to()[0], z2 = input.to()[1];
