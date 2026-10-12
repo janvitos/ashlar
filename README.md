@@ -614,9 +614,9 @@ A small hut (survey, snapshot, build, a couple of renders, a final reply - about
 | `snapshot.max-volume` | `200000` | Max region volume a single snapshot may capture. |
 | `journal.enabled` | `true` | Journal every writing `mc_build`/`mc_repair`/`mc_restore` for selective undo (block states, sign text and placed/removed decorative entities). |
 | `journal.max-entries` | `200` | Journal entries kept on disk (`plugins/Ashlar/journal/`); oldest idle entry is evicted first. |
-| `journal.max-total-cells` | `20000000` | Total changed cells across all entries. |
+| `journal.max-total-cells` | `40000000` | Total changed cells across all entries. |
 | `journal.max-age-days` | `30` | Older entries are evicted. |
-| `journal.max-cells-per-entry` | `1000000` | A call changing more cells keeps no journal (the result says so). |
+| `journal.max-cells-per-entry` | `4000000` | Most cells one call's journal keeps (about 40 bytes each in memory during the call). A journalled `mc_build` declaring more is refused before it writes (`journal:false` builds it without undo); other calls past it keep no journal (the result says so). |
 | `logging.log-operations` | `true` | Whether executed operations are appended to `operations.log`. |
 | `run-command.enabled` | `true` | Whether the `run_command`/`mc_command` escape hatch is available at all. |
 | `engine.connect-blocks` | `true` | Whether writes get a shape-only connection pass (panes/fences/walls/bars/stairs connect to neighbours). Overridable per-request via `mc_build`'s `connect` field. |

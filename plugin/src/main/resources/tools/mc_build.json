@@ -11,7 +11,7 @@
       "detailed": { "type": "boolean", "default": false, "description": "Add per-fill and per-text-entry results. Default false." },
       "override": { "type": "array", "maxItems": 32, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$" }, "description": "Protected region names this call may write into anyway; no wildcards. Only when the user explicitly asks." },
       "label": { "type": "string", "minLength": 1, "maxLength": 100, "description": "Name for this call's journal entry; mc_snapshot journal-list can filter by it." },
-      "journal": { "type": "boolean", "default": true, "description": "Default true. false skips the undo record; only for throwaway tests." },
+      "journal": { "type": "boolean", "default": true, "description": "Default true. false skips the undo record: only for throwaway tests, or a call too large for one journal (it is refused otherwise; mc_export the area first)." },
       "dryRun": { "type": "boolean", "default": false, "description": "Read-only final-scene report; no snapshots or writes." },
       "preflight": { "type": "boolean", "default": false, "description": "Reject the build before writing if door/bed pairing, support or neighbour checks fail. Structural validation always runs." },
       "world": {

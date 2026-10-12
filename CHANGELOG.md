@@ -7,6 +7,9 @@ All notable changes to this project are documented in this file.
 - `mc_walk` accepts a start or end point on a bottom slab given as the slab's own block y. Two standing heights were within half a block of that y: on the block under the slab (blocked by the slab itself) and on top of the slab (64.5 for a slab at 64). The closer, blocked one won, so the call failed with "not a standing place: headroom" naming the slab. A valid standing place now wins over a closer blocked one.
 - Added 1 unit test.
 - When a call changes too many cells to keep a journal, the reply no longer suggests snapshots (capped at 200,000 blocks, so no help at that size). It says mc_restore cannot undo the call, and that next time the work can be split into calls under `journal.max-cells-per-entry`, or the area exported with `mc_export` first and rebuilt with `mc_build cellsFile` to undo.
+- Large builds keep their undo. `journal.max-cells-per-entry` now defaults to 4,000,000 (was 1,000,000), so a whole `cells`/`cellsFile` build (up to 2,000,000 cells) fits in one journal. A 1.32M-cell build used to finish with no journal and needed a hand-made undo file. `journal.max-total-cells` doubles to 40,000,000 so one big entry does not push out the others. The journal holds about 40 bytes per cell in memory while a call runs (about 160 MB at the new cap), then goes to disk. Both keys hot-reload; a config that sets them keeps its values.
+- A journalled `mc_build` that declares more cells than one journal keeps is refused before anything is written, instead of building and then reporting it cannot be undone. The error names the limit and the ways forward: split the call, or pass `journal:false` (export the area first to keep a way back). Only calls whose size is not known up front can still go past the limit, and their reply says so.
+- Added 1 unit test.
 
 ## 0.5.2 (fork)
 

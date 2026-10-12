@@ -119,7 +119,7 @@ public record PluginConfig(
 
     /** {@code journal.*}: build journal for selective undo (Step 12). Every key is hot. */
     public record JournalConfig(boolean enabled, int maxEntries, long maxTotalCells, int maxAgeDays, int maxCellsPerEntry) {
-        public static final JournalConfig DEFAULT = new JournalConfig(true, 200, 20_000_000, 30, 1_000_000);
+        public static final JournalConfig DEFAULT = new JournalConfig(true, 200, 40_000_000, 30, 4_000_000);
     }
 
     public record LoggingConfig(boolean logOperations) {
@@ -279,9 +279,9 @@ public record PluginConfig(
 
         JournalConfig journal = new JournalConfig(fc.getBoolean("journal.enabled", true),
                 (int) Math.min(100_000, positiveOrDefault(fc, "journal.max-entries", 200, logger)),
-                positiveOrDefault(fc, "journal.max-total-cells", 20_000_000, logger),
+                positiveOrDefault(fc, "journal.max-total-cells", 40_000_000, logger),
                 (int) Math.min(3650, positiveOrDefault(fc, "journal.max-age-days", 30, logger)),
-                (int) Math.min(10_000_000, positiveOrDefault(fc, "journal.max-cells-per-entry", 1_000_000, logger)));
+                (int) Math.min(10_000_000, positiveOrDefault(fc, "journal.max-cells-per-entry", 4_000_000, logger)));
 
         boolean logOperations = fc.getBoolean("logging.log-operations", true);
         boolean runCommandEnabled = fc.getBoolean("run-command.enabled", true);

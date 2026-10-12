@@ -152,13 +152,15 @@ journal:
   max-entries: 200
 
   # Maximum total changed cells across all entries (about 13 bytes each before compression).
-  max-total-cells: 20000000
+  max-total-cells: 40000000
 
   # Entries older than this are evicted.
   max-age-days: 30
 
-  # A call that changes more cells than this keeps no journal (the result says so).
-  max-cells-per-entry: 1000000
+  # Most cells one call's journal keeps (about 40 bytes each in memory while the call runs). A
+  # journalled mc_build declaring more is refused before it writes; pass journal:false to build it
+  # without undo. Calls whose size is not known up front keep no journal past this (the result says so).
+  max-cells-per-entry: 4000000
 
 # Reload: /ashlar reload applies it (every key in this section).
 logging:
