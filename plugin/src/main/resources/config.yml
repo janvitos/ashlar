@@ -173,6 +173,17 @@ run-command:
   # enabled. This is an escape hatch with full console privileges; disable
   # it if you do not need it.
   enabled: true
+  # Whether mc_command runs /locate (also via execute ... run). Off by
+  # default: locate searches on the main thread and a long search (a far
+  # biome) can freeze the server until the watchdog kills it. To find a
+  # biome, run tools/findsite.py from the Ashlar repo instead. Turn it on
+  # only for the moment you need it, then off again.
+  allow-locate: false
+  # Whether mc_command runs /save-all, /save-on and /save-off. Off by
+  # default: they change saving for every loaded world, including worlds a
+  # plugin keeps unsaved on purpose (a save-all once broke a duel arena
+  # mid-match).
+  allow-save: false
 
 # Reload: /ashlar reload applies it (every key in this section).
 engine:

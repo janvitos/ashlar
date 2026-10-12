@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package cc.wujm.ashlar.tool.mc;
 
+import cc.wujm.ashlar.config.PluginConfig;
 import cc.wujm.ashlar.tool.ToolArgError;
 import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
@@ -22,7 +23,7 @@ class CommandShadowTest {
     };
 
     private static McCommand.Routed route(String json) {
-        return McCommand.route(McCommand.Args.parse(JsonParser.parseString(json).getAsJsonObject()), FAKE);
+        return McCommand.route(McCommand.Args.parse(JsonParser.parseString(json).getAsJsonObject(), new PluginConfig.RunCommandConfig(true)), FAKE);
     }
 
     @Test void detectsPluginOverridesOnly() {

@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+- The `mc_command` overrides moved from the call to `config.yml`: `run-command.allow-locate` and `run-command.allow-save` (both `false`, applied by `/ashlar reload`) are the only way to run `/locate` and the save commands. The `allowLocate` / `allowSave` arguments are gone, and the refusal no longer tells the caller how to get past it, so an agent cannot turn the block off by itself.
+
 ## 0.5.6 (fork)
 
 - `mc_command` refuses `/save-all`, `/save-on` and `/save-off` (also namespaced, with or without a leading "/", and after `execute ... run`), alone or anywhere in a `commands` batch, before anything runs. They change saving for every loaded world, including worlds a plugin deliberately keeps unsaved: on 2026-10-10 a `save-all flush`, sent so region files could be read offline, wrote a pooled duel arena to disk mid-match, and the pool quarantined it until it was rebuilt. Read live blocks with `mc_inspect`, `mc_survey saveAs` or `mc_export` instead.

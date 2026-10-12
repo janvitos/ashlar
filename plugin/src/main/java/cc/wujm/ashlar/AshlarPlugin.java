@@ -263,7 +263,7 @@ public final class AshlarPlugin extends JavaPlugin {
                 new McSnapshot(snapshotCreateHandler, listSnapshotsHandler, journalService),
                 new McRestore(restoreHandler, journalService).withProtection(protection, snapshotStore::get),
                 new McProtect(protectedRegions, configHolder),
-                new McCommand(runCommandHandler)));
+                new McCommand(runCommandHandler, () -> configHolder.get().runCommand())));
         dispatcher.register("tool_catalog", new ToolCatalogHandler(toolRegistry));
         dispatcher.register("tool_call", new ToolCallHandler(toolRegistry));
 

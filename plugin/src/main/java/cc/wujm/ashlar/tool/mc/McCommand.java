@@ -4,6 +4,7 @@ package cc.wujm.ashlar.tool.mc;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import cc.wujm.ashlar.config.PluginConfig;
 import cc.wujm.ashlar.rpc.InvocationContext;
 import cc.wujm.ashlar.rpc.MainThread;
 import cc.wujm.ashlar.rpc.RpcHandler;
@@ -21,6 +22,7 @@ import org.bukkit.command.PluginIdentifiableCommand;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /**
  * Pure-Java port of {@code mcp-server/src/tools/mc-command.ts}. Delegates straight to the plugin's
@@ -32,9 +34,11 @@ public final class McCommand implements Tool {
 
     private final ToolSpec spec = ToolSpec.load("mc_command");
     private final RpcHandler runCommandHandler;
+    private final Supplier<PluginConfig.RunCommandConfig> config;
 
-    public McCommand(RpcHandler runCommandHandler) {
+    public McCommand(RpcHandler runCommandHandler, Supplier<PluginConfig.RunCommandConfig> config) {
         this.runCommandHandler = runCommandHandler;
+        this.config = config;
     }
 
     @Override
@@ -48,13 +52,13 @@ public final class McCommand implements Tool {
     static final int BATCH_LINES = 3;
 
     record Args(String command, boolean vanilla) {
-        static Args parse(JsonObject o) {
+        static Args parse(JsonObject o, PluginConfig.RunCommandConfig cfg) {
             if (ArgParse.has(o, "commands")) throw new ToolArgError("pass either command or commands, not both");
             String command = ArgParse.requireString(o, "command");
             if (command.isEmpty()) {
                 throw new ToolArgError("command: must contain at least 1 character(s)");
             }
-            refuseBlocked(command, ArgParse.optBoolean(o, "allowLocate", false), ArgParse.optBoolean(o, "allowSave", false));
+            refuseBlocked(command, cfg.allowLocate(), cfg.allowSave());
             return new Args(command, ArgParse.optBoolean(o, "vanilla", false));
         }
     }
@@ -65,7 +69,8 @@ public final class McCommand implements Tool {
      * interrupted; one far biome search outran Paper's 60 s watchdog and crashed the server. The save
      * commands write or re-enable saving for every loaded world, including worlds a plugin keeps
      * unsaved on purpose; one save-all flush wrote a duel arena mid-match and broke it.
-     * {@code allowLocate} / {@code allowSave} let a caller who has read the risk run them anyway.
+     * Only {@code run-command.allow-locate} / {@code allow-save} in config.yml let them through, so
+     * the administrator decides, not the caller; the refusal does not name the setting.
      */
     static void refuseBlocked(String command, boolean allowLocate, boolean allowSave) {
         String[] tokens = command.strip().toLowerCase(java.util.Locale.ROOT).split("\\s+");
@@ -75,28 +80,24 @@ public final class McCommand implements Tool {
             if (i > 0 && !(execute && tokens[i - 1].equals("run"))) continue;
             String t = tokens[i].startsWith("minecraft:") ? tokens[i].substring("minecraft:".length()) : tokens[i];
             if (t.equals("locate") && !allowLocate) {
-                throw new ToolArgError("locate is blocked: it searches on the main thread and a long search can freeze the server until"
-                        + " the watchdog kills it. Nothing was run. To find a biome, run tools/findsite.py from the Ashlar repo on the server host: it reads the region files offline."
-                        + " Only if a locate is really needed and its search stays short (a nearby structure, not a far biome), pass allowLocate:true.");
+                throw new ToolArgError("locate is disabled on this server: it searches on the main thread and a long search can freeze the server"
+                        + " until the watchdog kills it. Nothing was run. To find a biome, run tools/findsite.py from the Ashlar repo on the server host: it reads the region files offline.");
             }
             if ((t.equals("save-all") || t.equals("save-on") || t.equals("save-off")) && !allowSave) {
-                throw new ToolArgError(t + " is blocked: it changes saving for every loaded world, including worlds a plugin keeps"
+                throw new ToolArgError(t + " is disabled on this server: it changes saving for every loaded world, including worlds a plugin keeps"
                         + " unsaved on purpose (a save-all once wrote a duel arena mid-match and broke it). Nothing was run. To read"
-                        + " live blocks use mc_inspect, mc_survey saveAs or mc_export instead of flushing and reading region files."
-                        + " Only if it is really needed and no plugin-managed world (such as a duel arena) is in use, pass allowSave:true.");
+                        + " live blocks use mc_inspect, mc_survey saveAs or mc_export instead of flushing and reading region files.");
             }
         }
     }
 
     /** {@code commands}: 1-64 non-empty strings, each run like {@code command} with the same {@code vanilla}. */
-    static List<Args> parseBatch(JsonObject o) {
+    static List<Args> parseBatch(JsonObject o, PluginConfig.RunCommandConfig cfg) {
         if (ArgParse.has(o, "command")) throw new ToolArgError("pass either command or commands, not both");
         if (!o.get("commands").isJsonArray()) throw new ToolArgError("commands must be an array of strings");
         JsonArray arr = o.getAsJsonArray("commands");
         if (arr.isEmpty() || arr.size() > MAX_COMMANDS) throw new ToolArgError("commands: 1 to " + MAX_COMMANDS + " commands");
         boolean vanilla = ArgParse.optBoolean(o, "vanilla", false);
-        boolean allowLocate = ArgParse.optBoolean(o, "allowLocate", false);
-        boolean allowSave = ArgParse.optBoolean(o, "allowSave", false);
         List<Args> out = new ArrayList<>();
         for (int i = 0; i < arr.size(); i++) {
             JsonElement el = arr.get(i);
@@ -104,7 +105,7 @@ public final class McCommand implements Tool {
                 throw new ToolArgError("commands[" + i + "] must be a non-empty string");
             }
             try {
-                refuseBlocked(el.getAsString(), allowLocate, allowSave);
+                refuseBlocked(el.getAsString(), cfg.allowLocate(), cfg.allowSave());
             } catch (ToolArgError e) {
                 throw new ToolArgError("commands[" + i + "]: " + e.getMessage());
             }
@@ -154,7 +155,7 @@ public final class McCommand implements Tool {
     public CompletableFuture<ToolResult> call(InvocationContext ctx, JsonObject args) {
         if (ArgParse.has(args, "commands")) {
             return ToolRunner.runText("mc_command", () -> {
-                List<Args> batch = parseBatch(args);
+                List<Args> batch = parseBatch(args, config.get());
                 // Route every command first, so a bad vanilla:true name rejects the call before anything runs.
                 return MainThread.call(() -> {
                     List<Routed> routed = new ArrayList<>();
@@ -170,7 +171,7 @@ public final class McCommand implements Tool {
             });
         }
         return ToolRunner.runText("mc_command", () -> {
-            Args a = Args.parse(args);
+            Args a = Args.parse(args, config.get());
             return MainThread.call(() -> route(a, BUKKIT)).thenCompose(routed -> run(ctx, routed));
         });
     }
