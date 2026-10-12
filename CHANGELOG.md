@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## Unreleased
+## 0.5.7 (fork)
 
 - The `mc_command` overrides moved from the call to `config.yml`: `run-command.allow-locate` and `run-command.allow-save` (both `false`, applied by `/ashlar reload`) are the only way to run `/locate` and the save commands. The `allowLocate` / `allowSave` arguments are gone, and the refusal no longer tells the caller how to get past it, so an agent cannot turn the block off by itself.
 
