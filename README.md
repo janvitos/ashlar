@@ -64,7 +64,7 @@ The tool layer lives entirely in the plugin, not in the MCP server: `ashlar-mcp`
 | `mc_snapshot` | Save a region before changing it, list snapshots, or list/delete build journal entries (`touches` finds the calls that changed an area). |
 | `mc_restore` | Roll a region back to a snapshot, or undo journalled calls selectively, one or a list (safe/force, dry run). |
 | `mc_protect` | Add, list or remove protected regions that writing tools refuse to touch (or warn about) without an explicit per-call `override`. |
-| `mc_command` | Run a server console command and return its output (escape hatch; not checked against protected regions). Notes when a plugin has taken over a vanilla command name; `vanilla:true` runs the vanilla one. |
+| `mc_command` | Run a server console command and return its output (escape hatch; not checked against protected regions). Notes when a plugin has taken over a vanilla command name; `vanilla:true` runs the vanilla one. Refuses `/locate`, which can freeze the server (see Finding a site). |
 
 Default lightweight flow for substantial builds: `mc_players` only for player context/safety -> one `mc_survey` (reuse a recent relevant survey) -> `mc_build` -> one `mc_render` for appearance. Tiny edits can rely on build feedback. If a concrete issue appears, inspect/correct only that area and recheck it if needed; no repeated whole-build verification loops. Keep rollback protection when editing existing terrain/structures, preferably `mc_build snapshot:true` rather than a redundant separate call; snapshots do not cover NBT. Coordinates: X grows east, Z grows south, Y grows up; `from`/`to` corners are inclusive.
 
@@ -323,6 +323,16 @@ All selected observed block/sign values are rechecked before the first snapshot/
 **Block-entity safety:** material replacement/deletion of an existing sign/chest/etc. is blocked unless `allowBlockEntityReplacement:true` is explicitly supplied. Same-material state changes retain their entity data. **`snapshot:true` is the default**, covering only the selected delta's bounding envelope and subject to current snapshot capacity. Snapshots store **block states, sign text and decorative entities (paintings, item frames, armor stands), not inventories or arbitrary NBT**. Do not treat that snapshot as an NBT backup. `snapshot:false` explicitly opts out; Step 10's richer project revision/undo workflow is still future work.
 
 The opt-in `mcp-server/tools/e2e-verification.mjs` reserves pristine air `[536,99,-40]` through `[616,120,40]`, restores it, deletes all generated receipts/documents and removes its temporary forced chunk. It requires the same disposable-server variables described above and zero online players. Item/forced-chunk administration is used only for inventory-preservation assertions; it never manages server lifecycle.
+
+## Finding a site (fork enhancement)
+
+`mc_command` refuses `/locate`: it searches on the main thread, cannot be interrupted, and one far biome search can run past Paper's watchdog and crash the server. To find a large area of one biome, run `tools/findsite.py` on the server host instead. It reads the world's region files read-only at low priority and never talks to the server:
+
+```bash
+python3 -I tools/findsite.py <world>/dimensions/minecraft/overworld/region --biome minecraft:desert --near 0 0 --max-dist 20000
+```
+
+(Older worlds keep the overworld in `<world>/region`.) It samples one chunk every 64 blocks, keeps those where at least `--min-sections` of the 24 vertical sections are the biome (default 6) and players have spent under `--max-inhabited` minutes (default 5), and prints the largest squares made only of such samples: centre, side length and distance from `--near`. Only generated chunks are read, and region files lag the live world until autosave, so check a candidate with `mc_survey` before building.
 
 ## Install (three steps)
 

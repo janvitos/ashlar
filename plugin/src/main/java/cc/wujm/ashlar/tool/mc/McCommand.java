@@ -73,7 +73,7 @@ public final class McCommand implements Tool {
             String t = tokens[i];
             if (t.equals("locate") || t.equals("minecraft:locate")) {
                 throw new ToolArgError("locate is blocked: it searches on the main thread and a long search can freeze the server until"
-                        + " the watchdog kills it. Nothing was run. Find biomes and structures offline from the world's region files instead.");
+                        + " the watchdog kills it. Nothing was run. To find a biome, run tools/findsite.py from the Ashlar repo on the server host: it reads the region files offline.");
             }
         }
     }
