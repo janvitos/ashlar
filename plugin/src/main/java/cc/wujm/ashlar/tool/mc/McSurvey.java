@@ -34,6 +34,15 @@ public final class McSurvey implements Tool {
     private final ToolSpec spec = ToolSpec.load("mc_survey");
     private final RpcHandler heightmapHandler;
     private final RpcHandler renderHandler;
+    private CellFiles files;
+    private java.util.concurrent.Executor io;
+
+    /** Enables {@code saveAs}: the file is written on {@code io}. */
+    public McSurvey withFiles(CellFiles files, java.util.concurrent.Executor io) {
+        this.files = files;
+        this.io = io;
+        return this;
+    }
 
     public McSurvey(RpcHandler heightmapHandler, RpcHandler renderHandler) {
         this.heightmapHandler = heightmapHandler;
@@ -62,7 +71,8 @@ public final class McSurvey implements Tool {
         }
     }
 
-    record Args(String world, int[] from, int[] to, String type, String format, Boolean matrix, Integer snowLayers, boolean walkHeight) {
+    record Args(String world, int[] from, int[] to, String type, String format, Boolean matrix, Integer snowLayers, boolean walkHeight,
+            String saveAs, boolean overwrite) {
         static Args parse(JsonObject o) {
             String world = ArgParse.optString(o, "world");
             int[] from = ArgParse.requireCoords2(o, "from");
@@ -76,7 +86,14 @@ public final class McSurvey implements Tool {
                 if (snowLayers < 0 || snowLayers > 7) throw new ToolArgError("snowLayers: must be between 0 and 7, got " + snowLayers);
                 if (!"TOP_SOLID_IGNORE_DECOR".equals(type)) throw new ToolArgError("snowLayers: only with type \"TOP_SOLID_IGNORE_DECOR\"");
             }
-            return new Args(world, from, to, type, format, matrix, snowLayers, ArgParse.optBoolean(o, "walkHeight", false));
+            boolean walkHeight = ArgParse.optBoolean(o, "walkHeight", false);
+            String saveAs = ArgParse.has(o, "saveAs") ? CellFiles.name(ArgParse.requireString(o, "saveAs"), "saveAs") : null;
+            boolean overwrite = ArgParse.optBoolean(o, "overwrite", false);
+            if (saveAs == null && ArgParse.has(o, "overwrite")) throw new ToolArgError("overwrite: only with saveAs");
+            if (saveAs != null && (format != null || matrix != null || walkHeight)) {
+                throw new ToolArgError("saveAs: the file replaces the image, text map and matrix; leave out format, matrix and walkHeight");
+            }
+            return new Args(world, from, to, type, format, matrix, snowLayers, walkHeight, saveAs, overwrite);
         }
     }
 
@@ -95,6 +112,22 @@ public final class McSurvey implements Tool {
             }
             String requestedType = a.type() != null ? a.type() : "SOLID_OR_LIQUID_NO_LEAVES";
             String format = a.format() != null ? a.format() : "image";
+
+            if (a.saveAs() != null) {
+                if (files == null || io == null) throw new ToolArgError("saveAs is unavailable");
+                if (!a.overwrite() && files.exportExists(a.saveAs())) {
+                    throw new ToolArgError("export '" + a.saveAs() + "' already exists; set overwrite:true explicitly");
+                }
+                JsonObject params = heightmapParams(a, x1, z1, x2, z2, requestedType, false);
+                params.addProperty("columns", true);
+                return heightmapHandler.handle(ctx, params).thenApplyAsync(el -> {
+                    JsonObject r = el.getAsJsonObject();
+                    String summary = ReliefText.summaryLine(new ReliefText.ReliefInput(new int[]{x1, z1}, new int[]{x2, z2},
+                            HeightmapJson.toIntGrid(r.getAsJsonArray("heights")), HeightmapJson.toIntGrid(r.getAsJsonArray("classes")),
+                            HeightmapJson.surfaceMap(r.getAsJsonObject("surface")), null));
+                    return List.of(ContentBlock.text(summary + "\n" + SurveyFile.write(files, a.saveAs(), a.overwrite(), r, x1, z1, x2, z2)));
+                }, io);
+            }
 
             if (format.equals("text")) {
                 return heightmapHandler.handle(ctx, heightmapParams(a, x1, z1, x2, z2, requestedType, a.walkHeight())).thenApply(el -> {

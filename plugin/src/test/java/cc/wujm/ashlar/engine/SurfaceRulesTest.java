@@ -49,4 +49,17 @@ class SurfaceRulesTest {
         assertTrue(Double.isNaN(SurfaceRules.walkTop("minecraft:air")));
         assertTrue(Double.isNaN(SurfaceRules.walkTop("minecraft:oak_leaves")));
     }
+
+    @Test
+    void groundSkipAlsoPassesTreesAndLiquids() {
+        for (String s : new String[]{"minecraft:oak_log[axis=y]", "minecraft:stripped_birch_wood[axis=x]", "minecraft:crimson_stem[axis=y]",
+                "minecraft:red_mushroom_block", "minecraft:mangrove_roots[waterlogged=false]", "minecraft:water[level=0]",
+                "minecraft:lava[level=0]", "minecraft:oak_leaves[persistent=false]", "minecraft:short_grass", "minecraft:air"}) {
+            assertTrue(SurfaceRules.groundSkip(s, 3), s);
+        }
+        for (String s : new String[]{"minecraft:grass_block[snowy=false]", "minecraft:stone", "minecraft:obsidian", "minecraft:magma_block",
+                "minecraft:oak_planks", "minecraft:sand"}) {
+            assertFalse(SurfaceRules.groundSkip(s, 3), s);
+        }
+    }
 }

@@ -247,7 +247,7 @@ public final class AshlarPlugin extends JavaPlugin {
         ToolRegistry toolRegistry = new ToolRegistry(List.of(
                 new McStatus(healthHandler),
                 new McPlayers(playersHandler),
-                new McSurvey(heightmapHandler, renderHandler),
+                new McSurvey(heightmapHandler, renderHandler).withFiles(cellFiles, renderExecutor),
                 buildTool,
                 new McBlueprint(blueprintStore, new cc.wujm.ashlar.tool.mc.TerrainFitService(configHolder, executor, preflight).withProtection(protection)).withCells(cellFiles),
                 new McPlan(buildTool, preflight, renderExecutor),
