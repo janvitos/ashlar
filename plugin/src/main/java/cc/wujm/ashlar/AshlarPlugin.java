@@ -238,7 +238,8 @@ public final class AshlarPlugin extends JavaPlugin {
                     limits.maxFlowingLiquidsPerOperation());
         }).withPreflight(preflight).withJournal(journalService).withProtection(protection)
                 .withCells(cellFiles, configHolder::get).withHeightfield(heightmapHandler).withEntities(entityService)
-                .withSupportRecheck(new cc.wujm.ashlar.engine.SupportRecheck(configHolder, executor));
+                .withSupportRecheck(new cc.wujm.ashlar.engine.SupportRecheck(configHolder, executor))
+                .withComposition(new cc.wujm.ashlar.tool.mc.CompositionCheck(executor, configHolder));
         VerificationService verification = new VerificationService(buildTool, preflight, executor, configHolder,
                 new VerificationStore(), snapshotCreateHandler);
         DiffService diffService = new DiffService(buildTool, preflight, executor, configHolder, new DiffStore(),

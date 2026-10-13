@@ -24,6 +24,7 @@ import cc.wujm.ashlar.tool.text.WarningText;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
@@ -88,6 +89,23 @@ public final class McBuild implements Tool {
     public McBuild withSupportRecheck(cc.wujm.ashlar.engine.SupportRecheck service) {
         this.supportRecheck = service;
         return this;
+    }
+
+    private CompositionCheck composition;
+
+    /** Appends composition advice for the finished build to the reply. */
+    public McBuild withComposition(CompositionCheck check) {
+        this.composition = check;
+        return this;
+    }
+
+    /** Composition advice lines for builds that wrote {@code args} (their combined bounding box). Not from the main thread. */
+    CompletableFuture<List<String>> compositionLines(InvocationContext ctx, List<Args> args) {
+        if (composition == null || args.isEmpty()) return CompletableFuture.completedFuture(List.of());
+        List<int[][]> boxes = new ArrayList<>();
+        for (Args a : args) boxes.add(boundingBox(a));
+        boolean flow = args.stream().anyMatch(a -> "flow".equals(a.liquids()));
+        return composition.lines(ctx, args.getFirst().world(), CompositionCheck.union(boxes), flow ? Set.of("flowing-liquid") : Set.of());
     }
 
     /** Support warnings of several cells parts, held back until every part is built. */
@@ -598,7 +616,7 @@ public final class McBuild implements Tool {
             step = step.thenComposeAsync(ignored -> entityStep(ctx, a, ents, state));
         }
 
-        return step.thenApply(ignored -> {
+        CompletableFuture<String> reply = step.thenApply(ignored -> {
             if (deferred != null) {
                 deferred.warnings.addAll(state.warnings);
                 deferred.truncated |= state.warningsTruncated;
@@ -613,6 +631,8 @@ public final class McBuild implements Tool {
             if (state.entitiesLine == null) return text;
             return text.isEmpty() ? state.entitiesLine : text + "\n" + state.entitiesLine;
         });
+        if (deferred != null) return reply;
+        return reply.thenCompose(t -> compositionLines(ctx, List.of(a)).thenApply(lines -> lines.isEmpty() ? t : t + "\n" + String.join("\n", lines)));
     }
 
     /** Places the entities after every block write, so walls and floors they hang on exist (Step 17). */

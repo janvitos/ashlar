@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
 public final class McDiff implements Tool {
 
     static final int MAX_INLINE_CELLS = 50_000;
-    static final List<String> ANOMALIES = List.of("floating", "stacked", "unsupported", "enclosedAir");
+    static final List<String> ANOMALIES = List.of("floating", "stacked", "unsupported", "enclosedAir", "composition");
     static final Pattern FILE_NAME = Pattern.compile("[a-z0-9][a-z0-9_-]{0,63}");
 
     private final ToolSpec spec = ToolSpec.load("mc_diff");
@@ -41,7 +41,7 @@ public final class McDiff implements Tool {
     record Cell(int x, int y, int z, String state) {
     }
 
-    /** Exactly one of snapshot / expected / expectedFile / blueprint is set. */
+    /** Exactly one of snapshot / expected / expectedFile / blueprint is set; the whole reference is null for an anomaly-only check. */
     record Against(String snapshot, List<Cell> expected, String expectedFile, JsonObject blueprint, JsonObject transform) {
         String describe() {
             if (snapshot != null) return "snapshot " + snapshot;
@@ -58,10 +58,10 @@ public final class McDiff implements Tool {
             String world = ArgParse.optString(o, "world");
             int[] from = ArgParse.requireCoords3(o, "from");
             int[] to = ArgParse.requireCoords3(o, "to");
-            if (!ArgParse.has(o, "against")) throw new ToolArgError("against is required: {snapshot}, {expected}, {expectedFile} or {blueprint}");
-            Against against = parseAgainst(ArgParse.requireObject(o.get("against"), "against"));
+            Against against = ArgParse.has(o, "against") ? parseAgainst(ArgParse.requireObject(o.get("against"), "against")) : null;
             boolean declaredOnly = ArgParse.optEnum(o, "scope", List.of("declared", "box"), "box").equals("declared");
             String baseline = ArgParse.optString(o, "baselineSnapshot");
+            if (against == null && baseline != null) throw new ToolArgError("baselineSnapshot needs an against reference");
             if (baseline != null && against.snapshot() != null)
                 throw new ToolArgError("baselineSnapshot only applies to expected/expectedFile/blueprint references; a snapshot already covers the box");
             if (baseline != null && declaredOnly)
@@ -84,6 +84,8 @@ public final class McDiff implements Tool {
                     if (!anomalies.add(a)) throw new ToolArgError("anomalies entries must be unique");
                 }
             }
+            if (against == null && anomalies.isEmpty())
+                throw new ToolArgError("against is required ({snapshot}, {expected}, {expectedFile} or {blueprint}) unless anomalies are requested");
             int samples = McVerify.bounded(o, "samples", 50, 1, 1000);
             String format = ArgParse.optEnum(o, "format", List.of("summary", "cells", "columns"), "summary");
             return new Args(world, from, to, against, declaredOnly, baseline, ignore, materialOnly, anomalies, samples, format);

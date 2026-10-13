@@ -145,10 +145,17 @@ final class CellBuild {
                 lines.addAll(protection);
                 return CompletableFuture.completedFuture(String.join("\n", lines));
             }
-            return build.journalledCells(ctx, args, jctx -> parts(build, jctx, plan, retry)).thenApply(text -> {
+            // Terrain reshaping is not a building: no composition advice for heightfields.
+            boolean advise = !Heightfield.applies(args);
+            return build.journalledCells(ctx, args, jctx -> parts(build, jctx, plan, retry)).thenCompose(text -> {
                 List<String> lines = new ArrayList<>(List.of(head, text));
                 lines.addAll(protection);
-                return String.join("\n", lines);
+                CompletableFuture<List<String>> advice = advise ? build.compositionLines(ctx, plan.args().subList(plan.start() - 1, total))
+                        : CompletableFuture.completedFuture(List.of());
+                return advice.thenApply(extra -> {
+                    lines.addAll(extra);
+                    return String.join("\n", lines);
+                });
             });
         });
     }
