@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## 0.5.8 (fork)
+
+- First-person `mc_render` and `mc_sightline` read unloaded chunks. Before, they only copied chunks that were already loaded, so a view of a build nobody stood near came back as purple "unknown" and had to be force-loaded by hand. Unloaded chunks in view now load in the background with `getChunkAtAsync` without generation: nearest first, at most 8 at a time, each copied under the tick budget in the tick after it loads, and no chunk tickets, so nothing ticks or stays loaded. Never-generated chunks and chunks beyond `limits.max-view-chunk-loads` (default 256, `0` turns loading off, applied by `/ashlar reload`) stay unknown. The first-person reply's `chunks` adds `loadedForView`, `notGenerated`, `overLoadCap` and `failed` when they are not zero.
+
 ## 0.5.7 (fork)
 
 - The `mc_command` overrides moved from the call to `config.yml`: `run-command.allow-locate` and `run-command.allow-save` (both `false`, applied by `/ashlar reload`) are the only way to run `/locate` and the save commands. The `allowLocate` / `allowSave` arguments are gone, and the refusal no longer tells the caller how to get past it, so an agent cannot turn the block off by itself.

@@ -96,15 +96,24 @@ public record PluginConfig(
 
     public record LimitsConfig(long maxBlocksPerOperation, long maxReadVolume, long tickBudgetMs,
             int maxQueuedOperations, int maxChunksPerOperation, long maxFlowingLiquidsPerOperation, long maxDiffVolume,
-            long maxExportVolume, long maxRenderVolume) {
+            long maxExportVolume, long maxRenderVolume, int maxViewChunkLoads) {
         public static final long DEFAULT_MAX_EXPORT_VOLUME = 4_000_000;
         /** Volume cap for isometric/perspective mc_render views; other views keep max-read-volume. */
         public static final long DEFAULT_MAX_RENDER_VOLUME = 2_000_000;
+        /** Unloaded chunk columns one first-person view or sightline may load in the background; 0 = none. */
+        public static final int DEFAULT_MAX_VIEW_CHUNK_LOADS = 256;
 
         public LimitsConfig(long maxBlocksPerOperation, long maxReadVolume, long tickBudgetMs, int maxQueuedOperations,
                 int maxChunksPerOperation, long maxFlowingLiquidsPerOperation, long maxDiffVolume) {
             this(maxBlocksPerOperation, maxReadVolume, tickBudgetMs, maxQueuedOperations, maxChunksPerOperation,
                     maxFlowingLiquidsPerOperation, maxDiffVolume, DEFAULT_MAX_EXPORT_VOLUME, DEFAULT_MAX_RENDER_VOLUME);
+        }
+
+        public LimitsConfig(long maxBlocksPerOperation, long maxReadVolume, long tickBudgetMs, int maxQueuedOperations,
+                int maxChunksPerOperation, long maxFlowingLiquidsPerOperation, long maxDiffVolume, long maxExportVolume,
+                long maxRenderVolume) {
+            this(maxBlocksPerOperation, maxReadVolume, tickBudgetMs, maxQueuedOperations, maxChunksPerOperation,
+                    maxFlowingLiquidsPerOperation, maxDiffVolume, maxExportVolume, maxRenderVolume, DEFAULT_MAX_VIEW_CHUNK_LOADS);
         }
 
     }
@@ -267,6 +276,8 @@ public record PluginConfig(
         long maxDiffVolume = positiveOrDefault(fc, "limits.max-diff-volume", 2_000_000, logger);
         long maxExportVolume = positiveOrDefault(fc, "limits.max-export-volume", LimitsConfig.DEFAULT_MAX_EXPORT_VOLUME, logger);
         long maxRenderVolume = positiveOrDefault(fc, "limits.max-render-volume", LimitsConfig.DEFAULT_MAX_RENDER_VOLUME, logger);
+        int maxViewChunkLoads = (int) Math.min(4096, nonNegativeOrDefault(fc, "limits.max-view-chunk-loads",
+                LimitsConfig.DEFAULT_MAX_VIEW_CHUNK_LOADS, logger));
 
         String defaultWorld = fc.getString("world.default", "world");
         List<String> allowedWorlds = new ArrayList<>(fc.getStringList("world.allowed-worlds"));
@@ -332,7 +343,8 @@ public record PluginConfig(
         return new PluginConfig(
                 new ServerConfig(serverEnabled, host, port, token, List.copyOf(allowedIps)),
                 new LimitsConfig(maxBlocksPerOperation, maxReadVolume, tickBudgetMs, maxQueuedOperations,
-                        maxChunksPerOperation, maxFlowingLiquidsPerOperation, maxDiffVolume, maxExportVolume, maxRenderVolume),
+                        maxChunksPerOperation, maxFlowingLiquidsPerOperation, maxDiffVolume, maxExportVolume, maxRenderVolume,
+                        maxViewChunkLoads),
                 new WorldConfig(defaultWorld, List.copyOf(allowedWorlds),
                         new WorldConfig.BuildRegion(buildRegionEnabled, minX, minZ, maxX, maxZ)),
                 new SnapshotConfig(snapshotEnabled, maxSnapshots, maxVolume),
