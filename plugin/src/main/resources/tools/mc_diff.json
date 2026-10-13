@@ -1,7 +1,7 @@
 {
   "name": "mc_diff",
   "title": "Compare a region",
-  "description": "Compares a live box with a reference and reports which cells differ: counts by class (missing, unexpected, wrong-material, wrong-properties), \"expected -> found\" transitions, the bounding box of the differences and sample cells. Optional anomaly checks find floating or stacked decorations, unsupported attached blocks and enclosed air pockets. States compare in canonical form (no minecraft: prefix, no default-valued properties; air variants are equal). When cells differ, returns a diffId for mc_repair.\n\nWHEN TO USE: to check a finished build or edit against what it should be in one call; to see what changed since a snapshot; to audit a blueprint placement; to find stray snow, floating decorations or sealed air pockets.\nWHEN NOT TO USE: for a block inventory (mc_inspect) or appearance (mc_render); for checks that must freeze keep/filter eligibility and sign text before building (mc_verify). Entities, sign text and other NBT are not compared.\n\nPARAMETERS: from/to inclusive corners, at most limits.max-diff-volume (default 2,000,000). against takes one reference: {snapshot} (its region must contain the box), {expected} (at most 50,000 cells), {expectedFile} or {blueprint, transform?} (compiled like mc_build). Reference cells outside the box are counted and skipped. ignore: up to 32 globs; a cell is skipped when either state matches. samples 1-1000 (default 50).\n\nSIDE EFFECTS: none on the world. Stores a diff receipt (at most 100,000 differing cells) that expires after two hours or on plugin reload.",
+  "description": "Compares a live box with a reference and reports which cells differ: counts by class (missing, unexpected, wrong-material, wrong-properties), \"expected -> found\" transitions, the bounding box of the differences and sample cells. Optional anomaly checks find floating or stacked decorations, unsupported attached blocks, enclosed air pockets and composition mistakes (leaky or lone railings, objects and lamps at head height, blocked doors, sealed rooms, leftovers, hidden light). States compare in canonical form (no minecraft: prefix, no default-valued properties; air variants are equal). When cells differ, returns a diffId for mc_repair.\n\nWHEN TO USE: to check a finished build or edit against what it should be in one call; to see what changed since a snapshot; to audit a blueprint placement; to find stray snow, floating decorations or sealed air pockets; with anomalies and no `against`, to check an existing build for composition mistakes.\nWHEN NOT TO USE: for a block inventory (mc_inspect) or appearance (mc_render); for checks that must freeze keep/filter eligibility and sign text before building (mc_verify). Entities, sign text and other NBT are not compared.\n\nPARAMETERS: from/to inclusive corners, at most limits.max-diff-volume (default 2,000,000). against (optional when anomalies are given) takes one reference: {snapshot} (its region must contain the box), {expected} (at most 50,000 cells), {expectedFile} or {blueprint, transform?} (compiled like mc_build). Reference cells outside the box are counted and skipped. ignore: up to 32 globs; a cell is skipped when either state matches. samples 1-1000 (default 50).\n\nSIDE EFFECTS: none on the world. Stores a diff receipt (at most 100,000 differing cells) that expires after two hours or on plugin reload.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -47,7 +47,7 @@
         "description": "Opposite inclusive corner."
       },
       "against": {
-        "description": "Exactly one reference: snapshot, expected, expectedFile or blueprint (transform only with blueprint).",
+        "description": "Exactly one reference: snapshot, expected, expectedFile or blueprint (transform only with blueprint). Omit it to run only the anomaly checks.",
         "type": "object",
         "properties": {
           "snapshot": {
@@ -152,10 +152,11 @@
             "floating",
             "stacked",
             "unsupported",
-            "enclosedAir"
+            "enclosedAir",
+            "composition"
           ]
         },
-        "description": "Placement checks on the live box. floating: snow layer, carpet, pressure plate, rail, standing torch, floor lantern or plant without suitable support below. stacked: snow layer on a partial snow layer. unsupported: attached blocks (ladders, wall torches, signs, doors, banners, hanging blocks) without support. enclosedAir: air not connected to the box boundary, reported as pockets with their bounds."
+        "description": "Placement checks on the live box. floating: snow layer, carpet, pressure plate, rail, standing torch, floor lantern or plant without suitable support below. stacked: snow layer on a partial snow layer. unsupported: attached blocks (ladders, wall torches, signs, doors, banners, hanging blocks) without support. enclosedAir: air not connected to the box boundary, reported as pockets with their bounds. composition: the rules mc_build reports as composition advice, each finding under its own rule id (diagonal-rail, rail-gap, lone-post, fence-clump, head-height, low-lamp, blocked-door, sealed-room, flowing-liquid, floating-leaves, hidden-light); reads 6 blocks of margin around the box."
       },
       "samples": {
         "type": "integer",
@@ -177,8 +178,7 @@
     },
     "required": [
       "from",
-      "to",
-      "against"
+      "to"
     ],
     "additionalProperties": false,
     "$schema": "https://json-schema.org/draft/2020-12/schema"

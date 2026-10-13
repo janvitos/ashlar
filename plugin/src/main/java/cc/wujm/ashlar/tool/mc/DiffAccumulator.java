@@ -26,7 +26,8 @@ final class DiffAccumulator {
 
     static final int MAX_TRANSITIONS = 10_000;
     static final int MAX_COLUMNS = 100_000;
-    static final List<String> ANOMALY_ORDER = List.of("floating", "stacked", "unsupported", "enclosedAir");
+    static final List<String> ANOMALY_ORDER = java.util.stream.Stream.concat(java.util.stream.Stream.of("floating", "stacked", "unsupported", "enclosedAir"),
+            cc.wujm.ashlar.engine.CompositionScan.RULES.stream()).toList();
 
     record Settings(boolean declaredOnly, boolean materialOnly, int samples, int receiptCap, boolean enclosedAir) {
     }

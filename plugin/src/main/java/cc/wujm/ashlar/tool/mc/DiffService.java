@@ -6,6 +6,7 @@ import cc.wujm.ashlar.config.PluginConfig;
 import cc.wujm.ashlar.engine.BlockDataParser;
 import cc.wujm.ashlar.engine.BuildExpectation;
 import cc.wujm.ashlar.engine.BukkitStateDefaults;
+import cc.wujm.ashlar.engine.CompositionScan;
 import cc.wujm.ashlar.engine.DiffScanTask;
 import cc.wujm.ashlar.engine.Region;
 import cc.wujm.ashlar.engine.RepairTask;
@@ -85,20 +86,24 @@ public final class DiffService {
             Region box = validator.validateReadRegion(params, h[0], h[1], settings.limits().maxDiffVolume());
             Set<String> scanAnomalies = new HashSet<>(a.anomalies());
             scanAnomalies.remove("enclosedAir");
-            int margin = scanAnomalies.isEmpty() ? 0 : 1;
+            CompositionScan composition = scanAnomalies.remove("composition") ? new CompositionScan(Set.of(), a.samples()) : null;
+            int margin = composition != null ? CompositionScan.MARGIN : scanAnomalies.isEmpty() ? 0 : 1;
             List<DiffPlan.Part> parts = DiffPlan.split(box, settings.limits().maxReadVolume(), margin, h[0], h[1] - 1);
             DiffReference baseline = a.baselineSnapshot() == null ? null : snapshotReference(a.baselineSnapshot(), world, box, "baselineSnapshot");
             return reference(ctx, a, world, box).thenComposeAsync(ref -> {
                 var acc = new DiffAccumulator(ref, baseline, new DiffAccumulator.Settings(a.declaredOnly(), a.materialOnly(), a.samples(),
                         DiffStore.MAX_CELLS_PER_RECEIPT, a.anomalies().contains("enclosedAir")), DiffService::canon, ignore);
-                return scan(ctx, world, parts, 0, acc, scanAnomalies, ignore, a.samples())
-                        .thenApplyAsync(done -> report(ctx, a, world, box, parts.size(), done));
+                return scan(ctx, world, parts, 0, acc, scanAnomalies, ignore, a.samples(), composition)
+                        .thenApplyAsync(done -> {
+                            if (composition != null) done.addAnomalies(composition.counts(), composition.hits());
+                            return report(ctx, a, world, box, parts.size(), done);
+                        });
             });
         });
     }
 
     private CompletableFuture<DiffAccumulator> scan(InvocationContext ctx, World world, List<DiffPlan.Part> parts, int i,
-            DiffAccumulator acc, Set<String> anomalies, DiffIgnore ignore, int samples) {
+            DiffAccumulator acc, Set<String> anomalies, DiffIgnore ignore, int samples, CompositionScan composition) {
         if (i == parts.size()) return CompletableFuture.completedFuture(acc);
         if (ctx.isCancelled()) return CompletableFuture.failedFuture(new ToolArgError("mc_diff was cancelled"));
         DiffPlan.Part p = parts.get(i);
@@ -106,7 +111,8 @@ public final class DiffService {
         return executor.submit(task, ctx).thenComposeAsync(r -> {
             acc.feed(p.inner(), p.outer(), task.palette(), task.grid());
             acc.addAnomalies(task.anomalyCounts(), task.anomalyHits());
-            return scan(ctx, world, parts, i + 1, acc, anomalies, ignore, samples);
+            if (composition != null) composition.scan(p.outer(), p.inner(), task.palette(), task.grid());
+            return scan(ctx, world, parts, i + 1, acc, anomalies, ignore, samples, composition);
         });
     }
 
@@ -115,8 +121,14 @@ public final class DiffService {
         List<String> out = new ArrayList<>();
         out.add("mc_diff " + world.getName() + " [" + box.minX() + "," + box.minY() + "," + box.minZ() + "].."
                 + "[" + box.maxX() + "," + box.maxY() + "," + box.maxZ() + "] (" + box.volume() + " cells, " + reads + " live read"
-                + (reads == 1 ? "" : "s") + ") against " + a.against().describe() + (a.baselineSnapshot() != null ? " + baseline " + a.baselineSnapshot() : "")
-                + "; scope " + (a.declaredOnly() ? "declared" : "box") + ", compare " + (a.materialOnly() ? "material" : "exact") + ".");
+                + (reads == 1 ? "" : "s") + ") " + (a.against() == null ? "anomaly checks only."
+                : "against " + a.against().describe() + (a.baselineSnapshot() != null ? " + baseline " + a.baselineSnapshot() : "")
+                + "; scope " + (a.declaredOnly() ? "declared" : "box") + ", compare " + (a.materialOnly() ? "material" : "exact") + "."));
+        if (a.against() == null) {
+            List<String> body = acc.bodyLines(a.format());
+            out.addAll(body.isEmpty() ? List.of("No anomalies found.") : body);
+            return String.join("\n", out);
+        }
         out.add(acc.summaryLine());
         out.add(acc.detailLine());
         out.addAll(acc.bodyLines(a.format()));
@@ -143,6 +155,7 @@ public final class DiffService {
 
     private CompletableFuture<DiffReference> reference(InvocationContext ctx, McDiff.Args a, World world, Region box) {
         McDiff.Against against = a.against();
+        if (against == null) return CompletableFuture.completedFuture(new DiffReference(box, DiffService::fullState));
         if (against.snapshot() != null) return CompletableFuture.completedFuture(snapshotReference(against.snapshot(), world, box, "snapshot"));
         if (against.expected() != null) return CompletableFuture.completedFuture(fromCells(box, against.expected()));
         if (against.expectedFile() != null) return CompletableFuture.completedFuture(fromCells(box, readExpectedFile(against.expectedFile())));
