@@ -59,6 +59,7 @@ class ToolSpecTest {
         assertTrue(instructions.contains("Default lightweight workflow:"));
         assertTrue(instructions.contains("one mc_survey"));
         assertTrue(instructions.contains("one mc_render"));
+        assertTrue(instructions.contains("first-person at eye height"));
         assertTrue(instructions.contains("Full exact verification is opt-in"));
         assertTrue(instructions.contains("mandatory plugin-side structural safety validation"));
         assertTrue(instructions.contains("Preserve rollback protection"));
@@ -83,6 +84,7 @@ class ToolSpecTest {
         assertFalse(detailed.get("default").getAsBoolean());
         assertTrue(spec.description().contains("ALWAYS fills -> shapes -> text -> blocks"));
         assertTrue(spec.description().contains("final minecraft:air entries"));
+        assertTrue(spec.description().contains("DESIGN DEFAULTS"));
         String instructions = new ToolRegistry(List.of()).instructions();
         assertTrue(instructions.contains("sign text and decorative entities (paintings, item frames, armor stands), not container inventories"));
         assertTrue(instructions.contains("failed check is not permission to delete"));
