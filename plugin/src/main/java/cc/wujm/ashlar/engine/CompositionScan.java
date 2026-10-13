@@ -397,13 +397,11 @@ public final class CompositionScan {
             queue[tail++] = i;
             tail = flood(seen, queue, start, tail, dy);
             int stand = 0;
-            boolean furnished = false, touchesInner = false;
+            boolean furnished = false;
             int bx = Integer.MAX_VALUE, by = Integer.MAX_VALUE, bz = Integer.MAX_VALUE;
             for (int q = start; q < tail; q++) {
                 int c = queue[q];
                 int x = outer.minX() + c % dx, z = outer.minZ() + (c / dx) % dz, y = outer.minY() + c / (dx * dz);
-                if (x >= inner.minX() && x <= inner.maxX() && y >= inner.minY() && y <= inner.maxY() && z >= inner.minZ() && z <= inner.maxZ())
-                    touchesInner = true;
                 if (cls[grid[c]].furnishing()) furnished = true;
                 Cls f = at(x, y - 1, z), up = at(x, y + 1, z);
                 if (f != null && up != null && f.floor() && up.passable()) {
@@ -419,7 +417,10 @@ public final class CompositionScan {
                 }
             }
             tail = start;
-            if (touchesInner && furnished && stand >= 4)
+            // Every part whose read box holds the whole room sees it; only the part that judges its
+            // first cell reports it, so a room is counted once across parts.
+            boolean owned = bx >= inner.minX() && bx <= inner.maxX() && by >= inner.minY() && by <= inner.maxY() && bz >= inner.minZ() && bz <= inner.maxZ();
+            if (owned && furnished && stand >= 4)
                 hit("sealed-room", bx, by, bz, palette.get(grid[offset(bx, by, bz)]), "furnished space of " + stand
                         + " standing cells with no way in (door, opening, ladder or hatch)");
         }
