@@ -96,10 +96,11 @@ class CompositionScanTest {
     }
 
     @Test
-    void lonePostsAndPanes() {
-        Map<String, Long> c = new Scene().floor().set(4, 1, 4, FENCE).set(9, 1, 9, BARS)
-                .set(12, 1, 12, FENCE).set(12, 2, 12, "lantern[hanging=false,waterlogged=false]").scan();
-        assertEquals(2L, c.get("lone-post"), "a fence carrying a lantern is a lamp post, not a lone post");
+    void unjoinedPiecesBesideAWallAreLonePosts() {
+        Scene s = new Scene().floor().set(4, 1, 4, FENCE).set(9, 1, 9, BARS);
+        assertTrue(s.scan().isEmpty(), "free-standing bollards and masts are a choice");
+        s.set(10, 1, 9, "stone_bricks").set(4, 1, 5, FENCE);
+        assertEquals(3L, s.scan().get("lone-post"), "bars beside a wall and two touching fences, all unjoined");
     }
 
     @Test
@@ -169,7 +170,7 @@ class CompositionScanTest {
         Scene s = new Scene().floor();
         s.set(3, 9, 12, "oak_leaves[distance=1,persistent=true,waterlogged=false]");
         s.set(3, 1, 3, "water[level=3]").set(3, 1, 4, "oak_planks");
-        s.set(8, 7, 8, "light[level=15,waterlogged=false]");
+        s.set(8, 7, 8, "light[level=15,waterlogged=false]").set(8, 8, 8, "oak_planks");
         Map<String, Long> c = s.scan();
         assertEquals(1L, c.get("floating-leaves"));
         assertEquals(1L, c.get("flowing-liquid"));
@@ -179,13 +180,19 @@ class CompositionScanTest {
     }
 
     @Test
+    void lightOverBareTerrainIsNotHidden() {
+        Scene s = new Scene().fill(0, 0, 0, 15, 2, 15, "packed_ice").set(8, 3, 8, "light[level=11,waterlogged=false]");
+        assertTrue(s.scan().isEmpty(), "anti-spawn light on terrain needs no lamp");
+    }
+
+    @Test
     void skippedRulesAndUnknownCellsStaySilent() {
-        Scene s = new Scene().floor().set(12, 1, 12, "light[level=15,waterlogged=false]");
+        Scene s = new Scene().floor().set(12, 1, 12, "light[level=15,waterlogged=false]").set(12, 3, 12, "oak_planks");
         CompositionScan skip = new CompositionScan(Set.of("hidden-light"), 5);
         skip.scan(s.box, s.box, s.palette, s.grid);
         assertTrue(skip.isEmpty());
         // Judged near the read box edge: the unknown cells beyond might hold a lamp.
-        Scene edge = new Scene().floor().set(15, 1, 15, "light[level=15,waterlogged=false]");
+        Scene edge = new Scene().floor().set(15, 1, 15, "light[level=15,waterlogged=false]").set(15, 3, 15, "oak_planks");
         CompositionScan inner = new CompositionScan(Set.of(), 5);
         inner.scan(edge.box, new Region(10, 0, 10, 15, 13, 15), edge.palette, edge.grid);
         assertTrue(inner.isEmpty());
