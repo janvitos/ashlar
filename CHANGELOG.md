@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+- `sealed-room` counted the same room once per part when a check was split into parts (a large `mc_diff` box, or several calls side by side): on live Alcatraz one room was reported 6 times. A room is now reported only by the part that judges its first cell.
+- Added 1 unit test.
+
 ## 0.5.9 (fork)
 
 - Building guidance from a review of seven large builds, whose mistakes all passed the existing physics checks. `mc_build`'s description gains a short "DESIGN DEFAULTS" paragraph: one module for openings, lamps and rows; visible lamps before hidden light; nothing hanging into walkways; straight railings closed along stairs; remove what a revision replaces; a door-reach `mc_walk` over the whole building; local terrain edits. It is only read when an agent is about to build. The server instructions now ask for the final render to be first-person at eye height from where players arrive, and the in-game agent prompt gets a one-sentence version.

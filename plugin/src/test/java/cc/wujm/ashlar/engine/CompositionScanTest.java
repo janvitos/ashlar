@@ -158,6 +158,17 @@ class CompositionScanTest {
     }
 
     @Test
+    void aSealedRoomSeenByTwoPartsCountsOnce() {
+        Scene s = new Scene().floor();
+        s.fill(3, 1, 3, 9, 4, 9, "stone_bricks").fill(4, 1, 4, 8, 3, 8, "air");
+        s.set(5, 1, 5, "chest[facing=north,type=single,waterlogged=false]");
+        CompositionScan scan = new CompositionScan(Set.of(), 5);
+        scan.scan(s.box, new Region(0, 0, 0, 6, 13, 15), s.palette, s.grid);
+        scan.scan(s.box, new Region(7, 0, 0, 15, 13, 15), s.palette, s.grid);
+        assertEquals(1L, scan.counts().get("sealed-room"));
+    }
+
+    @Test
     void emptyHollowIsNotARoom() {
         Scene s = new Scene().floor();
         s.fill(3, 1, 3, 9, 4, 9, "stone_bricks").fill(4, 1, 4, 8, 3, 8, "air");
