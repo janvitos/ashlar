@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## Unreleased
+## 0.5.10 (fork)
 
 - `sealed-room` counted the same room once per part when a check was split into parts (a large `mc_diff` box, or several calls side by side): on live Alcatraz one room was reported 6 times. A room is now reported only by the part that judges its first cell.
 - Added 1 unit test.
