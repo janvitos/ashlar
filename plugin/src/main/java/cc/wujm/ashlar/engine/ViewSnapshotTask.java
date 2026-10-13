@@ -7,27 +7,44 @@ import com.google.gson.JsonNull;
 import org.bukkit.ChunkSnapshot;
 import org.bukkit.World;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 
 /**
- * Main-thread half of a first-person view or sightline: copies each requested chunk column that is
- * already loaded into a {@link ChunkSnapshot}, a few per tick under the executor's budget. It never
- * loads a chunk and takes no chunk tickets; columns that are not loaded stay absent and read as
- * unknown. All ray work then happens off the main thread on the copies.
+ * Main-thread half of a first-person view or sightline: copies each requested chunk column into a
+ * {@link ChunkSnapshot}, a few per tick under the executor's budget ({@link ViewChunkGather}).
+ * Columns that are not loaded are loaded in the background with {@code getChunkAtAsync} without
+ * generation, nearest first and at most {@code loadCap} per view; no chunk tickets are taken, so
+ * nothing stays loaded afterwards. Columns that were never generated or are over the cap stay absent
+ * and read as unknown. All ray work then happens off the main thread on the copies.
  */
 public final class ViewSnapshotTask extends BuildTask {
     private final World world;
-    private final List<Long> chunks;
-    private final Map<Long, ChunkSnapshot> snapshots = new HashMap<>();
-    private int index;
+    private final ViewChunkGather<ChunkSnapshot> gather;
+    private boolean started;
     private int minY, maxY;
 
-    public ViewSnapshotTask(World world, List<Long> chunks) {
+    /** {@code chunks}: nearest first ({@link ViewChunkGather#byDistance}); {@code loadCap} 0 reads loaded columns only. */
+    public ViewSnapshotTask(World world, List<Long> chunks, int loadCap) {
         super(bounds(chunks));
         this.world = world;
-        this.chunks = List.copyOf(chunks);
+        this.gather = new ViewChunkGather<>(new ViewChunkGather.Source<>() {
+            @Override
+            public boolean isLoaded(int cx, int cz) {
+                return world.isChunkLoaded(cx, cz);
+            }
+
+            @Override
+            public ChunkSnapshot copy(int cx, int cz) {
+                return world.getChunkAt(cx, cz).getChunkSnapshot(false, false, false);
+            }
+
+            @Override
+            public CompletableFuture<Boolean> load(int cx, int cz) {
+                return world.getChunkAtAsync(cx, cz, false).thenApply(Objects::nonNull);
+            }
+        }, chunks, loadCap);
     }
 
     private static Region bounds(List<Long> chunks) {
@@ -54,25 +71,17 @@ public final class ViewSnapshotTask extends BuildTask {
 
     @Override
     public long volume() {
-        return chunks.size();
+        return gather.requested();
     }
 
     @Override
     public boolean step(long deadlineNanos) {
-        if (index == 0) {
+        if (!started) {
+            started = true;
             minY = world.getMinHeight();
             maxY = world.getMaxHeight() - 1;
         }
-        while (index < chunks.size()) {
-            if (System.nanoTime() >= deadlineNanos) return false;
-            long c = chunks.get(index++);
-            int cx = FirstPersonCamera.chunkX(c), cz = FirstPersonCamera.chunkZ(c);
-            if (world.isChunkLoaded(cx, cz)) {
-                snapshots.put(c, world.getChunkAt(cx, cz).getChunkSnapshot(false, false, false));
-            }
-            advance(1);
-        }
-        return true;
+        return gather.step(() -> System.nanoTime() < deadlineNanos);
     }
 
     @Override
@@ -82,14 +91,31 @@ public final class ViewSnapshotTask extends BuildTask {
 
     /** Off-main, only after completion (the completion future is the memory barrier). */
     public SnapshotVoxels voxels() {
-        return new SnapshotVoxels(snapshots, minY, maxY);
+        return new SnapshotVoxels(gather.copies(), minY, maxY);
     }
 
+    /** Columns copied: already loaded plus loaded for this view. */
     public int loaded() {
-        return snapshots.size();
+        return gather.copies().size();
     }
 
     public int requested() {
-        return chunks.size();
+        return gather.requested();
+    }
+
+    public int loadedForView() {
+        return gather.loadedForView();
+    }
+
+    public int notGenerated() {
+        return gather.notGenerated();
+    }
+
+    public int overCap() {
+        return gather.overCap();
+    }
+
+    public int failed() {
+        return gather.failed();
     }
 }

@@ -96,6 +96,11 @@ public final class McRender implements Tool {
                 JsonObject chunks = new JsonObject();
                 chunks.addProperty("inView", r.snapshot().requested());
                 chunks.addProperty("loaded", r.snapshot().loaded());
+                cc.wujm.ashlar.engine.ViewService.Snapshot sn = r.snapshot();
+                if (sn.loadedForView() > 0) chunks.addProperty("loadedForView", sn.loadedForView());
+                if (sn.notGenerated() > 0) chunks.addProperty("notGenerated", sn.notGenerated());
+                if (sn.overCap() > 0) chunks.addProperty("overLoadCap", sn.overCap());
+                if (sn.failed() > 0) chunks.addProperty("failed", sn.failed());
                 summary.add("chunks", chunks);
                 summary.add("geometry", AngledRenderText.geometry(r.output().details(), cc.wujm.ashlar.engine.BukkitStateDefaults.CANON::canon));
                 JsonArray legend = new JsonArray();

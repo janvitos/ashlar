@@ -22,16 +22,22 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
 /**
- * First-person renders and sightlines (Step 14). The main thread only copies already-loaded chunk
- * columns ({@link ViewSnapshotTask}, tick-budgeted, no chunk loads or tickets); every ray and the
- * PNG encoding run on the render executor.
+ * First-person renders and sightlines (Step 14). The main thread only copies chunk columns
+ * ({@link ViewSnapshotTask}, tick-budgeted, no chunk tickets); columns that are not loaded are loaded
+ * in the background without generation, nearest first, up to {@code limits.max-view-chunk-loads}.
+ * Every ray and the PNG encoding run on the render executor.
  */
 public final class ViewService {
 
     /** A resolved eye: exact position, look direction and world. {@code player} is null for explicit eyes. */
     public record Eye(World world, double x, double y, double z, double yaw, double pitch, String player) {}
 
-    public record Snapshot(SnapshotVoxels voxels, int requested, int loaded) {}
+    /**
+     * {@code loaded}: columns copied, {@code loadedForView} of them loaded for this view;
+     * {@code notGenerated}, {@code overCap} and {@code failed} columns stay unknown.
+     */
+    public record Snapshot(SnapshotVoxels voxels, int requested, int loaded, int loadedForView, int notGenerated,
+            int overCap, int failed) {}
 
     private final ConfigHolder config;
     private final TickBudgetExecutor executor;
@@ -57,22 +63,27 @@ public final class ViewService {
         });
     }
 
-    /** Copies the loaded columns among {@code chunks}; rejects more than {@code limits.max-chunks-per-operation}. */
-    public CompletableFuture<Snapshot> snapshot(InvocationContext ctx, World world, Set<Long> chunks) {
+    /**
+     * Copies {@code chunks}, loading unloaded ones nearest to (x, z) first; rejects more than
+     * {@code limits.max-chunks-per-operation}.
+     */
+    public CompletableFuture<Snapshot> snapshot(InvocationContext ctx, World world, Set<Long> chunks, double x, double z) {
         MainThread.assertNotPrimary("ViewService.snapshot");
         long max = config.get().limits().maxChunksPerOperation();
         if (chunks.size() > max) {
             throw new RpcError(ErrorCode.VOLUME_EXCEEDED, "the view spans " + chunks.size() + " chunks, exceeding limit " + max
                     + "; use a smaller distance or narrower fov");
         }
-        ViewSnapshotTask task = new ViewSnapshotTask(world, new ArrayList<>(chunks));
-        return executor.submit(task, ctx).thenApplyAsync(ignored -> new Snapshot(task.voxels(), task.requested(), task.loaded()), renderExecutor);
+        ViewSnapshotTask task = new ViewSnapshotTask(world, ViewChunkGather.byDistance(chunks, x, z),
+                config.get().limits().maxViewChunkLoads());
+        return executor.submit(task, ctx).thenApplyAsync(ignored -> new Snapshot(task.voxels(), task.requested(), task.loaded(),
+                task.loadedForView(), task.notGenerated(), task.overCap(), task.failed()), renderExecutor);
     }
 
     public record Render(FirstPersonRenderer.Output output, byte[] png, Snapshot snapshot) {}
 
     public CompletableFuture<Render> render(InvocationContext ctx, World world, FirstPersonCamera cam) {
-        return snapshot(ctx, world, cam.chunks()).thenApplyAsync(s -> {
+        return snapshot(ctx, world, cam.chunks(), cam.x(), cam.z()).thenApplyAsync(s -> {
             FirstPersonRenderer.Output out = FirstPersonRenderer.render(s.voxels(), s.voxels()::color, cam);
             try {
                 return new Render(out, RenderService.encodePng(out.image().pixels(), out.image().width(), out.image().height()), s);
@@ -87,7 +98,7 @@ public final class ViewService {
     public CompletableFuture<Lines> sightlines(InvocationContext ctx, Eye eye, List<int[]> targets, List<Sightline.Ignore> ignore) {
         Set<Long> chunks = new LinkedHashSet<>();
         for (int[] t : targets) segmentChunks(eye.x(), eye.z(), t[0] + .5, t[2] + .5, chunks);
-        return snapshot(ctx, eye.world(), chunks).thenApplyAsync(s -> {
+        return snapshot(ctx, eye.world(), chunks, eye.x(), eye.z()).thenApplyAsync(s -> {
             List<Sightline.Result> out = new ArrayList<>();
             for (int[] t : targets) out.add(Sightline.target(s.voxels(), eye.x(), eye.y(), eye.z(), t, ignore));
             return new Lines(out, s);
@@ -98,7 +109,7 @@ public final class ViewService {
 
     public CompletableFuture<Cone> cone(InvocationContext ctx, Eye eye, double fov, int rays, int distance, List<Sightline.Ignore> ignore) {
         FirstPersonCamera cam = new FirstPersonCamera(eye.x(), eye.y(), eye.z(), eye.yaw(), eye.pitch(), fov, distance, 64, 64);
-        return snapshot(ctx, eye.world(), cam.chunks()).thenApplyAsync(s -> new Cone(
+        return snapshot(ctx, eye.world(), cam.chunks(), eye.x(), eye.z()).thenApplyAsync(s -> new Cone(
                 Sightline.cone(s.voxels(), eye.x(), eye.y(), eye.z(), eye.yaw(), eye.pitch(), fov, rays, distance, ignore), s), renderExecutor);
     }
 

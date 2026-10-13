@@ -142,7 +142,7 @@ public final class McSightline implements Tool {
                 }
                 case UNKNOWN -> {
                     unknown++;
-                    rows.add(pos + "  unknown: chunk not loaded at " + r.at()[0] + "," + r.at()[1] + "," + r.at()[2] + " (" + fmt(r.distance()) + " blocks)");
+                    rows.add(pos + "  unknown: chunk not available at " + r.at()[0] + "," + r.at()[1] + "," + r.at()[2] + " (" + fmt(r.distance()) + " blocks)");
                 }
             }
         }
@@ -153,7 +153,7 @@ public final class McSightline implements Tool {
         sb.append(" of ").append(l.results().size()).append(".\n").append(String.join("\n", rows));
         if (l.snapshot().loaded() < l.snapshot().requested()) {
             sb.append("\n").append(l.snapshot().requested() - l.snapshot().loaded()).append(" of ").append(l.snapshot().requested())
-                    .append(" chunks along these lines are not loaded; lines through them answer unknown.");
+                    .append(" chunks along these lines could not be read (never generated or over the load cap); lines through them answer unknown.");
         }
         return sb.toString();
     }
