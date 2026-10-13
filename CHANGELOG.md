@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+- Building guidance from a review of seven large builds, whose mistakes all passed the existing physics checks. `mc_build`'s description gains a short "DESIGN DEFAULTS" paragraph: one module for openings, lamps and rows; visible lamps before hidden light; nothing hanging into walkways; straight railings closed along stairs; remove what a revision replaces; a door-reach `mc_walk` over the whole building; local terrain edits. It is only read when an agent is about to build. The server instructions now ask for the final render to be first-person at eye height from where players arrive, and the in-game agent prompt gets a one-sentence version.
+
 ## 0.5.8 (fork)
 
 - First-person `mc_render` and `mc_sightline` read unloaded chunks. Before, they only copied chunks that were already loaded, so a view of a build nobody stood near came back as purple "unknown" and had to be force-loaded by hand. Unloaded chunks in view now load in the background with `getChunkAtAsync` without generation: nearest first, at most 8 at a time, each copied under the tick budget in the tick after it loads, and no chunk tickets, so nothing ticks or stays loaded. Never-generated chunks and chunks beyond `limits.max-view-chunk-loads` (default 256, `0` turns loading off, applied by `/ashlar reload`) stay unknown. The first-person reply's `chunks` adds `loadedForView`, `notGenerated`, `overLoadCap` and `failed` when they are not zero.
