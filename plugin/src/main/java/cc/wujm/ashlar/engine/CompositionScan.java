@@ -57,7 +57,7 @@ public final class CompositionScan {
     private record Cls(String material, Family family, boolean connected, boolean open, boolean passable, boolean floor,
             boolean collides, boolean air, boolean hangingLamp, boolean standingLamp, boolean bed, boolean seat, boolean table,
             boolean visibleLight, boolean lightBlock, boolean leaves, boolean flowing, boolean natural, boolean furnishing,
-            boolean doorLower, int doorAxis, boolean low) {
+            boolean doorLower, int doorAxis, boolean low, boolean solid) {
     }
 
     private final Set<String> skip;
@@ -158,7 +158,8 @@ public final class CompositionScan {
                 visible, m.equals("light"), m.endsWith("_leaves"), flowing, NATURAL.contains(m),
                 FURNISHING.contains(m) || m.endsWith("_bed") || m.endsWith("_door") || m.endsWith("_sign") || m.endsWith("carpet")
                         || m.endsWith("_banner") || m.endsWith("candle"),
-                doorLower, axis, closed.kind() == WalkShapes.Kind.SOLID && closed.bottom() == 0 && closed.top() <= 0.5);
+                doorLower, axis, closed.kind() == WalkShapes.Kind.SOLID && closed.bottom() == 0 && closed.top() <= 0.5,
+                closed.kind() == WalkShapes.Kind.SOLID && closed.bottom() == 0 && closed.top() >= 1);
     }
 
     // ------------------------------------------------------------------ grid access
@@ -209,13 +210,11 @@ public final class CompositionScan {
                 hit("diagonal-rail", x, y, z, state, "touches its neighbours only at a corner, so players slip through; run railings straight or in L-steps");
             } else if (stepped(c, x, y, z)) {
                 // Reported by rail-gap.
-            } else if (c.family() == Family.PANE) {
-                Cls up = at(x, y + 1, z), down = at(x, y - 1, z);
-                if (!sameFamily(c, up) && !sameFamily(c, down)) hit("lone-post", x, y, z, state, "unconnected pane or bar shows as a thin post");
-            } else if (c.family() == Family.FENCE) {
-                Cls up = at(x, y + 1, z), down = at(x, y - 1, z);
-                if (up != null && up.air() && down != null && !sameFamily(c, down))
-                    hit("lone-post", x, y, z, state, "lone post with nothing on it and no rails");
+            } else if (c.family() != Family.WALL && besideJoinable(c, x, y, z)) {
+                // A free-standing post (bollard, mast, cresting) is a choice; a piece left unjoined
+                // beside a wall or a rail is a placement leftover that shows as a thin post.
+                hit("lone-post", x, y, z, state, "shows as a thin post although it stands beside "
+                        + "something it should join; place it with connect or set its sides");
             }
         }
         // A thin railing that climbs a stair as separate posts, one block higher per step: the posts
@@ -236,6 +235,15 @@ public final class CompositionScan {
         }
         if (c.family() == Family.FENCE && sameFamily(c, at(x + 1, y, z)) && sameFamily(c, at(x, y, z + 1)) && sameFamily(c, at(x + 1, y, z + 1)))
             hit("fence-clump", x, y, z, state, "fences fill a 2x2 block and merge into a solid mass; give tables corner legs with air between them");
+    }
+
+    /** A horizontal neighbour a fence, pane or bar would join: the same family or a solid block. */
+    private boolean besideJoinable(Cls c, int x, int y, int z) {
+        for (int[] d : SIDE_STEP) {
+            Cls o = at(x + d[0], y, z + d[1]);
+            if (o != null && (sameFamily(c, o) || o.family() == Family.NONE && o.solid())) return true;
+        }
+        return false;
     }
 
     /** A same-family piece one step up or down beside this one: a railing climbing a stair. */
@@ -338,6 +346,17 @@ public final class CompositionScan {
     }
 
     private void hiddenLight(String state, int x, int y, int z) {
+        // Light over bare terrain keeps mobs off it; nobody expects a lamp there.
+        boolean built = false;
+        for (int i = -2; i <= 2 && !built; i++) {
+            for (int j = -2; j <= 2 && !built; j++) {
+                for (int k = -2; k <= 2 && !built; k++) {
+                    Cls o = at(x + i, y + j, z + k);
+                    built = o != null && o.collides() && !o.natural() && !o.leaves();
+                }
+            }
+        }
+        if (!built) return;
         for (int i = -MARGIN; i <= MARGIN; i++) {
             for (int j = -MARGIN; j <= MARGIN; j++) {
                 for (int k = -MARGIN; k <= MARGIN; k++) {

@@ -23,6 +23,8 @@ class CompositionCheckTest {
         for (int i = 0; i < 64; i++) grid[i] = 1; // floor at y = 0
         grid[(8 + 2) * 8 + 2] = 2; // two lone bars at y = 1
         grid[(8 + 5) * 8 + 5] = 2;
+        grid[(8 + 2) * 8 + 3] = 1; // walls beside both, so they should have joined
+        grid[(8 + 5) * 8 + 6] = 1;
         CompositionScan scan = new CompositionScan(Set.of(), 1);
         scan.scan(box, box, palette, grid);
         List<String> lines = CompositionCheck.format(scan);
