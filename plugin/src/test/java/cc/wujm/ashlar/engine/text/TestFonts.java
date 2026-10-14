@@ -26,4 +26,11 @@ final class TestFonts {
                 + Integer.toHexString(codePoint).toUpperCase(Locale.ROOT)
                 + " (no CJK font installed on this machine/CI runner)");
     }
+
+    static void assumeSystemFontCannotDisplay(int codePoint) {
+        Font font = new Font(Font.SANS_SERIF, Font.PLAIN, 12);
+        assumeTrue(!font.canDisplay(codePoint), () -> "this JVM's system font has a glyph for U+"
+                + Integer.toHexString(codePoint).toUpperCase(Locale.ROOT)
+                + " (an icon font installed on this machine)");
+    }
 }

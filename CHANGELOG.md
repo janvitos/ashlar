@@ -9,6 +9,7 @@ All notable changes to this project are documented in this file.
 - Renders draw end rods, chains and lightning rods at least 2 px (and 4/16 of a block) across in angled views and 5/16 in first-person views, so lamp chains and rod lights no longer vanish at normal scales. Only the picture changes: `mc_walk`, `mc_sightline` and `mc_light` keep the true shapes.
 - `mc_light`'s description now says dark spaces use the server's own light, so lamps outside the box already count; only the coverage of suggested lights is estimated inside the box.
 - Added 6 unit tests.
+- `AwtGlyphsTest` no longer fails on machines with icon fonts (Nerd Fonts cover U+E000): the missing-glyph test uses U+10FFFD and skips itself if a font covers that too. Test-only.
 
 ## 0.5.10 (fork)
 
