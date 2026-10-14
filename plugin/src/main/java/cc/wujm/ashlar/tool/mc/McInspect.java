@@ -15,6 +15,7 @@ import cc.wujm.ashlar.tool.ToolResult;
 import cc.wujm.ashlar.tool.ToolRunner;
 import cc.wujm.ashlar.tool.ToolSpec;
 import cc.wujm.ashlar.tool.text.BlockGrid;
+import cc.wujm.ashlar.tool.text.FindText;
 import cc.wujm.ashlar.tool.text.SliceText;
 import cc.wujm.ashlar.tool.text.ToolText;
 
@@ -22,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.UnaryOperator;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import static cc.wujm.ashlar.tool.mc.JsonUtil.intArray;
 
@@ -94,7 +97,7 @@ public final class McInspect implements Tool {
     record SliceArg(String axis, int at) {
     }
 
-    record Args(String world, int[] from, int[] to, SliceArg slice, String format, boolean canonical, boolean entities) {
+    record Args(String world, int[] from, int[] to, SliceArg slice, String format, boolean canonical, boolean entities, Pattern find) {
         static Args parse(JsonObject o) {
             String world = ArgParse.optString(o, "world");
             int[] from = ArgParse.requireCoords3(o, "from");
@@ -110,7 +113,17 @@ public final class McInspect implements Tool {
             if (!format.equals("stats") && slice != null) {
                 throw new ToolArgError("`slice` and `format: \"" + format + "\"` are exclusive");
             }
-            return new Args(world, from, to, slice, format, ArgParse.optBoolean(o, "canonical", true), ArgParse.optBoolean(o, "entities", false));
+            Pattern find = null;
+            String findArg = ArgParse.optString(o, "find");
+            if (findArg != null) {
+                if (slice != null || ArgParse.has(o, "format")) throw new ToolArgError("`find` cannot be combined with `slice` or `format`");
+                try {
+                    find = Pattern.compile(findArg);
+                } catch (PatternSyntaxException e) {
+                    throw new ToolArgError("find: invalid pattern: " + e.getDescription());
+                }
+            }
+            return new Args(world, from, to, slice, format, ArgParse.optBoolean(o, "canonical", true), ArgParse.optBoolean(o, "entities", false), find);
         }
     }
 
@@ -160,6 +173,9 @@ public final class McInspect implements Tool {
                         ? r.get("world").getAsString() : null;
                 String worldName = worldFromResult != null ? worldFromResult : (a.world() != null ? a.world() : "(default)");
 
+                if (a.find() != null) {
+                    return FindText.renderFind(decoded, a.find(), worldName);
+                }
                 if (a.slice() != null) {
                     return ToolText.inspectSliceText(decoded, new SliceText.SliceSpec(a.slice().axis(), a.slice().at()), signs, signsTruncated);
                 }

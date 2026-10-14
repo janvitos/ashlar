@@ -130,6 +130,27 @@ class CompositionScanTest {
     }
 
     @Test
+    void lanternWhereNobodyStandsIsFine() {
+        String lamp = "lantern[hanging=true,waterlogged=false]";
+        // Over a balustrade of bars.
+        Scene rail = new Scene().floor().fill(2, 1, 2, 8, 1, 2, BARS).set(5, 3, 2, lamp);
+        assertFalse(rail.scan().containsKey("low-lamp"));
+        // In a 1-high pocket of a solid hull.
+        Scene pocket = new Scene().floor().fill(0, 1, 0, 15, 3, 15, "stone_bricks").set(5, 1, 5, "air").set(5, 2, 5, lamp);
+        assertFalse(pocket.scan().containsKey("low-lamp"));
+        // Down a 1x1 shaft walled on every side.
+        Scene shaft = new Scene().floor().fill(4, 1, 4, 6, 6, 6, "polished_basalt[axis=y]").fill(5, 1, 5, 5, 6, 5, "air").set(5, 3, 5, lamp);
+        assertFalse(shaft.scan().containsKey("low-lamp"));
+    }
+
+    @Test
+    void lanternOverABedInALowBerthStillCounts() {
+        Scene s = new Scene().floor().fill(0, 1, 0, 15, 3, 15, "stone_bricks");
+        s.set(5, 1, 5, "red_bed[facing=north,occupied=false,part=foot]").set(5, 2, 5, "air").set(5, 3, 5, "lantern[hanging=true,waterlogged=false]");
+        assertEquals(1L, s.scan().get("low-lamp"));
+    }
+
+    @Test
     void objectAtHeadHeightAcrossAWalkway() {
         Scene s = new Scene().floor().set(5, 2, 5, "oak_planks");
         assertEquals(1L, s.scan().get("head-height"));

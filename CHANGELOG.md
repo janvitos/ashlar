@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+- `low-lamp` only reports a lamp over bare floor where someone can stand: on a real floor (not a rail or a chest top), with 2-high room beside the spot at its level or a step up or down. Lamps over balustrades, set into a solid hull, or in narrow shafts and cargo nooks are no longer reported; lamps over beds, seats and tables are judged as before. On the live Titanic 8 of 631 findings dropped, all checked by hand; the rest, mostly lanterns in 3-high rooms, stay.
+- `mc_inspect` takes `find`, a regex searched in each block id (without `minecraft:` and properties), and lists the positions of every match grouped by state, at most 500 (counts stay exact): e.g. `find:"lantern|^light$"`. Not with `slice` or `format`.
+- Renders draw end rods, chains and lightning rods at least 2 px (and 4/16 of a block) across in angled views and 5/16 in first-person views, so lamp chains and rod lights no longer vanish at normal scales. Only the picture changes: `mc_walk`, `mc_sightline` and `mc_light` keep the true shapes.
+- `mc_light`'s description now says dark spaces use the server's own light, so lamps outside the box already count; only the coverage of suggested lights is estimated inside the box.
+- Added 6 unit tests.
+
 ## 0.5.10 (fork)
 
 - `sealed-room` counted the same room once per part when a check was split into parts (a large `mc_diff` box, or several calls side by side): on live Alcatraz one room was reported 6 times. A room is now reported only by the part that judges its first cell.
