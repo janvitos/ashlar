@@ -338,7 +338,7 @@ python3 -I tools/findsite.py <world>/dimensions/minecraft/overworld/region --bio
 
 ### 1. Install the plugin
 
-1. Download `ashlar-0.5.10.jar` from the [Releases](../../releases) page into your server's `plugins/` folder.
+1. Download `ashlar-0.5.11.jar` from the [Releases](../../releases) page into your server's `plugins/` folder.
 2. Start the server once, then stop it. The plugin refuses to fully start on this first run - it writes a default `plugins/Ashlar/config.yml` and disables itself because the token is empty.
 3. Edit `plugins/Ashlar/config.yml`:
    - `mode`: how this server is used - `both` (default: MCP clients and `/ashlar`), `mcp` (MCP clients only), `ingame` (`/ashlar` only) or `external` (see [In-game assistant](#in-game-assistant-no-ai-client-needed)). **Only using `/ashlar` in game, no AI client?** Set `mode: ingame`, skip the rest of this list and go straight to that section: no port is opened and no token is needed.
