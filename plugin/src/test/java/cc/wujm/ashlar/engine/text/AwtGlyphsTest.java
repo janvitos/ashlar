@@ -41,8 +41,11 @@ class AwtGlyphsTest {
 
     @Test
     void anUncoveredCodePointFailsInsteadOfDrawingTheMissingGlyphBox() {
-        // U+E000 is in the Private Use Area: no real font covers it, so this must throw rather
-        // than return the JVM's tofu rectangle (which at block scale reads as intentional lettering).
-        assertThrows(FontRenderException.class, () -> Glyphs.glyphFor(0xE000));
+        // U+10FFFD, the last Private Use code point: this must throw rather than return the JVM's
+        // tofu rectangle (which at block scale reads as intentional lettering). Icon fonts such as
+        // Nerd Fonts fill the BMP Private Use Area from U+E000, so the test skips itself on the
+        // rare machine with a font for this one too.
+        TestFonts.assumeSystemFontCannotDisplay(0x10FFFD);
+        assertThrows(FontRenderException.class, () -> Glyphs.glyphFor(0x10FFFD));
     }
 }
