@@ -23,7 +23,11 @@ public final class FirstPersonRenderer {
     public record Output(ImageRenderer.Output image, JsonObject details) {}
 
     /** {@code colors} maps a block id to its ARGB map color (0 = none); called off-main, so it must be pure. */
-    public static Output render(VoxelRay.Voxels voxels, IntUnaryOperator colors, FirstPersonCamera cam) {
+    /** Render-only width of rods and chains, so a lamp's chain or an end rod stays visible beyond a few blocks. */
+    static final double THIN_MIN = 5.0 / 16;
+
+    public static Output render(VoxelRay.Voxels world, IntUnaryOperator colors, FirstPersonCamera cam) {
+        VoxelRay.Voxels voxels = widened(world);
         int w = cam.width(), h = cam.height();
         int[] pixels = new int[w * h];
         double[][] basis = cam.basis();
@@ -126,6 +130,41 @@ public final class FirstPersonRenderer {
         double t = Math.min(1, dy * 1.4);
         int r = (int) (186 - 76 * t), g = (int) (214 - 64 * t), bl = (int) (240 - 15 * t);
         return 0xFF000000 | (r << 16) | (g << 8) | bl;
+    }
+
+    /** {@code world} with {@link BlockShapes#widenThin} applied to each shape, computed once per id. */
+    static VoxelRay.Voxels widened(VoxelRay.Voxels world) {
+        return new VoxelRay.Voxels() {
+            private BlockShapes.Shape[] cache = new BlockShapes.Shape[256];
+
+            @Override
+            public int id(int x, int y, int z) {
+                return world.id(x, y, z);
+            }
+
+            @Override
+            public BlockShapes.Shape shape(int id) {
+                if (id >= cache.length) cache = java.util.Arrays.copyOf(cache, Math.max(id + 1, cache.length * 2));
+                BlockShapes.Shape s = cache[id];
+                if (s == null) s = cache[id] = BlockShapes.widenThin(world.shape(id), world.state(id), THIN_MIN);
+                return s;
+            }
+
+            @Override
+            public String state(int id) {
+                return world.state(id);
+            }
+
+            @Override
+            public int minY() {
+                return world.minY();
+            }
+
+            @Override
+            public int maxY() {
+                return world.maxY();
+            }
+        };
     }
 
     private static int clamp(double v) {

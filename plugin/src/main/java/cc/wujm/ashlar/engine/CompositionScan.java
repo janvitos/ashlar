@@ -274,6 +274,11 @@ public final class CompositionScan {
             if (below == null || !below.open()) break;
         }
         if (below == null || clear > 3 || !below.collides()) return;
+        // Over bare floor, a lamp is only in the way where someone can stand: a floor that is no
+        // railing top, with 2-high room beside the spot (not a 1-high pocket or a narrow shaft).
+        // Beds, seats and tables are always judged.
+        if (!below.bed() && !below.seat() && !below.table()
+                && (!below.floor() || below.family() != Family.NONE || !roomBeside(x, by + 1, z))) return;
         String what = below.bed() ? "a bed" : below.seat() ? "a seat" : below.table() ? "a table" : "the floor";
         if (clear <= 1 && !below.table()) {
             hit("low-lamp", x, y, z, state, "hanging lantern " + clear + " block" + (clear == 1 ? "" : "s") + " above " + what + ", at head height; hang it higher or use a wall or ceiling light");
@@ -284,6 +289,14 @@ public final class CompositionScan {
             if (above != null && !above.open() && above.family() == Family.NONE && !above.material().contains("chain"))
                 hit("low-lamp", x, y, z, state, "hanging lantern in a 3-high room sits in the line of sight; use a flush or wall light, or a taller room");
         }
+    }
+
+    /** A 2-high walkable cell beside (x, y, z), at its level or one step up or down. */
+    private boolean roomBeside(int x, int y, int z) {
+        for (int[] d : SIDE_STEP) {
+            for (int s = -1; s <= 1; s++) if (walkable2(x + d[0], y + s, z + d[1])) return true;
+        }
+        return false;
     }
 
     /** A 1-high squeeze: floor, open feet, something solid at head height, next to 2-high walkable cells. */

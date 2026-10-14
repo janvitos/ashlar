@@ -22,4 +22,13 @@ class BlockShapesTest {
     @Test void unsupportedShapeExplicitFallback(){assertEquals("cube_fallback",BlockShapes.resolve("minecraft:anvil").fidelity());assertEquals("approximate",BlockShapes.resolve("minecraft:chest").fidelity());}
     @Test void gateOpenRemovesCenter(){assertTrue(occupied("oak_fence_gate[open=false,facing=north]",.5,.5,.5));assertFalse(occupied("oak_fence_gate[open=true,facing=north]",.5,.5,.5));}
     @Test void shapeListsAndBoundsAreSafe(){assertThrows(UnsupportedOperationException.class,() -> BlockShapes.resolve("minecraft:stone").boxes().clear());assertThrows(IllegalArgumentException.class,() -> new BlockShapes.Box(0,0,0,2,1,1));}
+    @Test void rendersWidenRodsAndChainsOnly(){
+        String rod="minecraft:end_rod[facing=east]";BlockShapes.Shape w=BlockShapes.widenThin(BlockShapes.resolve(rod),rod,.25);
+        BlockShapes.Box shaft=w.boxes().stream().max(java.util.Comparator.comparingDouble(BlockShapes.Box::volume)).orElseThrow();
+        assertEquals(.25,shaft.y1()-shaft.y0(),1e-9);assertEquals(.25,shaft.z1()-shaft.z0(),1e-9);assertEquals(15.0/16,shaft.x1()-shaft.x0(),1e-9);
+        String chain="minecraft:iron_chain[axis=y]";BlockShapes.Box c=BlockShapes.widenThin(BlockShapes.resolve(chain),chain,.3125).boxes().getFirst();
+        assertEquals(.3125,c.x1()-c.x0(),1e-9);assertEquals(.5,(c.x0()+c.x1())/2,1e-9);
+        String bars="minecraft:iron_bars";assertEquals(BlockShapes.resolve(bars),BlockShapes.widenThin(BlockShapes.resolve(bars),bars,.25));
+        assertEquals(1.0/16,BlockShapes.resolve(rod).boxes().stream().mapToDouble(b -> Math.min(b.y1()-b.y0(),b.x1()-b.x0())).min().orElseThrow(),1e-9);
+    }
 }

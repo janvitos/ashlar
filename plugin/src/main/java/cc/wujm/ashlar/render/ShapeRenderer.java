@@ -100,6 +100,8 @@ public final class ShapeRenderer {
             if(pixels<=MAX_PIXELS&&work<=budget)break;
             if(eff==1)throw new BudgetExceededException("shape image exceeds pixel/intersection budget at scale=1; use smaller 3D bounds");eff=Math.max(1,eff/2);
         }
+        // Rods and chains drawn at least 2 px (and 4/16) across, so they survive small scales.
+        double thinMin=Math.min(.5,Math.max(.25,2.0/eff));for(int i=0;i<shapes.length;i++)shapes[i]=BlockShapes.widenThin(shapes[i],data.palette().get(i),thinMin);
         int[] pixels=new int[width*height];long[] visible=new long[palette+3];int capped=0;
         for(int py=0;py<height;py++)for(int px=0;px<width;px++){
             double u=u0+(px-PADDING+.5)/eff,v=v1-(py-PADDING+.5)/eff;

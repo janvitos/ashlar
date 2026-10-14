@@ -141,6 +141,23 @@ public final class BlockShapes {
         Box q=px(w,0,w,16-w,t.equals("tip")?11:16,16-w);
         return shape(List.of("down".equals(p.get("vertical_direction"))?toward("down",q):q),1,"approximate");
     }
+    /** Rods and chains that renders widen so they stay visible; walking, sightlines and light keep the true shape. */
+    public static boolean thin(String state){String m=material(state);return m.equals("end_rod")||m.endsWith("chain")||m.endsWith("lightning_rod");}
+    /** Render-only: each long box of a {@link #thin} block grows to at least {@code min} across, about its centre. */
+    public static Shape widenThin(Shape s,String state,double min){
+        if(!thin(state))return s;
+        List<Box> out=new ArrayList<>();
+        for(Box q:s.boxes()){
+            if(Math.max(q.x1()-q.x0(),Math.max(q.y1()-q.y0(),q.z1()-q.z0()))<.5){out.add(q);continue;}
+            double[] x=grow(q.x0(),q.x1(),min),y=grow(q.y0(),q.y1(),min),z=grow(q.z0(),q.z1(),min);
+            out.add(b(x[0],y[0],z[0],x[1],y[1],z[1]));
+        }
+        return shape(out,s.opacity(),s.fidelity());
+    }
+    private static double[] grow(double lo,double hi,double min){
+        if(hi-lo>=min)return new double[]{lo,hi};
+        double c=Math.max(min/2,Math.min(1-min/2,(lo+hi)/2));return new double[]{c-min/2,c+min/2};
+    }
     private static Shape button(Map<String,String> p,String facing){
         double d="true".equals(p.get("powered"))?1:2;
         Box q=switch(p.getOrDefault("face","wall")){case "floor"->rot(facing,px(5,0,6,11,d,10));case "ceiling"->rot(facing,px(5,16-d,6,11,16,10));default->rot(facing,px(5,6,16-d,11,10,16));};

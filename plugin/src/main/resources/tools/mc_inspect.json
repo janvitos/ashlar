@@ -1,7 +1,7 @@
 {
   "name": "mc_inspect",
   "title": "Inspect blocks",
-  "description": "Reads exact block data from the world: a block-frequency table, an ASCII cross-section, or per-column block runs.\n\nDefault output: every distinct state in the box by count and percentage, plus its bounds (e.g. \"is there leftover scaffolding?\"). With `slice`: one 2D layer or cut as an ASCII grid with a legend and coordinate ruler (grids over 80x60 are downsampled to the most common block per character, as noted). With format \"columns\" (not with slice): exact bottom-to-top runs per column, to repair a hole, crater or wall gap in one call. With format \"exterior\" (not with slice): what the finished build shows outside - blocks next to air reached from the box's sides or top, by material - plus sealed air and detached pieces not connected to the bottom layer (stray blocks, leftover scaffolding); leave a one-block air margin around the build, with the bottom layer in the ground; an open doorway lets outside air in, so interior faces then count too. For a picture of a layer, use mc_render view \"slice\".\n\nWHEN TO USE: after mc_build when build feedback raises a specific doubt; to read existing structures or terrain in detail (mc_survey reads only the surface).\nWHEN NOT TO USE: to find ground level over a large area (mc_survey); to place blocks (mc_build).\n\nCOORDINATES: X east, Z south, Y up; from/to inclusive corners in any order; at most 200,000 blocks.\n\nSIDE EFFECTS: read-only.",
+  "description": "Reads exact block data from the world: a block-frequency table, an ASCII cross-section, or per-column block runs.\n\nDefault output: every distinct state in the box by count and percentage, plus its bounds (e.g. \"is there leftover scaffolding?\"). With `slice`: one 2D layer or cut as an ASCII grid with a legend and coordinate ruler (grids over 80x60 are downsampled to the most common block per character, as noted). With format \"columns\" (not with slice): exact bottom-to-top runs per column, to repair a hole, crater or wall gap in one call. With format \"exterior\" (not with slice): what the finished build shows outside - blocks next to air reached from the box's sides or top, by material - plus sealed air and detached pieces not connected to the bottom layer (stray blocks, leftover scaffolding); leave a one-block air margin around the build, with the bottom layer in the ground; an open doorway lets outside air in, so interior faces then count too. With `find` (a regex searched in each block id, without minecraft: and properties): the positions of every match, grouped by state, at most 500 listed (counts stay exact) - e.g. find \"lantern|^light$\" to locate lamps and light blocks. For a picture of a layer, use mc_render view \"slice\".\n\nWHEN TO USE: after mc_build when build feedback raises a specific doubt; to read existing structures or terrain in detail (mc_survey reads only the surface).\nWHEN NOT TO USE: to find ground level over a large area (mc_survey); to place blocks (mc_build).\n\nCOORDINATES: X east, Z south, Y up; from/to inclusive corners in any order; at most 200,000 blocks.\n\nSIDE EFFECTS: read-only.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -77,6 +77,11 @@
           "axis",
           "at"
         ]
+      },
+      "find": {
+        "description": "Regex searched in each block id (no minecraft: prefix, no properties); lists the matching positions grouped by state instead of the table. Not with slice or format.",
+        "type": "string",
+        "minLength": 1
       },
       "entities": {
         "description": "Also list paintings, item frames and armor stands in the box (type, position, facing, variant/item/equipment; [Ashlar] marks Ashlar-placed ones).",

@@ -103,4 +103,14 @@ class McInspectTest {
         assertEquals("mc_inspect format: \"columns\" region has 1025 columns, exceeding the 1024-column limit. Reduce the x/z range.",
                 e.getMessage());
     }
+
+    @Test
+    void findParsesAndRejectsSliceFormatAndBadPatterns() {
+        McInspect.Args a = McInspect.Args.parse(obj("{\"from\":[0,60,0],\"to\":[10,70,10],\"find\":\"lantern|^light$\"}"));
+        assertEquals("lantern|^light$", a.find().pattern());
+        assertNull(McInspect.Args.parse(obj("{\"from\":[0,60,0],\"to\":[10,70,10]}")).find());
+        assertThrows(ToolArgError.class, () -> McInspect.Args.parse(obj("{\"from\":[0,60,0],\"to\":[10,70,10],\"find\":\"x\",\"format\":\"columns\"}")));
+        assertThrows(ToolArgError.class, () -> McInspect.Args.parse(obj("{\"from\":[0,60,0],\"to\":[10,70,10],\"find\":\"x\",\"slice\":{\"axis\":\"y\",\"at\":65}}")));
+        assertThrows(ToolArgError.class, () -> McInspect.Args.parse(obj("{\"from\":[0,60,0],\"to\":[10,70,10],\"find\":\"(\"}")));
+    }
 }
